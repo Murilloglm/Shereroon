@@ -51,6 +51,9 @@ Tanto o código quanto os instaladores ficarão visíveis publicamente; os amigo
 O projeto já foi enviado para [Murilloglm/Shereroon](https://github.com/Murilloglm/Shereroon), com o remoto
 `origin` configurado e o workflow `.github/workflows/desktop-release.yml` ativo.
 O canal de downloads é [GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
+A [página de download](https://murilloglm.github.io/Shereroon/) usa esse canal, com botão direto para o EXE
+e link SHA-256. O código está em `download-site/` e o deploy em `download-page.yml`. Essa página não
+hospeda salas e não deve ser usada como `SHAREROOM_SITE_URL`; para convites, use o serviço do aplicativo.
 Releases imutáveis estão habilitados e o token padrão do Actions usa permissões de leitura; o job de
 publicação solicita a escrita necessária. A distribuição gratuita atual usa **pré-versões sem assinatura**,
 com tags `preview-*`; elas não são versões oficiais assinadas e podem ser bloqueadas pelo Windows.

@@ -3,12 +3,17 @@
 Compartilhamento de tela em tempo real para assistir com amigos: salas privadas por link, sem cadastro e
 sem instalar nada para quem assiste. Funciona no computador e dá para assistir pelo celular.
 
-**Downloads para Windows:** [GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
+**Downloads para Windows:** [página de download](https://murilloglm.github.io/Shereroon/) ou
+[GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
 O canal gratuito de pré-versões distribui o instalador de teste **sem assinatura digital**; o Windows pode
 bloqueá-lo. A versão atual usa backend local e ainda não conecta amigos pela internet. O canal de versões
 assinadas exige certificado confiável e backend/site públicos. Os próximos builds de distribuição exigem
 servidores HTTPS públicos. A [implantação em nuvem](docs/cloud-deploy.md) está preparada e aguarda acesso
 às contas Render e LiveKit; ainda não há serviço de produção ativo. Veja [build e publicação](docs/windows-release.md).
+
+A página de download é publicada pelo workflow `download-page.yml`, a partir de `download-site/`.
+Ela usa links diretos para o GitHub Releases e funciona sem JavaScript. O endereço do antigo site Sites
+não foi alterado porque a conexão atual não tem acesso ao repositório de edição daquele projeto.
 
 - **Frontend:** React + TypeScript + Vite + Tailwind (`web/`)
 - **Backend de salas:** Node.js + Hono (`server/`) — emite os tokens temporários; não guarda nada
