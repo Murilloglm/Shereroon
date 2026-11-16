@@ -1,0 +1,72 @@
+# Publica o frontend no GitHub Pages a cada push na branch main.
+# O GitHub Pages só serve arquivos estáticos: o backend de salas e o LiveKit ficam em serviços externos
+# (veja o README). Antes do primeiro uso: Settings → Pages → Build and deployment → Source: GitHub Actions.
+name: Publicar site no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Uma publicação por vez; a que está em andamento termina antes da próxima começar.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - id: pages
+        uses: actions/configure-pages@v6
+
+      - run: npm ci
+
+      - name: Checar tipos e rodar os testes de unidade
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Avisar se o endereço do backend não foi configurado
+        if: ${{ vars.VITE_API_URL == '' }}
+        run: echo "::warning::A variável VITE_API_URL não está definida (Settings → Secrets and variables → Actions → Variables). O site será publicado, mas não vai conseguir criar salas."
+
+      - name: Gerar a versão de produção
+        run: npm run build
+        env:
+          # Caminho do site: "/NOME-DO-REPOSITORIO/" em sites de projeto, "/" em sites de usuário ou domínio próprio.
+          VITE_BASE: ${{ steps.pages.outputs.base_path }}/
+          # Endereço público do backend de salas. É uma variável comum, não um segredo:
+          # nenhuma chave privada entra no frontend.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          # Opcional: link para baixar o app auxiliar de áudio (ShareRoomAudio.exe).
+          VITE_HELPER_DOWNLOAD_URL: ${{ vars.VITE_HELPER_DOWNLOAD_URL }}
+
+      - name: Qualquer endereço desconhecido abre o app
+        run: cp web/dist/index.html web/dist/404.html
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

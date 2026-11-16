@@ -1,0 +1,28 @@
+{
+  "name": "shareroom-desktop",
+  "productName": "ShareRoom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ShareRoom para Windows: compartilhamento de tela em salas privadas",
+  "author": "ShareRoom",
+  "type": "module",
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "config": "node scripts/write-config.mjs",
+    "pack": "npm run config && electron-builder --dir --config electron-builder.config.cjs --publish never",
+    "dist": "npm run config && electron-builder --win nsis --config electron-builder.config.cjs --publish never",
+    "dist:signed": "npm run config && node scripts/build-signed.mjs",
+    "release": "npm run dist:signed",
+    "audit:signatures": "powershell -NoProfile -File scripts/audit-signatures.ps1",
+    "checksums": "node scripts/write-checksums.mjs",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "electron": "45.3.2",
+    "electron-builder": "26.18.0"
+  }
+}

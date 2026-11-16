@@ -1,0 +1,214 @@
+{
+    "schemaVersion":  1,
+    "auditedAtUtc":  "2026-11-16T00:57:09.4475127Z",
+    "expectedPublisher":  null,
+    "requireValid":  false,
+    "fileCount":  10,
+    "statusCounts":  {
+                         "NotSigned":  9,
+                         "Valid":  1
+                     },
+    "passed":  false,
+    "trustScope":  "Windows trust on this audit machine. A Valid result does not prove acceptance on other PCs or by their App Control policies. Use a public-trust code signing certificate and a clean Windows test machine.",
+    "uninstallerEvidencePresent":  false,
+    "embeddedExecutableVerification": {
+        "method": "Extracted the embedded 7z payload with electron-builder's cached 7za without running the installer; compared SHA-256 with win-unpacked.",
+        "files": [
+            { "path": "ShareRoom.exe", "status": "NotSigned", "matchesWinUnpacked": true, "sha256": "312ee1ed1386c20aa4d04f2e8a0291122d5e30a5b24dc7d294b76935323cd737" },
+            { "path": "resources/elevate.exe", "status": "NotSigned", "matchesWinUnpacked": true, "sha256": "9b1fbf0c11c520ae714af8aa9af12cfd48503eedecd7398d8992ee94d1b4dc37" },
+            { "path": "resources/helper/ShareRoomAudio.exe", "status": "NotSigned", "matchesWinUnpacked": true, "sha256": "35f57526ec19bc4468cae0d531536aae9f90d425784b16af8c454fd32840ed28" }
+        ],
+        "oldEmbeddedUninstallerVerified": false
+    },
+    "files":  [
+                  {
+                      "path":  "ShareRoom-Setup-0.1.0.exe",
+                      "size":  122151881,
+                      "sha256":  "1001be8dcf132fe632a6cb4caf2e70857bb9d07616f6c80039decf7424ecd9c3",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/d3dcompiler_47.dll",
+                      "size":  4753864,
+                      "sha256":  "f5c95e919b4ffa1ac71049cd45b9f986d2965e6888395ca2806337985334fa56",
+                      "status":  "Valid",
+                      "publisher":  "Microsoft Windows",
+                      "subject":  "CN=Microsoft Windows, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "issuer":  "CN=Microsoft Windows Production PCA 2026 RSA2048-SHA256, O=Microsoft Corporation, C=US",
+                      "thumbprint":  "667BBA1E1F478221AA65DE4F75187A751B03A453",
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  true,
+                      "timestampSubject":  "CN=Microsoft Time-Stamp Service, OU=nShield TSS ESN:DC00-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+                      "issues":  [
+
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/dxcompiler.dll",
+                      "size":  25779712,
+                      "sha256":  "4ac7ec780c60170be2e20f20f01a9e50d98151eaf6b52691f30cd25b229796ce",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/electron_wer.dll",
+                      "size":  425472,
+                      "sha256":  "35d7eea7196b64f94966e7ba3d048d647526a9eea9b7e86e09c0400a0b217b80",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/ffmpeg.dll",
+                      "size":  3097600,
+                      "sha256":  "8d53e5f607e362b5420a165424a5b07d70ff8ab3e5af23be0e790158d8c79235",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/resources/elevate.exe",
+                      "size":  107520,
+                      "sha256":  "9b1fbf0c11c520ae714af8aa9af12cfd48503eedecd7398d8992ee94d1b4dc37",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/resources/helper/ShareRoomAudio.exe",
+                      "size":  63488,
+                      "sha256":  "35f57526ec19bc4468cae0d531536aae9f90d425784b16af8c454fd32840ed28",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/ShareRoom.exe",
+                      "size":  250056704,
+                      "sha256":  "312ee1ed1386c20aa4d04f2e8a0291122d5e30a5b24dc7d294b76935323cd737",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/vk_swiftshader.dll",
+                      "size":  5453312,
+                      "sha256":  "389c5ecd95ef64106f73e4c90db64dda87e19bbc4d45fdc5f2a4de38c7599b06",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  },
+                  {
+                      "path":  "win-unpacked/vulkan-1.dll",
+                      "size":  957440,
+                      "sha256":  "05d885d451404f01ad99c99e915239e9e6c054ba99096d4042c5ad278d954c38",
+                      "status":  "NotSigned",
+                      "publisher":  null,
+                      "subject":  null,
+                      "issuer":  null,
+                      "thumbprint":  null,
+                      "selfSignedLeaf":  false,
+                      "hasTimestamp":  false,
+                      "timestampSubject":  null,
+                      "issues":  [
+                                     "Authenticode status: NotSigned",
+                                     "Missing Authenticode timestamp."
+                                 ]
+                  }
+              ],
+    "issues":  [
+                   "ShareRoom-Setup-0.1.0.exe: Authenticode status: NotSigned",
+                   "ShareRoom-Setup-0.1.0.exe: Missing Authenticode timestamp.",
+                   "win-unpacked/dxcompiler.dll: Authenticode status: NotSigned",
+                   "win-unpacked/dxcompiler.dll: Missing Authenticode timestamp.",
+                   "win-unpacked/electron_wer.dll: Authenticode status: NotSigned",
+                   "win-unpacked/electron_wer.dll: Missing Authenticode timestamp.",
+                   "win-unpacked/ffmpeg.dll: Authenticode status: NotSigned",
+                   "win-unpacked/ffmpeg.dll: Missing Authenticode timestamp.",
+                   "win-unpacked/resources/elevate.exe: Authenticode status: NotSigned",
+                   "win-unpacked/resources/elevate.exe: Missing Authenticode timestamp.",
+                   "win-unpacked/resources/helper/ShareRoomAudio.exe: Authenticode status: NotSigned",
+                   "win-unpacked/resources/helper/ShareRoomAudio.exe: Missing Authenticode timestamp.",
+                   "win-unpacked/ShareRoom.exe: Authenticode status: NotSigned",
+                   "win-unpacked/ShareRoom.exe: Missing Authenticode timestamp.",
+                   "win-unpacked/vk_swiftshader.dll: Authenticode status: NotSigned",
+                   "win-unpacked/vk_swiftshader.dll: Missing Authenticode timestamp.",
+                   "win-unpacked/vulkan-1.dll: Authenticode status: NotSigned",
+                   "win-unpacked/vulkan-1.dll: Missing Authenticode timestamp."
+               ]
+}

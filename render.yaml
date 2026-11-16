@@ -1,0 +1,39 @@
+# Backend de salas do ShareRoom no Render (https://render.com), com HTTPS automático.
+# No painel do Render: New → Blueprint → escolha este repositório. Ele vai pedir os valores marcados
+# com "sync: false". O frontend NÃO vai aqui: ele é publicado no GitHub Pages.
+services:
+  - type: web
+    name: shareroom-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev --workspace=server --include-workspace-root
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      # O Render fica na frente do serviço: o IP real do visitante vem no cabeçalho X-Forwarded-For.
+      - key: TRUST_PROXY
+        value: "1"
+      # Não servir o frontend por aqui.
+      - key: SERVE_WEB
+        value: "0"
+      # Chave que assina os convites. Gerada uma vez; se mudar, os links antigos param de valer.
+      - key: APP_SECRET
+        generateValue: true
+      # Do painel do LiveKit Cloud (Settings → Keys). São segredos: ficam só aqui.
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      # Origem do seu site, sem caminho. Exemplo: https://SEU-USUARIO.github.io
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Banco PostgreSQL das contas e dos grupos (Neon, Supabase ou o Postgres do próprio Render). É um segredo.
+      # Sem ele o servidor sobe do mesmo jeito, só com as salas por link.
+      - key: DATABASE_URL
+        sync: false

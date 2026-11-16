@@ -1,0 +1,211 @@
+# Só publica depois de assinar, verificar todos os binários e calcular os hashes finais.
+# Uma execução manual produz artefatos assinados; publicar exige push de tag vX.Y.Z.
+name: Aplicativo de Windows
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Para certificado em token/HSM, use um runner Windows provisionado para esse certificado.
+    runs-on: ${{ vars.WINDOWS_SIGNING_RUNNER || 'windows-latest' }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      # O canal de atualização deve ser o mesmo repositório que recebe este Release.
+      SHAREROOM_REPO: ${{ github.repository }}
+      SHAREROOM_API_URL: ${{ vars.VITE_API_URL }}
+      SHAREROOM_SITE_URL: ${{ vars.SHAREROOM_SITE_URL || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}
+      SHAREROOM_REQUIRE_SIGNING: '1'
+      SHAREROOM_TEST_BUILD: '0'
+      SHAREROOM_SIGNING_PROVIDER: ${{ vars.SHAREROOM_SIGNING_PROVIDER }}
+      SHAREROOM_PUBLISHER_NAME: ${{ vars.SHAREROOM_PUBLISHER_NAME }}
+      SHAREROOM_AZURE_ENDPOINT: ${{ vars.SHAREROOM_AZURE_ENDPOINT }}
+      SHAREROOM_AZURE_ACCOUNT: ${{ vars.SHAREROOM_AZURE_ACCOUNT }}
+      SHAREROOM_AZURE_PROFILE: ${{ vars.SHAREROOM_AZURE_PROFILE }}
+      SHAREROOM_CERTIFICATE_SHA1: ${{ vars.SHAREROOM_CERTIFICATE_SHA1 }}
+      SHAREROOM_CERTIFICATE_SUBJECT: ${{ vars.SHAREROOM_CERTIFICATE_SUBJECT }}
+      SHAREROOM_SIGN_HOOK: ${{ vars.SHAREROOM_SIGN_HOOK }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Conferir configuração de produção
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('SHAREROOM_API_URL', 'SHAREROOM_SITE_URL')) {
+            $address = [Environment]::GetEnvironmentVariable($name)
+            $uri = $null
+            if (-not [Uri]::TryCreate($address, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https') {
+              throw "Defina $name com uma URL https pública nas variáveis de Actions."
+            }
+          }
+          if ($env:SHAREROOM_SIGNING_PROVIDER -notin @('azure', 'signtool')) {
+            throw 'Defina SHAREROOM_SIGNING_PROVIDER=azure ou signtool; releases sem assinatura são recusadas.'
+          }
+          if (-not $env:SHAREROOM_PUBLISHER_NAME) {
+            throw 'Defina SHAREROOM_PUBLISHER_NAME com o CN exato do certificado confiável.'
+          }
+          if ($env:SHAREROOM_SIGNING_PROVIDER -eq 'azure') {
+            foreach ($name in @('SHAREROOM_AZURE_ENDPOINT', 'SHAREROOM_AZURE_ACCOUNT', 'SHAREROOM_AZURE_PROFILE')) {
+              if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Defina $name nas variáveis de Actions." }
+            }
+          }
+
+      - name: Dependências e verificação do código
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix desktop ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix desktop test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Versão a partir da tag
+        id: version
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -notmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+              throw 'A tag oficial deve ter o formato vX.Y.Z, sem prefixos extras ou zeros à esquerda.'
+            }
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+            npm --prefix desktop version $version --no-git-tag-version --allow-same-version
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            $version = (Get-Content -Raw desktop/package.json | ConvertFrom-Json).version
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Interface e componente de áudio
+        run: |
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build:helper
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Gerar e assinar o instalador (sem publicar)
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:SHAREROOM_SIGNING_PROVIDER -eq 'azure') {
+            foreach ($name in @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET')) {
+              if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Defina o secret $name para autenticar a assinatura Azure." }
+            }
+          } elseif (-not ($env:SHAREROOM_CERTIFICATE_SHA1 -or $env:SHAREROOM_CERTIFICATE_SUBJECT -or $env:SHAREROOM_SIGN_HOOK -or $env:WIN_CSC_LINK)) {
+            throw 'Configure o certificado signtool no runner, um hook de assinatura ou WIN_CSC_LINK apropriado.'
+          }
+          npm --prefix desktop run dist:signed
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Conferir evidências e assets finais
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # dist:signed já executou a auditoria obrigatória e calculou os hashes.
+          $report = Get-Content -Raw desktop/release/signature-report.json | ConvertFrom-Json
+          if (-not $report.passed -or -not $report.requireValid -or $report.expectedPublisher -cne $env:SHAREROOM_PUBLISHER_NAME) {
+            throw 'As evidências da auditoria obrigatória não correspondem a esta release.'
+          }
+          foreach ($asset in @("ShareRoom-Setup-${env:RELEASE_VERSION}.exe", "ShareRoom-Setup-${env:RELEASE_VERSION}.exe.blockmap", 'latest.yml', 'SHA256SUMS.txt', "ShareRoom-Setup-${env:RELEASE_VERSION}.exe.sha256", 'signature-report.json')) {
+            if (-not (Test-Path -LiteralPath (Join-Path desktop/release $asset) -PathType Leaf)) { throw "Artefato obrigatório ausente: $asset" }
+          }
+
+      - name: Guardar instalador assinado e evidências
+        uses: actions/upload-artifact@v7
+        with:
+          name: ShareRoom-Windows-${{ steps.version.outputs.version }}
+          if-no-files-found: error
+          path: |
+            desktop/release/ShareRoom-Setup-${{ steps.version.outputs.version }}.exe
+            desktop/release/ShareRoom-Setup-${{ steps.version.outputs.version }}.exe.blockmap
+            desktop/release/latest.yml
+            desktop/release/SHA256SUMS.txt
+            desktop/release/ShareRoom-Setup-${{ steps.version.outputs.version }}.exe.sha256
+            desktop/release/signature-report.json
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ShareRoom-Windows-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Publicar somente os bytes verificados no GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          (cd release && sha256sum --check --strict SHA256SUMS.txt)
+          if gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Já existe um Release para esta tag. Use uma nova versão; os instaladores oficiais não são sobrescritos.' >&2
+            exit 1
+          fi
+          installer="ShareRoom-Setup-$RELEASE_VERSION.exe"
+          installer_sha=''
+          while read -r hash filename; do
+            if [[ "$filename" == "$installer" ]]; then installer_sha="$hash"; fi
+          done < release/SHA256SUMS.txt
+          if [[ ! "$installer_sha" =~ ^[0-9a-f]{64}$ ]]; then
+            echo 'SHA-256 do instalador ausente ou inválido.' >&2
+            exit 1
+          fi
+          publisher="$(jq -er 'select(.passed == true and .requireValid == true) | .expectedPublisher | select(type == "string" and length > 0)' release/signature-report.json)"
+          asset_url="https://github.com/$RELEASE_REPOSITORY/releases/download/$RELEASE_TAG"
+          notes_file="$RUNNER_TEMP/shareroom-release-notes.md"
+          {
+            printf 'Instalador oficial do ShareRoom %s para Windows 10/11 x64.\n\n' "$RELEASE_VERSION"
+            printf '[Baixar %s](%s/%s)\n\n' "$installer" "$asset_url" "$installer"
+            printf 'Editor verificado (CN do certificado): %s.\n\n' "$publisher"
+            printf 'SHA-256 do instalador:\n\n```text\n%s  %s\n```\n\n' "$installer_sha" "$installer"
+            printf '[Todos os hashes SHA-256](%s/SHA256SUMS.txt) · [Relatório Authenticode](%s/signature-report.json).\n\n' "$asset_url" "$asset_url"
+            printf '[Diagnóstico de bloqueios no Windows](https://github.com/%s/blob/%s/docs/windows-signing-options.md).\n' "$RELEASE_REPOSITORY" "$RELEASE_TAG"
+          } > "$notes_file"
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --draft --title "ShareRoom $RELEASE_VERSION" --notes-file "$notes_file"
+          gh release upload "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
+            "release/ShareRoom-Setup-$RELEASE_VERSION.exe" \
+            "release/ShareRoom-Setup-$RELEASE_VERSION.exe.blockmap" \
+            release/latest.yml release/SHA256SUMS.txt \
+            "release/ShareRoom-Setup-$RELEASE_VERSION.exe.sha256" \
+            release/signature-report.json
+          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --latest

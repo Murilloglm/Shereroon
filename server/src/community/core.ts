@@ -1,0 +1,1516 @@
+/**
+ * Grupos, canais, cargos e mensagens. TODA regra de permissão e de hierarquia é decidida aqui, no backend:
+ * a interface só mostra o resultado. As rotas HTTP (routes.ts) apenas traduzem requisições em chamadas a
+ * esta classe, e os bots usam os mesmos métodos, sujeitos às mesmas regras.
+ */
+import {
+  ALL_PERMISSIONS,
+  basePermissions,
+  canActOnMember,
+  canManageRole,
+  channelPermissions,
+  DEFAULT_EVERYONE,
+  forbiddenChanges,
+  GROUP_WIDE,
+  has,
+  P,
+  parsePermissions,
+  PERMISSIONS,
+  ROLE_TEMPLATES,
+  topPosition,
+  type OverrideLike,
+  type RoleLike,
+  type Subject,
+} from '../../../shared/permissions.ts';
+import { big, iso, isoOrNull, num, type Db, type Row } from '../db/db.ts';
+import { ApiError } from '../errors.ts';
+import { RateLimiter } from '../ratelimit.ts';
+import type { PublishRights, Sfu } from '../sfu.ts';
+import { cleanText, newId, type User } from './auth.ts';
+import type { Hub } from './hub.ts';
+
+export type ChannelKind = 'categoria' | 'texto' | 'voz';
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  icon: string | null;
+  isPublic: boolean;
+  ownerId: string;
+  createdAt: string;
+}
+
+export interface Role extends RoleLike {
+  groupId: string;
+  name: string;
+  color: string | null;
+  /** Cargo criado para um bot instalado. Só a Central de Bots mexe nele; a posição pode ser mudada como a de qualquer cargo. */
+  botId: string | null;
+}
+
+export interface Channel {
+  id: string;
+  groupId: string;
+  kind: ChannelKind;
+  name: string;
+  topic: string;
+  parentId: string | null;
+  position: number;
+  userLimit: number;
+}
+
+export interface Override extends OverrideLike {
+  channelId: string;
+}
+
+export interface Member {
+  userId: string;
+  username: string;
+  displayName: string;
+  nickname: string | null;
+  joinedAt: string;
+  timeoutUntil: string | null;
+  roleIds: Set<string>;
+  /** Conta de um bot instalado no grupo. */
+  bot: boolean;
+}
+
+/** Tudo de um grupo que as regras de permissão precisam, carregado de uma vez e guardado até a próxima mudança. */
+export interface Snapshot {
+  group: Group;
+  roles: Role[];
+  everyone: Role;
+  channels: Map<string, Channel>;
+  overrides: Map<string, Override[]>;
+  members: Map<string, Member>;
+}
+
+interface Ctx {
+  user: User;
+  snap: Snapshot;
+  me: Member;
+  subject: Subject;
+  base: bigint;
+}
+
+export interface Message {
+  id: string;
+  channelId: string;
+  author: { id: string | null; name: string; username: string | null; bot: boolean };
+  content: string;
+  mentionEveryone: boolean;
+  pinned: boolean;
+  createdAt: string;
+  editedAt: string | null;
+  meta: MessageMeta | null;
+}
+
+/** Complementos de uma mensagem de bot. Um botão, ao ser clicado, envia `command` como se a pessoa tivesse digitado. */
+export interface MessageMeta {
+  buttons?: { label: string; command: string; style?: 'primario' | 'perigo' }[];
+  /** Mensagem que só faz sentido para uma pessoa (resposta a um comando dela). Todos do canal ainda a veem. */
+  replyTo?: string;
+}
+
+export interface CommunityOptions {
+  livekitUrl: string;
+  tokenTtlSeconds: number;
+}
+
+export const LIMITS = {
+  groupsPerUser: 100,
+  rolesPerGroup: 250,
+  channelsPerGroup: 300,
+  messageChars: 4000,
+  nameChars: 48,
+  topicChars: 300,
+  descriptionChars: 300,
+  iconChars: 140_000,
+  voiceUsers: 99,
+};
+
+const NOT_FOUND = () => new ApiError(404, 'grupo_inexistente', 'Grupo não encontrado.');
+const NO_CHANNEL = () => new ApiError(404, 'canal_inexistente', 'Canal não encontrado.');
+const LINK = /\bhttps?:\/\/\S|\bwww\.[a-z0-9-]+\.[a-z]{2,}/i;
+const CHANNEL_SCOPED = ALL_PERMISSIONS & ~GROUP_WIDE;
+export const voiceRoom = (channelId: string): string => `sr-vc-${channelId}`;
+
+const str = (set: bigint): string => set.toString();
+
+function permissionName(bit: bigint): string {
+  return PERMISSIONS.find((item) => 1n << BigInt(item.bit) === bit)?.name ?? 'necessária';
+}
+
+function requiredName(value: unknown, what: string, max = LIMITS.nameChars): string {
+  const clean = cleanText(value, max);
+  if (!clean) throw new ApiError(400, 'nome_invalido', `Informe ${what}.`);
+  return clean;
+}
+
+function optionalColor(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string' || !/^#[0-9a-f]{6}$/i.test(value)) throw new ApiError(400, 'cor_invalida', 'A cor deve estar no formato #rrggbb.');
+  return value.toLowerCase();
+}
+
+function optionalIcon(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string' || value.length > LIMITS.iconChars || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(value)) {
+    throw new ApiError(400, 'icone_invalido', 'O ícone deve ser uma imagem PNG, JPEG ou WebP de até 100 KB.');
+  }
+  return value;
+}
+
+const toGroup = (row: Row): Group => ({
+  id: String(row.id),
+  name: String(row.name),
+  description: String(row.description),
+  icon: row.icon === null ? null : String(row.icon),
+  isPublic: row.is_public === true,
+  ownerId: String(row.owner_id),
+  createdAt: iso(row.created_at),
+});
+
+const toMessage = (row: Row): Message => ({
+  id: String(row.id),
+  channelId: String(row.channel_id),
+  author: {
+    id: row.author_id === null ? null : String(row.author_id),
+    name: String(row.author_name ?? row.display_name ?? 'Conta removida'),
+    username: row.username === null || row.username === undefined ? null : String(row.username),
+    bot: row.is_bot === true,
+  },
+  content: String(row.content),
+  mentionEveryone: row.mention_everyone === true,
+  pinned: row.pinned === true,
+  createdAt: iso(row.created_at),
+  editedAt: isoOrNull(row.edited_at),
+  meta: row.meta === null || row.meta === undefined ? null : ((typeof row.meta === 'string' ? JSON.parse(row.meta) : row.meta) as MessageMeta),
+});
+
+const MESSAGE_SELECT = `SELECT m.*, u.display_name, u.username, u.is_bot FROM messages m LEFT JOIN users u ON u.id = m.author_id`;
+
+/** O que acontece nos grupos e interessa aos bots. Sai depois de a mudança já estar gravada. */
+export type CommunityEvent =
+  | { type: 'message'; groupId: string; channel: Channel; message: Message; author: User; fromBot: boolean }
+  | { type: 'member.join'; groupId: string; userId: string }
+  | { type: 'member.leave'; groupId: string; userId: string; reason: 'saiu' | 'expulso' | 'banido' }
+  | { type: 'member.roles'; groupId: string; userId: string; added: string[]; removed: string[] }
+  | { type: 'voice.join'; groupId: string; channelId: string; userId: string }
+  | { type: 'voice.leave'; groupId: string; channelId: string; userId: string };
+
+export class Community {
+  readonly hub: Hub;
+  readonly #db: Db;
+  readonly #sfu: Sfu;
+  readonly #options: CommunityOptions;
+  readonly #limiter: RateLimiter;
+  readonly #cache = new Map<string, Promise<Snapshot>>();
+  readonly #channelGroup = new Map<string, string>();
+  /** Quem foi movido por um moderador pode entrar no canal de destino uma vez, mesmo sem a permissão "Conectar". */
+  readonly #movePass = new Map<string, { channelId: string; expires: number }>();
+
+  constructor(db: Db, hub: Hub, sfu: Sfu, options: CommunityOptions, limiter = new RateLimiter()) {
+    this.#db = db;
+    this.hub = hub;
+    this.#sfu = sfu;
+    this.#options = options;
+    this.#limiter = limiter;
+    hub.canSeeChannel = (groupId, channelId, userId) => this.canSee(groupId, channelId, userId);
+    hub.onVoiceDropped = (userId, place) => void sfu.removeParticipant(voiceRoom(place.channelId), userId).catch(() => undefined);
+    hub.onVoiceChanged = (userId, before, after) => {
+      if (before) this.#emit({ type: 'voice.leave', groupId: before.groupId, channelId: before.channelId, userId });
+      if (after) this.#emit({ type: 'voice.join', groupId: after.groupId, channelId: after.channelId, userId });
+    };
+  }
+
+  // --- Eventos internos (para os bots) -----------------------------------------------------
+
+  readonly #listeners = new Set<(event: CommunityEvent) => void>();
+
+  /** Registra um ouvinte dos eventos dos grupos. Um ouvinte que falha não atrapalha a ação que gerou o evento. */
+  onEvent(listener: (event: CommunityEvent) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  #emit(event: CommunityEvent): void {
+    for (const listener of this.#listeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error('[eventos]', error);
+      }
+    }
+  }
+
+  /** Para quem altera o grupo por fora desta classe (a Central de Bots): invalida o estado guardado e avisa os conectados. */
+  touch(groupId: string): void {
+    this.#changed(groupId);
+  }
+
+  // --- Leitura do estado e contas de permissão ---------------------------------------------
+
+  snapshot(groupId: string): Promise<Snapshot> {
+    let pending = this.#cache.get(groupId);
+    if (!pending) {
+      pending = this.#load(groupId);
+      this.#cache.set(groupId, pending);
+      pending.catch(() => this.#cache.get(groupId) === pending && this.#cache.delete(groupId));
+    }
+    return pending;
+  }
+
+  async #load(groupId: string): Promise<Snapshot> {
+    const [group] = await this.#db.query('SELECT * FROM groups WHERE id = $1', [groupId]);
+    if (!group) throw NOT_FOUND();
+    const [roleRows, channelRows, overrideRows, memberRows, memberRoleRows] = await Promise.all([
+      this.#db.query('SELECT * FROM roles WHERE group_id = $1 ORDER BY position DESC', [groupId]),
+      this.#db.query('SELECT * FROM channels WHERE group_id = $1 ORDER BY position, created_at', [groupId]),
+      this.#db.query('SELECT o.* FROM overrides o JOIN channels c ON c.id = o.channel_id WHERE c.group_id = $1', [groupId]),
+      this.#db.query(
+        'SELECT m.*, u.username, u.display_name, u.is_bot FROM members m JOIN users u ON u.id = m.user_id WHERE m.group_id = $1 ORDER BY m.joined_at',
+        [groupId],
+      ),
+      this.#db.query('SELECT user_id, role_id FROM member_roles WHERE group_id = $1', [groupId]),
+    ]);
+    const roles: Role[] = roleRows.map((row) => ({
+      id: String(row.id),
+      groupId,
+      name: String(row.name),
+      color: row.color === null ? null : String(row.color),
+      position: num(row.position),
+      permissions: big(row.permissions),
+      isEveryone: row.is_everyone === true,
+      botId: row.bot_id === null || row.bot_id === undefined ? null : String(row.bot_id),
+    }));
+    const everyone = roles.find((role) => role.isEveryone);
+    if (!everyone) throw new Error(`grupo ${groupId} sem o cargo @everyone`);
+    const channels = new Map<string, Channel>();
+    for (const row of channelRows) {
+      const channel: Channel = {
+        id: String(row.id),
+        groupId,
+        kind: String(row.kind) as ChannelKind,
+        name: String(row.name),
+        topic: String(row.topic),
+        parentId: row.parent_id === null ? null : String(row.parent_id),
+        position: num(row.position),
+        userLimit: num(row.user_limit),
+      };
+      channels.set(channel.id, channel);
+      this.#channelGroup.set(channel.id, groupId);
+    }
+    const overrides = new Map<string, Override[]>();
+    for (const row of overrideRows) {
+      const item: Override = {
+        channelId: String(row.channel_id),
+        targetKind: String(row.target_kind) as Override['targetKind'],
+        targetId: String(row.target_id),
+        allow: big(row.allow),
+        deny: big(row.deny),
+      };
+      overrides.set(item.channelId, [...(overrides.get(item.channelId) ?? []), item]);
+    }
+    const members = new Map<string, Member>();
+    for (const row of memberRows) {
+      members.set(String(row.user_id), {
+        userId: String(row.user_id),
+        username: String(row.username),
+        displayName: String(row.display_name),
+        nickname: row.nickname === null ? null : String(row.nickname),
+        joinedAt: iso(row.joined_at),
+        timeoutUntil: isoOrNull(row.timeout_until),
+        roleIds: new Set(),
+        bot: row.is_bot === true,
+      });
+    }
+    for (const row of memberRoleRows) members.get(String(row.user_id))?.roleIds.add(String(row.role_id));
+    return { group: toGroup(group), roles, everyone, channels, overrides, members };
+  }
+
+  /** Depois de qualquer mudança: a próxima leitura busca de novo, e quem está conectado é avisado. */
+  #changed(groupId: string): void {
+    this.#cache.delete(groupId);
+    this.hub.publish(groupId, { t: 'group.changed', groupId });
+  }
+
+  subjectOf(snap: Snapshot, member: Member): Subject {
+    return {
+      userId: member.userId,
+      isOwner: snap.group.ownerId === member.userId,
+      roleIds: member.roleIds,
+      timedOut: member.timeoutUntil !== null && Date.parse(member.timeoutUntil) > Date.now(),
+    };
+  }
+
+  permissionsIn(snap: Snapshot, subject: Subject, channel: Channel): bigint {
+    const parent = channel.parentId ? (snap.overrides.get(channel.parentId) ?? []) : [];
+    return channelPermissions(subject, snap.roles, [parent, snap.overrides.get(channel.id) ?? []]);
+  }
+
+  async canSee(groupId: string, channelId: string, userId: string): Promise<boolean> {
+    const snap = await this.snapshot(groupId);
+    const member = snap.members.get(userId);
+    const channel = snap.channels.get(channelId);
+    return Boolean(member && channel) && has(this.permissionsIn(snap, this.subjectOf(snap, member!), channel!), P.VIEW_CHANNEL);
+  }
+
+  async groupIdsOf(userId: string): Promise<string[]> {
+    return (await this.#db.query('SELECT group_id FROM members WHERE user_id = $1', [userId])).map((row) => String(row.group_id));
+  }
+
+  async #ctx(user: User, groupId: string): Promise<Ctx> {
+    const snap = await this.snapshot(groupId);
+    const me = snap.members.get(user.id);
+    // Quem não é membro recebe a mesma resposta de "grupo não existe": não dá para sondar grupos privados.
+    if (!me) throw NOT_FOUND();
+    const subject = this.subjectOf(snap, me);
+    return { user, snap, me, subject, base: basePermissions(subject, snap.roles) };
+  }
+
+  /** Quem é esta pessoa neste grupo e o que ela pode nele. A Central de Bots usa para aplicar as próprias permissões. */
+  async access(user: User, groupId: string): Promise<{ snap: Snapshot; me: Member; subject: Subject; base: bigint }> {
+    return this.#ctx(user, groupId);
+  }
+
+  #need(ctx: Ctx, permission: bigint, set = ctx.base): void {
+    if (!has(set, permission)) {
+      throw new ApiError(403, 'sem_permissao', `Você não tem a permissão “${permissionName(permission)}”.`);
+    }
+  }
+
+  async #channelCtx(user: User, channelId: string): Promise<{ ctx: Ctx; channel: Channel; perms: bigint }> {
+    let groupId = this.#channelGroup.get(channelId);
+    if (!groupId) {
+      const [row] = await this.#db.query('SELECT group_id FROM channels WHERE id = $1', [channelId]);
+      if (!row) throw NO_CHANNEL();
+      groupId = String(row.group_id);
+    }
+    let ctx: Ctx;
+    try {
+      ctx = await this.#ctx(user, groupId);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) throw NO_CHANNEL();
+      throw error;
+    }
+    const channel = ctx.snap.channels.get(channelId);
+    if (!channel) throw NO_CHANNEL();
+    const perms = this.permissionsIn(ctx.snap, ctx.subject, channel);
+    // Canal que a pessoa não pode ver "não existe" para ela.
+    if (!has(perms, P.VIEW_CHANNEL)) throw NO_CHANNEL();
+    return { ctx, channel, perms };
+  }
+
+  #targetMember(ctx: Ctx, userId: string): { member: Member; subject: Subject } {
+    const member = ctx.snap.members.get(userId);
+    if (!member) throw new ApiError(404, 'membro_inexistente', 'Essa pessoa não é membro do grupo.');
+    return { member, subject: this.subjectOf(ctx.snap, member) };
+  }
+
+  #needRank(ctx: Ctx, target: Subject): void {
+    if (!canActOnMember(ctx.subject, target, ctx.snap.roles)) {
+      throw new ApiError(403, 'hierarquia', 'Você só pode fazer isso com membros que estão abaixo do seu cargo mais alto.');
+    }
+  }
+
+  async #audit(db: Db, ctx: Ctx, action: string, target: { kind: string; id: string; name: string }, detail: Record<string, unknown> = {}): Promise<void> {
+    await db.query(
+      `INSERT INTO audit_log (group_id, actor_id, actor_name, action, target_kind, target_id, target_name, detail) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+      [ctx.snap.group.id, ctx.user.id, ctx.user.displayName, action, target.kind, target.id, target.name, JSON.stringify(detail)],
+    );
+  }
+
+  // --- Grupos -----------------------------------------------------------------------------
+
+  async myGroups(user: User): Promise<Group[]> {
+    const rows = await this.#db.query('SELECT g.* FROM groups g JOIN members m ON m.group_id = g.id WHERE m.user_id = $1 ORDER BY m.joined_at', [user.id]);
+    return rows.map(toGroup);
+  }
+
+  async publicGroups(user: User, search: unknown): Promise<(Group & { memberCount: number; joined: boolean })[]> {
+    const term = cleanText(search, 40).replace(/[\\%_]/g, (char) => `\\${char}`);
+    const rows = await this.#db.query(
+      `SELECT g.*, (SELECT count(*) FROM members m WHERE m.group_id = g.id) AS member_count,
+              EXISTS (SELECT 1 FROM members m WHERE m.group_id = g.id AND m.user_id = $2) AS joined
+         FROM groups g
+        WHERE g.is_public AND (g.name ILIKE $1 OR g.description ILIKE $1)
+          AND NOT EXISTS (SELECT 1 FROM bans b WHERE b.group_id = g.id AND b.user_id = $2)
+        ORDER BY member_count DESC, g.created_at LIMIT 50`,
+      [`%${term}%`, user.id],
+    );
+    return rows.map((row) => ({ ...toGroup(row), memberCount: num(row.member_count), joined: row.joined === true }));
+  }
+
+  async createGroup(user: User, input: Record<string, unknown>): Promise<Group> {
+    const name = requiredName(input.name, 'o nome do grupo');
+    const description = cleanText(input.description, LIMITS.descriptionChars);
+    const icon = optionalIcon(input.icon);
+    const [count] = await this.#db.query('SELECT count(*) AS total FROM members WHERE user_id = $1', [user.id]);
+    if (num(count?.total) >= LIMITS.groupsPerUser) throw new ApiError(409, 'grupos_demais', `Cada conta participa de no máximo ${LIMITS.groupsPerUser} grupos.`);
+    const id = newId();
+    await this.#db.tx(async (tx) => {
+      await tx.query('INSERT INTO groups (id, name, description, icon, is_public, owner_id) VALUES ($1, $2, $3, $4, $5, $6)', [
+        id,
+        name,
+        description,
+        icon,
+        input.isPublic === true,
+        user.id,
+      ]);
+      await tx.query('INSERT INTO members (group_id, user_id) VALUES ($1, $2)', [id, user.id]);
+      await tx.query(`INSERT INTO roles (id, group_id, name, color, position, permissions, is_everyone) VALUES ($1, $2, '@everyone', NULL, 0, $3, true)`, [
+        newId(),
+        id,
+        str(DEFAULT_EVERYONE),
+      ]);
+      // Cargos iniciais, do mais alto para o mais baixo. São cargos comuns: dá para editar e excluir.
+      const starters = ROLE_TEMPLATES.filter((template) => template.name === 'Administrador' || template.name === 'Moderador');
+      for (const [index, template] of starters.entries()) {
+        await tx.query('INSERT INTO roles (id, group_id, name, color, position, permissions) VALUES ($1, $2, $3, $4, $5, $6)', [
+          newId(),
+          id,
+          template.name,
+          template.color,
+          starters.length - index,
+          str(template.permissions),
+        ]);
+      }
+      const text = newId();
+      const voice = newId();
+      await tx.query(`INSERT INTO channels (id, group_id, kind, name, position) VALUES ($1, $2, 'categoria', 'Canais de texto', 0), ($3, $2, 'categoria', 'Canais de voz', 1)`, [
+        text,
+        id,
+        voice,
+      ]);
+      await tx.query(
+        `INSERT INTO channels (id, group_id, kind, name, parent_id, position) VALUES ($1, $2, 'texto', 'geral', $3, 0), ($4, $2, 'voz', 'Sala de voz', $5, 0)`,
+        [newId(), id, text, newId(), voice],
+      );
+      await tx.query(
+        `INSERT INTO audit_log (group_id, actor_id, actor_name, action, target_kind, target_id, target_name) VALUES ($1, $2, $3, 'grupo.criado', 'grupo', $1, $4)`,
+        [id, user.id, user.displayName, name],
+      );
+    });
+    this.hub.subscribe(user.id, id);
+    return (await this.snapshot(id)).group;
+  }
+
+  /** O grupo como ESTA pessoa o vê: só os canais que ela pode ver, com as permissões dela em cada um. */
+  async viewGroup(user: User, groupId: string) {
+    const ctx = await this.#ctx(user, groupId);
+    const { snap, subject } = ctx;
+    const online = new Set(this.hub.online(groupId));
+    const voice = this.hub.voiceIn(groupId);
+    const counts = new Map<string, number>();
+    for (const member of snap.members.values()) for (const roleId of member.roleIds) counts.set(roleId, (counts.get(roleId) ?? 0) + 1);
+
+    const visible = new Map<string, bigint>();
+    for (const channel of snap.channels.values()) {
+      if (channel.kind === 'categoria') continue;
+      const perms = this.permissionsIn(snap, subject, channel);
+      if (has(perms, P.VIEW_CHANNEL)) visible.set(channel.id, perms);
+    }
+    const everyoneId = snap.everyone.id;
+    const isPrivate = (channel: Channel): boolean =>
+      [channel.id, channel.parentId].some((id) =>
+        (id ? (snap.overrides.get(id) ?? []) : []).some((item) => item.targetKind === 'cargo' && item.targetId === everyoneId && has(item.deny, P.VIEW_CHANNEL)),
+      );
+    const channels = [...snap.channels.values()]
+      // Categorias primeiro, cada grupo na ordem definida pelo grupo.
+      .sort((a, b) => Number(a.kind !== 'categoria') - Number(b.kind !== 'categoria') || a.position - b.position || a.name.localeCompare(b.name))
+      .filter((channel) => {
+        if (channel.kind !== 'categoria') return visible.has(channel.id);
+        // Categoria aparece se tiver algum canal visível, ou vazia para quem gerencia canais.
+        const children = [...snap.channels.values()].filter((item) => item.parentId === channel.id);
+        return children.some((item) => visible.has(item.id)) || (has(ctx.base, P.MANAGE_CHANNELS) && has(this.permissionsIn(snap, subject, channel), P.VIEW_CHANNEL));
+      })
+      .map((channel) => ({
+        id: channel.id,
+        kind: channel.kind,
+        name: channel.name,
+        topic: channel.topic,
+        parentId: channel.parentId,
+        position: channel.position,
+        userLimit: channel.userLimit,
+        private: isPrivate(channel),
+        permissions: str(channel.kind === 'categoria' ? this.permissionsIn(snap, subject, channel) : visible.get(channel.id)!),
+      }));
+
+    const top = topPosition(subject, snap.roles);
+    return {
+      group: snap.group,
+      me: {
+        userId: user.id,
+        isOwner: subject.isOwner,
+        roleIds: [...ctx.me.roleIds],
+        permissions: str(ctx.base),
+        /** Posição do cargo mais alto (null para o dono, que está acima de todos). */
+        top: Number.isFinite(top) ? top : null,
+        timeoutUntil: ctx.me.timeoutUntil,
+      },
+      roles: snap.roles.map((role) => ({
+        id: role.id,
+        name: role.name,
+        color: role.color,
+        position: role.position,
+        permissions: str(role.permissions),
+        isEveryone: role.isEveryone,
+        botId: role.botId,
+        memberCount: role.isEveryone ? snap.members.size : (counts.get(role.id) ?? 0),
+      })),
+      channels,
+      members: [...snap.members.values()].map((member) => ({
+        userId: member.userId,
+        username: member.username,
+        displayName: member.displayName,
+        nickname: member.nickname,
+        roleIds: [...member.roleIds],
+        joinedAt: member.joinedAt,
+        timeoutUntil: member.timeoutUntil,
+        online: online.has(member.userId) || member.bot,
+        bot: member.bot,
+      })),
+      voice: Object.fromEntries(Object.entries(voice).filter(([channelId]) => visible.has(channelId))),
+    };
+  }
+
+  async updateGroup(user: User, groupId: string, input: Record<string, unknown>): Promise<Group> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.MANAGE_GROUP);
+    const before = ctx.snap.group;
+    const next = {
+      name: input.name === undefined ? before.name : requiredName(input.name, 'o nome do grupo'),
+      description: input.description === undefined ? before.description : cleanText(input.description, LIMITS.descriptionChars),
+      icon: input.icon === undefined ? before.icon : optionalIcon(input.icon),
+      isPublic: typeof input.isPublic === 'boolean' ? input.isPublic : before.isPublic,
+    };
+    await this.#db.tx(async (tx) => {
+      await tx.query('UPDATE groups SET name = $2, description = $3, icon = $4, is_public = $5 WHERE id = $1', [groupId, next.name, next.description, next.icon, next.isPublic]);
+      await this.#audit(tx, ctx, 'grupo.atualizado', { kind: 'grupo', id: groupId, name: next.name }, {
+        ...(next.name !== before.name ? { nome: [before.name, next.name] } : {}),
+        ...(next.description !== before.description ? { descricao: [before.description, next.description] } : {}),
+        ...(next.isPublic !== before.isPublic ? { publico: [before.isPublic, next.isPublic] } : {}),
+        ...(next.icon !== before.icon ? { icone: 'alterado' } : {}),
+      });
+    });
+    this.#changed(groupId);
+    return (await this.snapshot(groupId)).group;
+  }
+
+  async deleteGroup(user: User, groupId: string): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    if (!ctx.subject.isOwner) throw new ApiError(403, 'so_o_dono', 'Só o dono pode excluir o grupo.');
+    await this.#db.query('DELETE FROM groups WHERE id = $1', [groupId]);
+    this.#cache.delete(groupId);
+    this.hub.publish(groupId, { t: 'group.removed', groupId, reason: 'excluido' });
+    this.hub.dropGroup(groupId);
+    for (const channel of ctx.snap.channels.values()) {
+      this.#channelGroup.delete(channel.id);
+      if (channel.kind === 'voz') void this.#sfu.closeRoom(voiceRoom(channel.id)).catch(() => undefined);
+    }
+  }
+
+  async transferOwnership(user: User, groupId: string, targetId: unknown): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    if (!ctx.subject.isOwner) throw new ApiError(403, 'so_o_dono', 'Só o dono pode passar o grupo para outra pessoa.');
+    const { member } = this.#targetMember(ctx, String(targetId));
+    this.#human(member);
+    if (member.userId === user.id) return;
+    await this.#db.tx(async (tx) => {
+      await tx.query('UPDATE groups SET owner_id = $2 WHERE id = $1', [groupId, member.userId]);
+      await this.#audit(tx, ctx, 'grupo.dono_transferido', { kind: 'membro', id: member.userId, name: member.displayName });
+    });
+    this.#changed(groupId);
+  }
+
+  // --- Entrar e sair ----------------------------------------------------------------------
+
+  async #addMember(db: Db, groupId: string, user: User): Promise<void> {
+    const [banned] = await db.query('SELECT 1 FROM bans WHERE group_id = $1 AND user_id = $2', [groupId, user.id]);
+    if (banned) throw new ApiError(403, 'banido', 'Você foi banido deste grupo.');
+    const [count] = await db.query('SELECT count(*) AS total FROM members WHERE user_id = $1', [user.id]);
+    if (num(count?.total) >= LIMITS.groupsPerUser) throw new ApiError(409, 'grupos_demais', `Cada conta participa de no máximo ${LIMITS.groupsPerUser} grupos.`);
+    await db.query('INSERT INTO members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [groupId, user.id]);
+  }
+
+  #joined(groupId: string, user: User): void {
+    this.#changed(groupId);
+    this.hub.subscribe(user.id, groupId);
+    this.#emit({ type: 'member.join', groupId, userId: user.id });
+  }
+
+  #human(member: Member): void {
+    if (member.bot) throw new ApiError(400, 'bot_gerenciado', 'Esta conta é um bot. Para tirar ou configurar, use a Central de Bots.');
+  }
+
+  #notManaged(role: Role): void {
+    if (role.botId) {
+      throw new ApiError(400, 'cargo_de_bot', 'Este cargo pertence a um bot instalado e só muda pela Central de Bots. A posição dele na hierarquia você pode mudar.');
+    }
+  }
+
+  async joinPublic(user: User, groupId: string): Promise<Group> {
+    const snap = await this.snapshot(groupId);
+    if (snap.members.has(user.id)) return snap.group;
+    if (!snap.group.isPublic) throw NOT_FOUND();
+    await this.#addMember(this.#db, groupId, user);
+    this.#joined(groupId, user);
+    return snap.group;
+  }
+
+  async leave(user: User, groupId: string): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    if (ctx.subject.isOwner) throw new ApiError(409, 'dono_nao_sai', 'O dono não pode sair do grupo. Passe o grupo para outra pessoa ou exclua-o.');
+    await this.#db.tx((tx) => this.#removeMember(tx, ctx.snap, user.id));
+    this.#afterRemoval(groupId, user.id, 'saiu');
+  }
+
+  async #removeMember(db: Db, snap: Snapshot, userId: string): Promise<void> {
+    await db.query('DELETE FROM members WHERE group_id = $1 AND user_id = $2', [snap.group.id, userId]);
+    const channelIds = [...snap.channels.keys()];
+    if (channelIds.length > 0) {
+      const marks = channelIds.map((_, index) => `$${index + 2}`).join(', ');
+      await db.query(`DELETE FROM overrides WHERE target_kind = 'membro' AND target_id = $1 AND channel_id IN (${marks})`, [userId, ...channelIds]);
+      await db.query(`DELETE FROM voice_blocks WHERE user_id = $1 AND channel_id IN (${marks})`, [userId, ...channelIds]);
+    }
+  }
+
+  #afterRemoval(groupId: string, userId: string, reason: 'saiu' | 'expulso' | 'banido'): void {
+    const place = this.hub.voiceOf(userId);
+    if (place?.groupId === groupId) void this.#sfu.removeParticipant(voiceRoom(place.channelId), userId).catch(() => undefined);
+    this.hub.toUser(userId, { t: 'group.removed', groupId, reason });
+    this.hub.unsubscribe(userId, groupId);
+    this.#changed(groupId);
+    this.#emit({ type: 'member.leave', groupId, userId, reason });
+  }
+
+  // --- Convites ---------------------------------------------------------------------------
+
+  async createInvite(user: User, groupId: string, input: Record<string, unknown>) {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.CREATE_INVITE);
+    const maxUses = input.maxUses === undefined ? 0 : Number(input.maxUses);
+    const hours = input.expiresInHours === undefined ? 24 * 7 : Number(input.expiresInHours);
+    if (!Number.isInteger(maxUses) || maxUses < 0 || maxUses > 1000) throw new ApiError(400, 'usos_invalidos', 'O número de usos deve ficar entre 0 (sem limite) e 1000.');
+    if (!Number.isInteger(hours) || hours < 0 || hours > 24 * 30) throw new ApiError(400, 'validade_invalida', 'A validade deve ficar entre 0 (não vence) e 720 horas.');
+    const code = newId(9);
+    const expires = hours === 0 ? null : new Date(Date.now() + hours * 3_600_000).toISOString();
+    await this.#db.tx(async (tx) => {
+      await tx.query('INSERT INTO invites (code, group_id, created_by, max_uses, expires_at) VALUES ($1, $2, $3, $4, $5)', [code, groupId, user.id, maxUses, expires]);
+      await this.#audit(tx, ctx, 'convite.criado', { kind: 'convite', id: code, name: code }, { usos: maxUses, vence: expires });
+    });
+    return { code, maxUses, uses: 0, expiresAt: expires, createdBy: user.id };
+  }
+
+  async listInvites(user: User, groupId: string) {
+    const ctx = await this.#ctx(user, groupId);
+    // Quem gerencia o grupo vê todos; os demais, só os convites que criaram.
+    const all = has(ctx.base, P.MANAGE_GROUP);
+    if (!all) this.#need(ctx, P.CREATE_INVITE);
+    const rows = await this.#db.query(
+      `SELECT i.*, u.display_name FROM invites i JOIN users u ON u.id = i.created_by
+        WHERE i.group_id = $1 AND ($2 OR i.created_by = $3) ORDER BY i.created_at DESC`,
+      [groupId, all, user.id],
+    );
+    return rows.map((row) => ({
+      code: String(row.code),
+      maxUses: num(row.max_uses),
+      uses: num(row.uses),
+      expiresAt: isoOrNull(row.expires_at),
+      createdBy: String(row.created_by),
+      createdByName: String(row.display_name),
+      createdAt: iso(row.created_at),
+    }));
+  }
+
+  async revokeInvite(user: User, code: string): Promise<void> {
+    const [row] = await this.#db.query('SELECT * FROM invites WHERE code = $1', [code]);
+    if (!row) throw new ApiError(404, 'convite_inexistente', 'Convite não encontrado.');
+    let ctx: Ctx;
+    try {
+      ctx = await this.#ctx(user, String(row.group_id));
+    } catch {
+      throw new ApiError(404, 'convite_inexistente', 'Convite não encontrado.');
+    }
+    if (String(row.created_by) !== user.id) this.#need(ctx, P.MANAGE_GROUP);
+    await this.#db.tx(async (tx) => {
+      await tx.query('DELETE FROM invites WHERE code = $1', [code]);
+      await this.#audit(tx, ctx, 'convite.revogado', { kind: 'convite', id: code, name: code });
+    });
+  }
+
+  async #usableInvite(db: Db, code: string): Promise<Row> {
+    const [row] = await db.query('SELECT * FROM invites WHERE code = $1', [code]);
+    const expired = row && row.expires_at !== null && new Date(String(row.expires_at)).getTime() <= Date.now();
+    const spent = row && num(row.max_uses) > 0 && num(row.uses) >= num(row.max_uses);
+    if (!row || expired || spent) throw new ApiError(404, 'convite_invalido', 'Este convite não existe, venceu ou já foi usado o máximo de vezes.');
+    return row;
+  }
+
+  async previewInvite(user: User, code: string) {
+    const row = await this.#usableInvite(this.#db, code);
+    const snap = await this.snapshot(String(row.group_id));
+    const { id, name, description, icon } = snap.group;
+    return { group: { id, name, description, icon, memberCount: snap.members.size }, joined: snap.members.has(user.id) };
+  }
+
+  async acceptInvite(user: User, code: string): Promise<Group> {
+    const groupId = await this.#db.tx(async (tx) => {
+      // FOR UPDATE: dois aceites simultâneos não passam do limite de usos.
+      const [locked] = await tx.query('SELECT group_id FROM invites WHERE code = $1 FOR UPDATE', [code]);
+      // Quem já é do grupo só é levado até ele: não gasta um uso, nem esbarra em convite vencido.
+      const [already] = locked ? await tx.query('SELECT 1 FROM members WHERE group_id = $1 AND user_id = $2', [String(locked.group_id), user.id]) : [];
+      if (locked && already) return String(locked.group_id);
+      const row = await this.#usableInvite(tx, code);
+      const id = String(row.group_id);
+      await this.#addMember(tx, id, user);
+      await tx.query('UPDATE invites SET uses = uses + 1 WHERE code = $1', [code]);
+      return id;
+    });
+    this.#joined(groupId, user);
+    return (await this.snapshot(groupId)).group;
+  }
+
+  // --- Membros ----------------------------------------------------------------------------
+
+  async setNickname(user: User, groupId: string, value: unknown): Promise<void> {
+    await this.#ctx(user, groupId);
+    const nickname = cleanText(value, 32) || null;
+    await this.#db.query('UPDATE members SET nickname = $3 WHERE group_id = $1 AND user_id = $2', [groupId, user.id, nickname]);
+    this.#changed(groupId);
+  }
+
+  /**
+   * Define os cargos de um membro. Cada cargo dado ou tirado precisa estar abaixo do cargo mais alto de quem
+   * mexe, e ninguém entrega um cargo com permissões que não tem: é o que fecha o caminho do autopromover-se.
+   */
+  async setMemberRoles(user: User, groupId: string, targetId: string, roleIds: unknown): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.MANAGE_ROLES);
+    const { member, subject } = this.#targetMember(ctx, targetId);
+    this.#human(member);
+    if (member.userId !== user.id) this.#needRank(ctx, subject);
+    if (!Array.isArray(roleIds) || roleIds.some((id) => typeof id !== 'string')) throw new ApiError(400, 'cargos_invalidos', 'Informe a lista de cargos.');
+    const wanted = new Set(roleIds as string[]);
+    const byId = new Map(ctx.snap.roles.map((role) => [role.id, role]));
+    const added = [...wanted].filter((id) => !member.roleIds.has(id));
+    const removed = [...member.roleIds].filter((id) => !wanted.has(id));
+    for (const id of [...added, ...removed]) {
+      const role = byId.get(id);
+      if (!role || role.isEveryone) throw new ApiError(400, 'cargo_inexistente', 'Um dos cargos não existe neste grupo.');
+      this.#notManaged(role);
+      if (!canManageRole(ctx.subject, ctx.snap.roles, role)) {
+        throw new ApiError(403, 'hierarquia', `O cargo “${role.name}” não está abaixo do seu cargo mais alto.`);
+      }
+    }
+    for (const id of added) {
+      const role = byId.get(id)!;
+      if ((role.permissions & ~ctx.base) !== 0n) {
+        throw new ApiError(403, 'escalonamento', `O cargo “${role.name}” tem permissões que você não tem, então você não pode entregá-lo.`);
+      }
+    }
+    if (added.length === 0 && removed.length === 0) return;
+    await this.#db.tx(async (tx) => {
+      for (const id of removed) await tx.query('DELETE FROM member_roles WHERE group_id = $1 AND user_id = $2 AND role_id = $3', [groupId, targetId, id]);
+      for (const id of added) await tx.query('INSERT INTO member_roles (group_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [groupId, targetId, id]);
+      await this.#audit(tx, ctx, 'membro.cargos', { kind: 'membro', id: targetId, name: member.displayName }, {
+        adicionados: added.map((id) => byId.get(id)!.name),
+        removidos: removed.map((id) => byId.get(id)!.name),
+      });
+    });
+    this.#changed(groupId);
+    await this.#syncVoiceRights(groupId, targetId);
+    this.#emit({ type: 'member.roles', groupId, userId: targetId, added, removed });
+  }
+
+  async kick(user: User, groupId: string, targetId: string, reason?: unknown): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.KICK_MEMBERS);
+    const { member, subject } = this.#targetMember(ctx, targetId);
+    this.#human(member);
+    this.#needRank(ctx, subject);
+    await this.#db.tx(async (tx) => {
+      await this.#removeMember(tx, ctx.snap, targetId);
+      await this.#audit(tx, ctx, 'membro.expulso', { kind: 'membro', id: targetId, name: member.displayName }, { motivo: cleanText(reason, 200) });
+    });
+    this.#afterRemoval(groupId, targetId, 'expulso');
+  }
+
+  async ban(user: User, groupId: string, targetId: string, reason?: unknown): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.BAN_MEMBERS);
+    const { member, subject } = this.#targetMember(ctx, targetId);
+    this.#human(member);
+    this.#needRank(ctx, subject);
+    const why = cleanText(reason, 200);
+    await this.#db.tx(async (tx) => {
+      await this.#removeMember(tx, ctx.snap, targetId);
+      await tx.query('INSERT INTO bans (group_id, user_id, banned_by, reason) VALUES ($1, $2, $3, $4) ON CONFLICT (group_id, user_id) DO UPDATE SET reason = $4', [groupId, targetId, user.id, why]);
+      await this.#audit(tx, ctx, 'membro.banido', { kind: 'membro', id: targetId, name: member.displayName }, { motivo: why });
+    });
+    this.#afterRemoval(groupId, targetId, 'banido');
+  }
+
+  async unban(user: User, groupId: string, targetId: string): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.BAN_MEMBERS);
+    const [row] = await this.#db.query('SELECT u.display_name FROM bans b JOIN users u ON u.id = b.user_id WHERE b.group_id = $1 AND b.user_id = $2', [groupId, targetId]);
+    if (!row) throw new ApiError(404, 'banimento_inexistente', 'Essa pessoa não está banida.');
+    await this.#db.tx(async (tx) => {
+      await tx.query('DELETE FROM bans WHERE group_id = $1 AND user_id = $2', [groupId, targetId]);
+      await this.#audit(tx, ctx, 'membro.desbanido', { kind: 'membro', id: targetId, name: String(row.display_name) });
+    });
+  }
+
+  async listBans(user: User, groupId: string) {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.BAN_MEMBERS);
+    const rows = await this.#db.query(
+      'SELECT b.*, u.display_name, u.username FROM bans b JOIN users u ON u.id = b.user_id WHERE b.group_id = $1 ORDER BY b.created_at DESC',
+      [groupId],
+    );
+    return rows.map((row) => ({ userId: String(row.user_id), displayName: String(row.display_name), username: String(row.username), reason: String(row.reason), createdAt: iso(row.created_at) }));
+  }
+
+  /** Castigo (timeout): por um tempo a pessoa lê, mas não escreve, não fala e não transmite. 0 minutos desfaz. */
+  async timeout(user: User, groupId: string, targetId: string, minutes: unknown): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.KICK_MEMBERS);
+    const { member, subject } = this.#targetMember(ctx, targetId);
+    this.#human(member);
+    this.#needRank(ctx, subject);
+    const amount = Number(minutes);
+    if (!Number.isFinite(amount) || amount < 0 || amount > 60 * 24 * 28) throw new ApiError(400, 'tempo_invalido', 'O castigo vai de 0 (desfazer) a 28 dias.');
+    const until = amount === 0 ? null : new Date(Date.now() + amount * 60_000).toISOString();
+    await this.#db.tx(async (tx) => {
+      await tx.query('UPDATE members SET timeout_until = $3 WHERE group_id = $1 AND user_id = $2', [groupId, targetId, until]);
+      await this.#audit(tx, ctx, 'membro.castigo', { kind: 'membro', id: targetId, name: member.displayName }, { ate: until });
+    });
+    this.#changed(groupId);
+    await this.#syncVoiceRights(groupId, targetId);
+  }
+
+  /** Permissões efetivas de um membro: no grupo e em cada canal, já com cargos e regras por canal aplicados. */
+  async effectivePermissions(user: User, groupId: string, targetId: string) {
+    const ctx = await this.#ctx(user, groupId);
+    if (targetId !== user.id) this.#need(ctx, P.MANAGE_ROLES);
+    const { subject } = this.#targetMember(ctx, targetId);
+    const channels: Record<string, string> = {};
+    for (const channel of ctx.snap.channels.values()) {
+      // Só entram canais que quem pergunta também pode ver.
+      if (has(this.permissionsIn(ctx.snap, ctx.subject, channel), P.VIEW_CHANNEL)) channels[channel.id] = str(this.permissionsIn(ctx.snap, subject, channel));
+    }
+    return { userId: targetId, isOwner: subject.isOwner, timedOut: subject.timedOut === true, base: str(basePermissions(subject, ctx.snap.roles)), channels };
+  }
+
+  // --- Cargos -----------------------------------------------------------------------------
+
+  #role(ctx: Ctx, roleId: string): Role {
+    const role = ctx.snap.roles.find((item) => item.id === roleId);
+    if (!role) throw new ApiError(404, 'cargo_inexistente', 'Cargo não encontrado.');
+    return role;
+  }
+
+  #manageable(ctx: Ctx, role: Role): void {
+    if (!canManageRole(ctx.subject, ctx.snap.roles, role)) {
+      throw new ApiError(403, 'hierarquia', `Você só pode mexer em cargos abaixo do seu cargo mais alto. “${role.name}” não está abaixo.`);
+    }
+  }
+
+  #checkGrant(ctx: Ctx, before: bigint, after: bigint, set = ctx.base): void {
+    const blocked = forbiddenChanges(set, before, after);
+    if (blocked !== 0n) {
+      const names = PERMISSIONS.filter((item) => has(blocked, 1n << BigInt(item.bit))).map((item) => `“${item.name}”`);
+      throw new ApiError(403, 'escalonamento', `Você não pode ligar nem desligar permissões que não tem: ${names.join(', ')}.`);
+    }
+  }
+
+  async #groupOfRole(roleId: string): Promise<string> {
+    const [row] = await this.#db.query('SELECT group_id FROM roles WHERE id = $1', [roleId]);
+    if (!row) throw new ApiError(404, 'cargo_inexistente', 'Cargo não encontrado.');
+    return String(row.group_id);
+  }
+
+  async createRole(user: User, groupId: string, input: Record<string, unknown>): Promise<string> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.MANAGE_ROLES);
+    if (ctx.snap.roles.length >= LIMITS.rolesPerGroup) throw new ApiError(409, 'cargos_demais', `Um grupo tem no máximo ${LIMITS.rolesPerGroup} cargos.`);
+    let name = cleanText(input.name, LIMITS.nameChars) || 'novo cargo';
+    let color = optionalColor(input.color);
+    let permissions = input.permissions === undefined ? ctx.snap.everyone.permissions & ctx.base : parsePermissions(input.permissions);
+    if (typeof input.copyFrom === 'string') {
+      // Duplicar: mesma cor e mesmas permissões, desde que quem duplica as tenha.
+      const source = this.#role(ctx, input.copyFrom);
+      name = cleanText(input.name, LIMITS.nameChars) || `${source.name} (cópia)`.slice(0, LIMITS.nameChars);
+      color = input.color === undefined ? source.color : color;
+      permissions = source.permissions;
+    }
+    if (permissions === null) throw new ApiError(400, 'permissoes_invalidas', 'Conjunto de permissões inválido.');
+    this.#checkGrant(ctx, 0n, permissions);
+    const id = newId();
+    await this.#db.tx(async (tx) => {
+      // Cargo novo nasce no pé da lista, logo acima do @everyone.
+      await tx.query('UPDATE roles SET position = position + 1 WHERE group_id = $1 AND NOT is_everyone', [groupId]);
+      await tx.query('INSERT INTO roles (id, group_id, name, color, position, permissions) VALUES ($1, $2, $3, $4, 1, $5)', [id, groupId, name, color, str(permissions!)]);
+      await this.#audit(tx, ctx, 'cargo.criado', { kind: 'cargo', id, name }, { permissoes: str(permissions!) });
+    });
+    this.#changed(groupId);
+    return id;
+  }
+
+  async updateRole(user: User, roleId: string, input: Record<string, unknown>): Promise<void> {
+    const ctx = await this.#ctx(user, await this.#groupOfRole(roleId));
+    this.#need(ctx, P.MANAGE_ROLES);
+    const role = this.#role(ctx, roleId);
+    this.#notManaged(role);
+    this.#manageable(ctx, role);
+    const name = input.name === undefined || role.isEveryone ? role.name : requiredName(input.name, 'o nome do cargo');
+    const color = input.color === undefined || role.isEveryone ? role.color : optionalColor(input.color);
+    let permissions = role.permissions;
+    if (input.permissions !== undefined) {
+      const parsed = parsePermissions(input.permissions);
+      if (parsed === null) throw new ApiError(400, 'permissoes_invalidas', 'Conjunto de permissões inválido.');
+      this.#checkGrant(ctx, role.permissions, parsed);
+      permissions = parsed;
+    }
+    await this.#db.tx(async (tx) => {
+      await tx.query('UPDATE roles SET name = $2, color = $3, permissions = $4 WHERE id = $1', [roleId, name, color, str(permissions)]);
+      await this.#audit(tx, ctx, 'cargo.atualizado', { kind: 'cargo', id: roleId, name }, {
+        ...(name !== role.name ? { nome: [role.name, name] } : {}),
+        ...(color !== role.color ? { cor: [role.color, color] } : {}),
+        ...(permissions !== role.permissions ? { permissoes: [str(role.permissions), str(permissions)] } : {}),
+      });
+    });
+    this.#changed(ctx.snap.group.id);
+    await this.#syncVoiceRights(ctx.snap.group.id);
+  }
+
+  async deleteRole(user: User, roleId: string): Promise<void> {
+    const ctx = await this.#ctx(user, await this.#groupOfRole(roleId));
+    this.#need(ctx, P.MANAGE_ROLES);
+    const role = this.#role(ctx, roleId);
+    this.#notManaged(role);
+    if (role.isEveryone) throw new ApiError(400, 'everyone_fixo', 'O cargo @everyone não pode ser excluído.');
+    this.#manageable(ctx, role);
+    const groupId = ctx.snap.group.id;
+    await this.#db.tx(async (tx) => {
+      await tx.query('DELETE FROM roles WHERE id = $1', [roleId]);
+      await tx.query(`DELETE FROM overrides WHERE target_kind = 'cargo' AND target_id = $1`, [roleId]);
+      await tx.query('UPDATE roles SET position = position - 1 WHERE group_id = $1 AND position > $2', [groupId, role.position]);
+      await this.#audit(tx, ctx, 'cargo.excluido', { kind: 'cargo', id: roleId, name: role.name });
+    });
+    this.#changed(groupId);
+    await this.#syncVoiceRights(groupId);
+  }
+
+  /** Nova ordem dos cargos, do mais alto para o mais baixo (sem o @everyone, que é sempre o último). */
+  async reorderRoles(user: User, groupId: string, order: unknown): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.MANAGE_ROLES);
+    const movable = ctx.snap.roles.filter((role) => !role.isEveryone);
+    if (!Array.isArray(order) || order.length !== movable.length || new Set(order).size !== order.length || order.some((id) => !movable.some((role) => role.id === id))) {
+      throw new ApiError(400, 'ordem_invalida', 'A ordem precisa conter todos os cargos do grupo, uma vez cada.');
+    }
+    const next = new Map((order as string[]).map((id, index) => [id, order.length - index]));
+    for (const role of movable) {
+      // Cargo igual ou acima do seu fica exatamente onde está; os de baixo só se mexem entre si.
+      if (next.get(role.id) !== role.position && !canManageRole(ctx.subject, ctx.snap.roles, role)) {
+        throw new ApiError(403, 'hierarquia', 'Você só pode reordenar cargos que estão abaixo do seu cargo mais alto.');
+      }
+    }
+    await this.#db.tx(async (tx) => {
+      for (const [id, position] of next) await tx.query('UPDATE roles SET position = $2 WHERE id = $1 AND group_id = $3', [id, position, groupId]);
+      await this.#audit(tx, ctx, 'cargo.reordenado', { kind: 'grupo', id: groupId, name: ctx.snap.group.name }, {
+        ordem: (order as string[]).map((id) => movable.find((role) => role.id === id)!.name),
+      });
+    });
+    this.#changed(groupId);
+  }
+
+  // --- Canais -----------------------------------------------------------------------------
+
+  async createChannel(user: User, groupId: string, input: Record<string, unknown>): Promise<string> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.MANAGE_CHANNELS);
+    if (ctx.snap.channels.size >= LIMITS.channelsPerGroup) throw new ApiError(409, 'canais_demais', `Um grupo tem no máximo ${LIMITS.channelsPerGroup} canais.`);
+    const kind = input.kind;
+    if (kind !== 'categoria' && kind !== 'texto' && kind !== 'voz') throw new ApiError(400, 'tipo_invalido', 'O canal deve ser de texto, de voz ou uma categoria.');
+    const name = requiredName(input.name, 'o nome do canal');
+    const parentId = this.#parent(ctx, kind, input.parentId);
+    const userLimit = this.#userLimit(kind, input.userLimit);
+    const id = newId();
+    const siblings = [...ctx.snap.channels.values()].filter((channel) => channel.parentId === parentId && (channel.kind === 'categoria') === (kind === 'categoria'));
+    const position = siblings.reduce((max, channel) => Math.max(max, channel.position + 1), 0);
+    await this.#db.tx(async (tx) => {
+      await tx.query('INSERT INTO channels (id, group_id, kind, name, topic, parent_id, position, user_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+        id,
+        groupId,
+        kind,
+        name,
+        cleanText(input.topic, LIMITS.topicChars),
+        parentId,
+        position,
+        userLimit,
+      ]);
+      if (input.private === true) {
+        // Canal privado: escondido do @everyone e liberado para quem criou. Outros cargos entram pelas regras do canal.
+        const hide = P.VIEW_CHANNEL | P.CONNECT;
+        await tx.query(`INSERT INTO overrides (channel_id, target_kind, target_id, allow, deny) VALUES ($1, 'cargo', $2, 0, $3), ($1, 'membro', $4, $3, 0)`, [
+          id,
+          ctx.snap.everyone.id,
+          str(hide),
+          user.id,
+        ]);
+      }
+      await this.#audit(tx, ctx, 'canal.criado', { kind: 'canal', id, name }, { tipo: kind, privado: input.private === true });
+    });
+    this.#channelGroup.set(id, groupId);
+    this.#changed(groupId);
+    return id;
+  }
+
+  #parent(ctx: Ctx, kind: ChannelKind, value: unknown): string | null {
+    if (value === null || value === undefined || value === '') return null;
+    const parent = typeof value === 'string' ? ctx.snap.channels.get(value) : undefined;
+    if (kind === 'categoria' || !parent || parent.kind !== 'categoria') throw new ApiError(400, 'categoria_invalida', 'A categoria escolhida não existe.');
+    if (!has(this.permissionsIn(ctx.snap, ctx.subject, parent), P.VIEW_CHANNEL)) throw new ApiError(400, 'categoria_invalida', 'A categoria escolhida não existe.');
+    return parent.id;
+  }
+
+  #userLimit(kind: ChannelKind, value: unknown): number {
+    if (kind !== 'voz' || value === undefined || value === null) return 0;
+    const limit = Number(value);
+    if (!Number.isInteger(limit) || limit < 0 || limit > LIMITS.voiceUsers) throw new ApiError(400, 'limite_invalido', `O limite de pessoas vai de 0 (sem limite) a ${LIMITS.voiceUsers}.`);
+    return limit;
+  }
+
+  async updateChannel(user: User, channelId: string, input: Record<string, unknown>): Promise<void> {
+    const { ctx, channel } = await this.#channelCtx(user, channelId);
+    this.#need(ctx, P.MANAGE_CHANNELS);
+    const name = input.name === undefined ? channel.name : requiredName(input.name, 'o nome do canal');
+    const topic = input.topic === undefined ? channel.topic : cleanText(input.topic, LIMITS.topicChars);
+    const parentId = input.parentId === undefined ? channel.parentId : this.#parent(ctx, channel.kind, input.parentId);
+    const userLimit = input.userLimit === undefined ? channel.userLimit : this.#userLimit(channel.kind, input.userLimit);
+    await this.#db.tx(async (tx) => {
+      await tx.query('UPDATE channels SET name = $2, topic = $3, parent_id = $4, user_limit = $5 WHERE id = $1', [channelId, name, topic, parentId, userLimit]);
+      await this.#audit(tx, ctx, 'canal.atualizado', { kind: 'canal', id: channelId, name }, {
+        ...(name !== channel.name ? { nome: [channel.name, name] } : {}),
+        ...(topic !== channel.topic ? { assunto: [channel.topic, topic] } : {}),
+        ...(parentId !== channel.parentId ? { categoria: [channel.parentId, parentId] } : {}),
+        ...(userLimit !== channel.userLimit ? { limite: [channel.userLimit, userLimit] } : {}),
+      });
+    });
+    this.#changed(ctx.snap.group.id);
+  }
+
+  async deleteChannel(user: User, channelId: string): Promise<void> {
+    const { ctx, channel } = await this.#channelCtx(user, channelId);
+    this.#need(ctx, P.MANAGE_CHANNELS);
+    await this.#db.tx(async (tx) => {
+      await tx.query('DELETE FROM channels WHERE id = $1', [channelId]);
+      await this.#audit(tx, ctx, 'canal.excluido', { kind: 'canal', id: channelId, name: channel.name }, { tipo: channel.kind });
+    });
+    this.#channelGroup.delete(channelId);
+    if (channel.kind === 'voz') void this.#sfu.closeRoom(voiceRoom(channelId)).catch(() => undefined);
+    this.#changed(ctx.snap.group.id);
+  }
+
+  /** Reorganiza canais: cada item diz em que categoria fica e em que posição. Só vale para canais que a pessoa vê. */
+  async reorderChannels(user: User, groupId: string, items: unknown): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.MANAGE_CHANNELS);
+    if (!Array.isArray(items) || items.length === 0 || items.length > LIMITS.channelsPerGroup) throw new ApiError(400, 'ordem_invalida', 'Informe os canais a reorganizar.');
+    const moves: { channel: Channel; parentId: string | null; position: number }[] = [];
+    for (const raw of items as Record<string, unknown>[]) {
+      const channel = typeof raw?.id === 'string' ? ctx.snap.channels.get(raw.id) : undefined;
+      const position = Number(raw?.position);
+      if (!channel || !Number.isInteger(position) || position < 0 || position > 10_000 || !has(this.permissionsIn(ctx.snap, ctx.subject, channel), P.VIEW_CHANNEL)) {
+        throw new ApiError(400, 'ordem_invalida', 'Um dos canais não existe ou a posição é inválida.');
+      }
+      moves.push({ channel, position, parentId: raw.parentId === undefined ? channel.parentId : this.#parent(ctx, channel.kind, raw.parentId) });
+    }
+    await this.#db.tx(async (tx) => {
+      for (const move of moves) await tx.query('UPDATE channels SET parent_id = $2, position = $3 WHERE id = $1', [move.channel.id, move.parentId, move.position]);
+      await this.#audit(tx, ctx, 'canal.reordenado', { kind: 'grupo', id: groupId, name: ctx.snap.group.name }, { canais: moves.length });
+    });
+    this.#changed(groupId);
+  }
+
+  async listOverrides(user: User, channelId: string) {
+    const { ctx } = await this.#channelCtx(user, channelId);
+    this.#need(ctx, P.MANAGE_ROLES);
+    return (ctx.snap.overrides.get(channelId) ?? []).map((item) => ({ targetKind: item.targetKind, targetId: item.targetId, allow: str(item.allow), deny: str(item.deny) }));
+  }
+
+  /**
+   * Regra de um cargo ou de um membro num canal: o que é permitido, o que é negado, e o resto herda.
+   * `allow` e `deny` vazios apagam a regra (tudo volta a herdar).
+   */
+  async setOverride(user: User, channelId: string, targetKind: unknown, targetId: unknown, input: Record<string, unknown>): Promise<void> {
+    const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
+    this.#need(ctx, P.MANAGE_ROLES);
+    if ((targetKind !== 'cargo' && targetKind !== 'membro') || typeof targetId !== 'string') throw new ApiError(400, 'alvo_invalido', 'A regra deve ser de um cargo ou de um membro.');
+    let targetName: string;
+    if (targetKind === 'cargo') {
+      const role = this.#role(ctx, targetId);
+      this.#manageable(ctx, role);
+      targetName = role.name;
+    } else {
+      const { member, subject } = this.#targetMember(ctx, targetId);
+      if (member.userId !== user.id) this.#needRank(ctx, subject);
+      targetName = member.displayName;
+    }
+    const allow = parsePermissions(input.allow ?? '0');
+    const deny = parsePermissions(input.deny ?? '0');
+    if (allow === null || deny === null || (allow & deny) !== 0n || ((allow | deny) & ~CHANNEL_SCOPED) !== 0n) {
+      throw new ApiError(400, 'permissoes_invalidas', 'Regra inválida: uma permissão não pode ser permitida e negada ao mesmo tempo, e permissões do grupo inteiro não entram em regras de canal.');
+    }
+    const before = (ctx.snap.overrides.get(channelId) ?? []).find((item) => item.targetKind === targetKind && item.targetId === targetId);
+    // Ninguém mexe, numa regra de canal, em permissão que não tem nesse canal.
+    this.#checkGrant(ctx, before?.allow ?? 0n, allow, perms);
+    this.#checkGrant(ctx, before?.deny ?? 0n, deny, perms);
+    await this.#db.tx(async (tx) => {
+      if (allow === 0n && deny === 0n) {
+        await tx.query('DELETE FROM overrides WHERE channel_id = $1 AND target_kind = $2 AND target_id = $3', [channelId, targetKind, targetId]);
+      } else {
+        await tx.query(
+          `INSERT INTO overrides (channel_id, target_kind, target_id, allow, deny) VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (channel_id, target_kind, target_id) DO UPDATE SET allow = $4, deny = $5`,
+          [channelId, targetKind, targetId, str(allow), str(deny)],
+        );
+      }
+      await this.#audit(tx, ctx, 'canal.permissoes', { kind: 'canal', id: channelId, name: channel.name }, {
+        alvo: `${targetKind === 'cargo' ? 'cargo' : 'membro'} ${targetName}`,
+        permitir: [str(before?.allow ?? 0n), str(allow)],
+        negar: [str(before?.deny ?? 0n), str(deny)],
+      });
+    });
+    this.#changed(ctx.snap.group.id);
+    await this.#syncVoiceRights(ctx.snap.group.id);
+  }
+
+  // --- Mensagens --------------------------------------------------------------------------
+
+  async listMessages(user: User, channelId: string, options: { before?: unknown; limit?: unknown; pinned?: boolean } = {}): Promise<Message[]> {
+    const { channel } = await this.#channelCtx(user, channelId);
+    if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
+    const limit = Math.min(100, Math.max(1, Number(options.limit) || 50));
+    const before = typeof options.before === 'string' && /^\d{1,18}$/.test(options.before) ? options.before : null;
+    const rows = await this.#db.query(
+      `${MESSAGE_SELECT} WHERE m.channel_id = $1 AND ($2::bigint IS NULL OR m.id < $2::bigint) AND ($3 = false OR m.pinned) ORDER BY m.id DESC LIMIT ${limit}`,
+      [channelId, before, options.pinned === true],
+    );
+    return rows.map(toMessage).reverse();
+  }
+
+  /**
+   * Envia uma mensagem. `extra` só é usado pelos bots (botões e nome de exibição); um bot continua
+   * precisando ver o canal e ter "Enviar mensagens" nele, como qualquer membro.
+   */
+  async sendMessage(user: User, channelId: string, value: unknown, extra: { meta?: MessageMeta; as?: string } = {}): Promise<Message> {
+    const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
+    if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
+    if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo e não pode enviar mensagens por enquanto.');
+    this.#need(ctx, P.SEND_MESSAGES, perms);
+    const fromBot = ctx.me.bot;
+    const content = this.#content(ctx, perms, value);
+    // O limite de velocidade é para pessoas; bots têm os próprios limites na Central de Bots.
+    if (!fromBot && !this.#limiter.take(`mensagem:${user.id}`, 10, 10_000)) {
+      throw new ApiError(429, 'devagar', 'Você está enviando mensagens rápido demais. Espere alguns segundos.');
+    }
+    // @everyone só vale como menção para quem tem a permissão; para os demais é texto comum.
+    const mention = /(^|\s)@everyone\b/.test(content) && has(perms, P.MENTION_EVERYONE);
+    const [inserted] = await this.#db.query(
+      'INSERT INTO messages (channel_id, author_id, author_name, content, mention_everyone, meta) VALUES ($1, $2, $3, $4, $5, $6::jsonb) RETURNING id',
+      [channelId, user.id, fromBot ? (extra.as ?? null) : null, content, mention, fromBot && extra.meta ? JSON.stringify(extra.meta) : null],
+    );
+    const message = await this.#message(String(inserted!.id));
+    await this.hub.publishToChannel(ctx.snap.group.id, channelId, { t: 'message.created', groupId: ctx.snap.group.id, message });
+    this.#emit({ type: 'message', groupId: ctx.snap.group.id, channel, message, author: user, fromBot });
+    return message;
+  }
+
+  /** Um bot apaga uma mensagem que ele mesmo enviou ou, com a permissão, a de um membro. Mesmo caminho das pessoas. */
+  async channelOf(channelId: string): Promise<{ groupId: string; channel: Channel } | null> {
+    let groupId = this.#channelGroup.get(channelId);
+    if (!groupId) {
+      const [row] = await this.#db.query('SELECT group_id FROM channels WHERE id = $1', [channelId]);
+      if (!row) return null;
+      groupId = String(row.group_id);
+    }
+    const channel = (await this.snapshot(groupId)).channels.get(channelId);
+    return channel ? { groupId, channel } : null;
+  }
+
+  #content(ctx: Ctx, perms: bigint, value: unknown): string {
+    if (typeof value === 'string' && Array.from(value).length > LIMITS.messageChars) {
+      throw new ApiError(400, 'mensagem_longa', `A mensagem pode ter no máximo ${LIMITS.messageChars} caracteres.`);
+    }
+    const content = cleanText(value, LIMITS.messageChars, true);
+    if (!content) throw new ApiError(400, 'mensagem_vazia', 'Escreva alguma coisa antes de enviar.');
+    if (LINK.test(content) && !ctx.me.bot) this.#need(ctx, P.SEND_LINKS, perms);
+    return content;
+  }
+
+  async #message(id: string): Promise<Message> {
+    const [row] = await this.#db.query(`${MESSAGE_SELECT} WHERE m.id = $1::bigint`, [id]);
+    if (!row) throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
+    return toMessage(row);
+  }
+
+  async #messageCtx(user: User, messageId: string) {
+    if (!/^\d{1,18}$/.test(messageId)) throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
+    const [row] = await this.#db.query(`${MESSAGE_SELECT} WHERE m.id = $1::bigint`, [messageId]);
+    if (!row) throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
+    const message = toMessage(row);
+    try {
+      return { message, ...(await this.#channelCtx(user, message.channelId)) };
+    } catch {
+      throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
+    }
+  }
+
+  async editMessage(user: User, messageId: string, value: unknown): Promise<Message> {
+    const { message, ctx, perms } = await this.#messageCtx(user, messageId);
+    // Editar é só do autor; nem administrador reescreve a mensagem de outra pessoa.
+    if (message.author.id !== user.id) throw new ApiError(403, 'nao_e_autor', 'Só quem escreveu pode editar a mensagem.');
+    if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo.');
+    this.#need(ctx, P.SEND_MESSAGES, perms);
+    const content = this.#content(ctx, perms, value);
+    await this.#db.query('UPDATE messages SET content = $2, edited_at = now() WHERE id = $1::bigint', [messageId, content]);
+    const updated = await this.#message(messageId);
+    await this.hub.publishToChannel(ctx.snap.group.id, message.channelId, { t: 'message.updated', groupId: ctx.snap.group.id, message: updated });
+    return updated;
+  }
+
+  async deleteMessage(user: User, messageId: string): Promise<void> {
+    const { message, ctx, channel, perms } = await this.#messageCtx(user, messageId);
+    const own = message.author.id === user.id;
+    if (!own) this.#need(ctx, P.DELETE_MESSAGES, perms);
+    await this.#db.tx(async (tx) => {
+      await tx.query('DELETE FROM messages WHERE id = $1::bigint', [messageId]);
+      if (!own) {
+        await this.#audit(tx, ctx, 'mensagem.excluida', { kind: 'canal', id: channel.id, name: channel.name }, { autor: message.author.name, trecho: message.content.slice(0, 120) });
+      }
+    });
+    await this.hub.publishToChannel(ctx.snap.group.id, message.channelId, { t: 'message.deleted', groupId: ctx.snap.group.id, channelId: message.channelId, id: messageId });
+  }
+
+  async pinMessage(user: User, messageId: string, pinned: unknown): Promise<Message> {
+    const { message, ctx, channel, perms } = await this.#messageCtx(user, messageId);
+    this.#need(ctx, P.PIN_MESSAGES, perms);
+    const value = pinned === true;
+    await this.#db.tx(async (tx) => {
+      await tx.query('UPDATE messages SET pinned = $2 WHERE id = $1::bigint', [messageId, value]);
+      await this.#audit(tx, ctx, value ? 'mensagem.fixada' : 'mensagem.desafixada', { kind: 'canal', id: channel.id, name: channel.name }, { autor: message.author.name });
+    });
+    const updated = await this.#message(messageId);
+    await this.hub.publishToChannel(ctx.snap.group.id, message.channelId, { t: 'message.updated', groupId: ctx.snap.group.id, message: updated });
+    return updated;
+  }
+
+  // --- Registro de auditoria ---------------------------------------------------------------
+
+  async auditLog(user: User, groupId: string, before?: unknown) {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.VIEW_AUDIT_LOG);
+    const cursor = typeof before === 'string' && /^\d{1,18}$/.test(before) ? before : null;
+    const rows = await this.#db.query('SELECT * FROM audit_log WHERE group_id = $1 AND ($2::bigint IS NULL OR id < $2::bigint) ORDER BY id DESC LIMIT 50', [groupId, cursor]);
+    return rows.map((row) => ({
+      id: String(row.id),
+      actorId: row.actor_id === null ? null : String(row.actor_id),
+      actorName: String(row.actor_name),
+      action: String(row.action),
+      targetKind: String(row.target_kind),
+      targetId: String(row.target_id),
+      targetName: String(row.target_name),
+      detail: (typeof row.detail === 'string' ? JSON.parse(row.detail) : row.detail) as Record<string, unknown>,
+      createdAt: iso(row.created_at),
+    }));
+  }
+
+  // --- Canais de voz ----------------------------------------------------------------------
+
+  async #rightsFor(snap: Snapshot, member: Member, channel: Channel): Promise<{ perms: bigint; rights: PublishRights }> {
+    const perms = this.permissionsIn(snap, this.subjectOf(snap, member), channel);
+    const [blocked] = await this.#db.query('SELECT 1 FROM voice_blocks WHERE channel_id = $1 AND user_id = $2', [channel.id, member.userId]);
+    return {
+      perms,
+      rights: { speak: has(perms, P.SPEAK) && !blocked, stream: has(perms, P.STREAM), streamAudio: has(perms, P.STREAM | P.SHARE_AUDIO) },
+    };
+  }
+
+  /** Entra num canal de voz: devolve o token do SFU, que já vem limitado ao que a pessoa pode publicar ali. */
+  async joinVoice(user: User, channelId: string) {
+    let found: { ctx: Ctx; channel: Channel; perms: bigint } | null = null;
+    const pass = this.#movePass.get(user.id);
+    const moved = pass !== undefined && pass.channelId === channelId && pass.expires > Date.now();
+    try {
+      found = await this.#channelCtx(user, channelId);
+    } catch (error) {
+      // Quem foi movido para um canal que não enxerga ainda assim entra nele, uma vez.
+      if (!moved) throw error;
+    }
+    const groupId = found?.ctx.snap.group.id ?? this.#channelGroup.get(channelId);
+    if (!groupId) throw NO_CHANNEL();
+    const ctx = found?.ctx ?? (await this.#ctx(user, groupId));
+    const channel = ctx.snap.channels.get(channelId);
+    if (!channel || channel.kind !== 'voz') throw new ApiError(400, 'nao_e_voz', 'Este canal não é de voz.');
+    const { perms, rights } = await this.#rightsFor(ctx.snap, ctx.me, channel);
+    if (!moved) {
+      this.#need(ctx, P.CONNECT, perms);
+      const inside = this.hub.voiceIn(groupId)[channelId] ?? [];
+      if (channel.userLimit > 0 && inside.length >= channel.userLimit && !inside.includes(user.id) && !has(perms, P.MOVE_MEMBERS)) {
+        throw new ApiError(403, 'canal_cheio', 'Este canal de voz está cheio.');
+      }
+    }
+    this.#movePass.delete(user.id);
+    const room = voiceRoom(channelId);
+    let token: string;
+    try {
+      await this.#sfu.ensureRoom(room, LIMITS.voiceUsers + 1);
+      const previous = this.hub.voiceOf(user.id);
+      if (previous && previous.channelId !== channelId) await this.#sfu.removeParticipant(voiceRoom(previous.channelId), user.id);
+      token = await this.#sfu.createVoiceToken({
+        room,
+        identity: user.id,
+        name: ctx.me.nickname ?? user.displayName,
+        ttlSeconds: this.#options.tokenTtlSeconds,
+        publish: rights,
+        metadata: { voz: true },
+      });
+    } catch (error) {
+      console.error('[sfu]', error);
+      throw new ApiError(502, 'sfu_indisponivel', 'O servidor de transmissão não respondeu. Tente de novo em instantes.');
+    }
+    if (this.hub.isOnline(user.id)) await this.hub.setVoice(user.id, { groupId, channelId });
+    return {
+      token,
+      url: this.#options.livekitUrl,
+      identity: user.id,
+      room: { id: channelId, name: channel.name, capacity: channel.userLimit || LIMITS.voiceUsers, hasPassword: false },
+      permissions: str(perms),
+      ...rights,
+      canWatch: has(perms, P.WATCH_STREAMS),
+      highQuality: has(perms, P.HIGH_QUALITY_STREAM),
+    };
+  }
+
+  async leaveVoice(user: User): Promise<void> {
+    const place = this.hub.voiceOf(user.id);
+    if (!place) return;
+    await this.hub.setVoice(user.id, null);
+    await this.#sfu.removeParticipant(voiceRoom(place.channelId), user.id).catch(() => undefined);
+  }
+
+  /**
+   * Depois de uma mudança de cargos, regras de canal ou castigo: quem já está num canal de voz passa a
+   * poder publicar só o que as permissões novas deixam, sem precisar sair e entrar.
+   */
+  async #syncVoiceRights(groupId: string, onlyUserId?: string): Promise<void> {
+    const voice = this.hub.voiceIn(groupId);
+    if (Object.keys(voice).length === 0) return;
+    const snap = await this.snapshot(groupId);
+    for (const [channelId, userIds] of Object.entries(voice)) {
+      const channel = snap.channels.get(channelId);
+      for (const userId of userIds) {
+        if (onlyUserId && userId !== onlyUserId) continue;
+        const member = snap.members.get(userId);
+        if (!channel || !member) continue;
+        const { perms, rights } = await this.#rightsFor(snap, member, channel);
+        try {
+          if (!has(perms, P.CONNECT)) {
+            await this.#sfu.removeParticipant(voiceRoom(channelId), userId);
+            await this.hub.setVoice(userId, null);
+          } else {
+            await this.#sfu.setPublishing(voiceRoom(channelId), userId, rights);
+          }
+        } catch (error) {
+          console.error('[sfu]', error);
+        }
+      }
+    }
+  }
+
+  /** Moderação de voz. Toda ação exige a permissão correspondente no canal e que o alvo esteja abaixo na hierarquia. */
+  async moderateVoice(user: User, channelId: string, input: Record<string, unknown>): Promise<void> {
+    const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
+    if (channel.kind !== 'voz') throw new ApiError(400, 'nao_e_voz', 'Este canal não é de voz.');
+    const action = input.action;
+    const targetId = String(input.userId ?? '');
+    const { member, subject } = this.#targetMember(ctx, targetId);
+    this.#human(member);
+    const groupId = ctx.snap.group.id;
+    const room = voiceRoom(channelId);
+    const inside = (this.hub.voiceIn(groupId)[channelId] ?? []).includes(targetId);
+    const target = { kind: 'membro', id: targetId, name: member.displayName };
+    const sfu = async (run: () => Promise<void>) => {
+      try {
+        await run();
+      } catch (error) {
+        console.error('[sfu]', error);
+        throw new ApiError(502, 'sfu_indisponivel', 'O servidor de transmissão não respondeu. Tente de novo em instantes.');
+      }
+    };
+    const needInside = () => {
+      if (!inside) throw new ApiError(409, 'fora_do_canal', 'Essa pessoa não está neste canal de voz.');
+    };
+
+    if (action === 'mute') {
+      this.#need(ctx, P.MUTE_MEMBERS, perms);
+      this.#needRank(ctx, subject);
+      needInside();
+      await sfu(async () => {
+        for (const track of (await this.#sfu.tracksOf(room, targetId)) ?? []) {
+          if (track.source === 'microfone' && !track.muted) await this.#sfu.muteTrack(room, targetId, track.sid, true);
+        }
+      });
+      await this.#audit(this.#db, ctx, 'voz.silenciado', target, { canal: channel.name });
+      this.hub.toUser(targetId, { t: 'voice.muted', groupId, channelId, by: user.displayName });
+    } else if (action === 'block' || action === 'unblock') {
+      this.#need(ctx, P.BLOCK_SPEAK, perms);
+      this.#needRank(ctx, subject);
+      if (action === 'block') {
+        await this.#db.query('INSERT INTO voice_blocks (channel_id, user_id, blocked_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [channelId, targetId, user.id]);
+      } else {
+        await this.#db.query('DELETE FROM voice_blocks WHERE channel_id = $1 AND user_id = $2', [channelId, targetId]);
+      }
+      await this.#audit(this.#db, ctx, action === 'block' ? 'voz.fala_bloqueada' : 'voz.fala_liberada', target, { canal: channel.name });
+      if (inside) await sfu(async () => this.#sfu.setPublishing(room, targetId, (await this.#rightsFor(ctx.snap, member, channel)).rights));
+      this.hub.toUser(targetId, { t: 'voice.rights', groupId, channelId });
+    } else if (action === 'stop_stream') {
+      this.#need(ctx, P.STOP_STREAMS, perms);
+      this.#needRank(ctx, subject);
+      needInside();
+      const { rights } = await this.#rightsFor(ctx.snap, member, channel);
+      // Tirar a permissão derruba a transmissão no SFU; devolver em seguida deixa a pessoa transmitir de novo depois.
+      await sfu(async () => {
+        await this.#sfu.setPublishing(room, targetId, { ...rights, stream: false, streamAudio: false });
+        await this.#sfu.setPublishing(room, targetId, rights);
+      });
+      await this.#audit(this.#db, ctx, 'voz.transmissao_encerrada', target, { canal: channel.name });
+      this.hub.toUser(targetId, { t: 'voice.stream_stopped', groupId, channelId, by: user.displayName });
+    } else if (action === 'disconnect' || action === 'move') {
+      this.#need(ctx, P.MOVE_MEMBERS, perms);
+      this.#needRank(ctx, subject);
+      needInside();
+      let destination: Channel | null = null;
+      if (action === 'move') {
+        // Quem move precisa poder entrar no canal de destino.
+        const there = await this.#channelCtx(user, String(input.toChannelId ?? ''));
+        if (there.channel.kind !== 'voz' || there.ctx.snap.group.id !== groupId || there.channel.id === channelId) throw new ApiError(400, 'destino_invalido', 'Escolha outro canal de voz deste grupo.');
+        this.#need(ctx, P.CONNECT, there.perms);
+        destination = there.channel;
+        this.#movePass.set(targetId, { channelId: destination.id, expires: Date.now() + 30_000 });
+      }
+      await sfu(() => this.#sfu.removeParticipant(room, targetId));
+      await this.hub.setVoice(targetId, null);
+      await this.#audit(this.#db, ctx, destination ? 'voz.movido' : 'voz.desconectado', target, { de: channel.name, ...(destination ? { para: destination.name } : {}) });
+      this.hub.toUser(targetId, destination ? { t: 'voice.move', groupId, channelId: destination.id, by: user.displayName } : { t: 'voice.disconnected', groupId, channelId, by: user.displayName });
+    } else {
+      throw new ApiError(400, 'acao_invalida', 'Ação de moderação desconhecida.');
+    }
+  }
+}

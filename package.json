@@ -1,0 +1,32 @@
+{
+  "name": "shareroom",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ShareRoom — compartilhamento de tela em tempo real com salas privadas (WebRTC + LiveKit).",
+  "workspaces": [
+    "web",
+    "server"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev -w web",
+    "dev:server": "npm run dev -w server",
+    "livekit": "node scripts/livekit.mjs",
+    "build": "npm run build -w web",
+    "desktop": "npm --prefix desktop start",
+    "desktop:dist": "npm run build && npm run build:helper && npm --prefix desktop run dist",
+    "desktop:dist:signed": "npm run build && npm run build:helper && npm --prefix desktop run dist:signed",
+    "build:helper": "powershell -NoProfile -File helper/build.ps1",
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "test": "npm run test -w server && npm run test -w web",
+    "e2e": "node --test --test-concurrency=1 e2e/"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}

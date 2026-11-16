@@ -1,0 +1,51 @@
+# Dependências
+node_modules/
+
+# Builds
+dist/
+web/dist/
+server/dist/
+helper/bin/
+*.tsbuildinfo
+
+# Segredos e configuração local — nunca envie para o GitHub
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+.dev.vars
+.wrangler/
+
+# Binários baixados para desenvolvimento local (LiveKit)
+tools/
+
+# Testes
+e2e/.artifacts/
+test-results/
+playwright-report/
+coverage/
+
+# Imagens de referência do layout (mockups): ficam só na sua máquina
+imagens/
+
+# Editor e sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+npm-debug.log*
+
+# aplicativo de Windows
+desktop/release/
+desktop/src/config.json
+
+# Site legado: tem seu próprio repositório e hospedagem. Downloads oficiais usam GitHub Releases.
+sites/shareroom-download/
+
+# banco local de desenvolvimento
+server/.data/
