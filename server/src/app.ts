@@ -102,6 +102,11 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
       return await action();
     } catch (error) {
       console.error('[sfu]', error);
+      const upstream = error as { status?: number; code?: string } | null;
+      if (upstream?.status === 401 || upstream?.status === 403 ||
+          upstream?.code === 'unauthenticated' || upstream?.code === 'permission_denied') {
+        throw new ApiError(502, 'sfu_autenticacao_recusada', 'O servidor de transmissão recusou a autenticação. O administrador precisa conferir a configuração do LiveKit.');
+      }
       throw new ApiError(502, 'sfu_indisponivel', 'O servidor de transmissão não respondeu. Tente de novo em instantes.');
     }
   };

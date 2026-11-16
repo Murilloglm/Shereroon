@@ -274,6 +274,17 @@ describe('entrar na sala', () => {
     expect(status).toBe(502);
     expect(json.error.code).toBe('sfu_indisponivel');
   });
+
+  it.each([{ status: 401 }, { status: 403 }, { code: 'unauthenticated' }])(
+    'identifica autenticação do SFU recusada sem expor detalhes internos: %j', async (upstream) => {
+      const created = await createRoom();
+      sfu.snapshot = async () => { throw Object.assign(new Error('detalhe-interno-nao-publico'), upstream); };
+      const { status, json } = await post('/api/rooms/join', { invite: created.invite, name: 'Ana' });
+      expect(status).toBe(502);
+      expect(json.error.code).toBe('sfu_autenticacao_recusada');
+      expect(JSON.stringify(json)).not.toContain('detalhe-interno-nao-publico');
+    },
+  );
 });
 
 describe('expulsar', () => {
