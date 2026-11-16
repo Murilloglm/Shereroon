@@ -116,7 +116,7 @@ jobs:
           }
           # Apenas registra o estado real. Não exige assinatura nem declara confiança pública.
           ./desktop/scripts/audit-signatures.ps1 -ReleaseDir $releaseDir -ReportPath (Join-Path $releaseDir 'signature-report.json')
-          $installer = "ShareRoom-Setup-${env:PREVIEW_VERSION}.exe"
+          $installer = "CosmicNight-Setup-${env:PREVIEW_VERSION}.exe"
           $report = Get-Content -Raw (Join-Path $releaseDir 'signature-report.json') | ConvertFrom-Json
           $installerRecord = @($report.files | Where-Object { $_.path -eq $installer })
           if ($report.requireValid -or $installerRecord.Count -ne 1 -or $installerRecord[0].status -ne 'NotSigned') {
@@ -128,11 +128,11 @@ jobs:
       - name: Guardar os artefatos sem assinatura
         uses: actions/upload-artifact@v7
         with:
-          name: ShareRoom-Unsigned-Test-${{ steps.preview.outputs.tag }}
+          name: CosmicNight-Unsigned-Test-${{ steps.preview.outputs.tag }}
           if-no-files-found: error
           path: |
-            desktop/release-preview/ShareRoom-Setup-${{ steps.preview.outputs.version }}.exe
-            desktop/release-preview/ShareRoom-Setup-${{ steps.preview.outputs.version }}.exe.sha256
+            desktop/release-preview/CosmicNight-Setup-${{ steps.preview.outputs.version }}.exe
+            desktop/release-preview/CosmicNight-Setup-${{ steps.preview.outputs.version }}.exe.sha256
             desktop/release-preview/SHA256SUMS.txt
             desktop/release-preview/signature-report.json
 
@@ -144,7 +144,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: ShareRoom-Unsigned-Test-${{ needs.build.outputs.tag }}
+          name: CosmicNight-Unsigned-Test-${{ needs.build.outputs.tag }}
           path: release
 
       - name: Publicar pré-versão explicitamente sem assinatura
@@ -170,7 +170,7 @@ jobs:
             echo 'Já existe um Release para esta pré-versão. Escolha outra tag preview-.' >&2
             exit 1
           fi
-          installer="ShareRoom-Setup-$PREVIEW_VERSION.exe"
+          installer="CosmicNight-Setup-$PREVIEW_VERSION.exe"
           asset_url="https://github.com/$PREVIEW_REPOSITORY/releases/download/$PREVIEW_TAG"
           notes_file="$RUNNER_TEMP/shareroom-preview-notes.md"
           {
@@ -183,7 +183,7 @@ jobs:
             printf 'Não desative as proteções de segurança. Em caso de bloqueio, consulte [o diagnóstico pelos logs do Windows](https://github.com/%s/blob/%s/docs/windows-signing-options.md).\n\n' "$PREVIEW_REPOSITORY" "$PREVIEW_COMMIT"
             printf 'Esta pré-versão não usa atualização automática e não é uma release oficial assinada.\n'
           } > "$notes_file"
-          gh release create "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" --target "$PREVIEW_COMMIT" --draft --prerelease --latest=false --title "ShareRoom $PREVIEW_VERSION — TESTE SEM ASSINATURA" --notes-file "$notes_file"
+          gh release create "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" --target "$PREVIEW_COMMIT" --draft --prerelease --latest=false --title "Cosmic Night $PREVIEW_VERSION — TESTE SEM ASSINATURA" --notes-file "$notes_file"
           gh release upload "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" \
             "release/$installer" "release/$installer.sha256" \
             release/SHA256SUMS.txt release/signature-report.json

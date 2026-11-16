@@ -119,7 +119,7 @@ test('seletor próprio: lista janelas e telas reais com miniatura; cancelar não
   const wanted = picker.getByTestId('picker-source').filter({ hasText: WINDOW_TITLE });
   await wanted.waitFor({ timeout: 15_000 });
   assert.ok((await wanted.locator('img').first().getAttribute('src')).startsWith('data:image/png'), 'miniatura de verdade');
-  assert.equal(await picker.getByTestId('picker-source').filter({ hasText: /^ShareRoom$/ }).count(), 0, 'a própria janela do aplicativo fica de fora');
+  assert.equal(await picker.getByTestId('picker-source').filter({ hasText: /^Cosmic Night$/ }).count(), 0, 'a própria janela do aplicativo fica de fora');
   assert.equal(await page.getByTestId('picker-confirm').isDisabled(), true, 'nada vem escolhido');
 
   await page.getByTestId('picker-tab-screen').click();
@@ -181,7 +181,7 @@ test('fechar a janela dentro de uma sala só esconde: o aplicativo segue na band
   assert.deepEqual(state, { alive: true, visible: false });
   assert.equal(await guest.getByTestId('participant').count(), 2, 'você continua na sala');
 
-  await hook('clickTray', 'Abrir o ShareRoom');
+  await hook('clickTray', 'Abrir o Cosmic Night');
   await waitFor(() => main(() => globalThis.__shareroom.window().isVisible()), 'a janela voltar pela bandeja');
 });
 
@@ -190,7 +190,7 @@ test('configurações mostram a versão e o estado real da atualização', { ski
   const update = page.getByTestId('app-update');
   await update.waitFor();
   await waitFor(async () => (await update.getAttribute('data-state')) === 'indisponivel', 'o estado da atualização aparecer');
-  assert.match(await update.textContent(), /ShareRoom para Windows 0\.1\.0/);
+  assert.match(await update.textContent(), /Cosmic Night para Windows 0\.1\.0/);
   assert.match(await update.textContent(), APP_EXE ? /não veio de uma versão publicada/ : /só existe no aplicativo instalado/);
   await page.getByRole('dialog', { name: 'Configurações' }).getByRole('button', { name: 'Fechar' }).click();
 });

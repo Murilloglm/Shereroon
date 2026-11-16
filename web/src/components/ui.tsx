@@ -21,61 +21,74 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 export function Card({ className, ...rest }: HTMLAttributes<HTMLElement>) {
   return (
     <section
-      className={cx('rounded-2xl border border-ink-700 bg-ink-850/85 shadow-panel backdrop-blur-sm', className)}
+      className={cx('rounded-2xl border border-brand-500/15 bg-ink-850/85 shadow-panel backdrop-blur-md', className)}
       {...rest}
+    />
+  );
+}
+
+/** Emblema do aplicativo. O fundo preto da arte some sobre o fundo escuro (mistura "screen"). */
+export function LogoMark({ size = 40, className }: { size?: number; className?: string }) {
+  return (
+    <img
+      src={`${import.meta.env.BASE_URL}logo.png`}
+      width={size}
+      height={size}
+      alt=""
+      draggable={false}
+      className={cx('shrink-0 mix-blend-screen select-none', className)}
+      style={{ width: size, height: size }}
     />
   );
 }
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="flex items-center gap-2.5 select-none" aria-label="ShareRoom">
-      <svg viewBox="0 0 40 34" className={compact ? 'h-7 w-8' : 'h-8 w-10'} aria-hidden="true">
-        <defs>
-          <linearGradient id="sr-logo" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#dccbff" />
-            <stop offset="1" stopColor="#8b4dff" />
-          </linearGradient>
-        </defs>
-        <rect x="3" y="3" width="34" height="21" rx="5" fill="none" stroke="url(#sr-logo)" strokeWidth="3.2" />
-        <path d="M12 31h16" stroke="url(#sr-logo)" strokeWidth="3.2" strokeLinecap="round" />
-      </svg>
+    <span className="flex items-center gap-2 select-none" aria-label="Cosmic Night">
+      <LogoMark size={compact ? 36 : 46} />
       <span className={cx('font-extrabold tracking-tight', compact ? 'text-xl' : 'text-2xl')}>
-        Share<span className="text-brand-400">Room</span>
+        Cosmic <span className="bg-linear-to-r from-brand-300 to-neon-300 bg-clip-text text-transparent">Night</span>
       </span>
     </span>
   );
 }
 
-/** Fundo do app: brilho roxo e serras ao longe, como nos mockups. Puramente decorativo. */
+/** Fundo do app: céu noturno com nebulosas roxa e azul e riscos de luz nos cantos. Puramente decorativo. */
 export function Backdrop() {
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-ink-900">
-      <div className="absolute inset-0 bg-[radial-gradient(70%_55%_at_50%_-10%,rgb(115_50_234/0.18),transparent_70%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-[46%] bg-[radial-gradient(60%_90%_at_12%_100%,rgb(139_77_255/0.30),transparent_70%),radial-gradient(55%_85%_at_90%_100%,rgb(115_50_234/0.26),transparent_70%)]" />
-      <svg
-        className="absolute inset-x-0 bottom-0 h-[34%] w-full opacity-70"
-        viewBox="0 0 1600 400"
-        preserveAspectRatio="none"
-      >
-        <path d="M0 400V250l120-90 90 60 130-140 110 120 90-50 140 130V400Z" fill="#1c1238" />
-        <path d="M0 400V310l90-60 110 70 120-110 100 90 160 60V400Z" fill="#2a1957" opacity="0.8" />
-        <path d="M1600 400V230l-110-80-100 70-120-150-120 130-100-60-130 140V400Z" fill="#1c1238" />
-        <path d="M1600 400V300l-100-70-90 60-130-100-110 100-140 50V400Z" fill="#2a1957" opacity="0.8" />
-        <path d="M0 400V360l400-20 400 30 400-30 400 20v40Z" fill="#0b0914" />
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-ink-950">
+      <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_-12%,rgb(101_54_232/0.22),transparent_70%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(42%_52%_at_-4%_104%,rgb(124_77_255/0.46),transparent_70%),radial-gradient(40%_50%_at_104%_100%,rgb(79_38_192/0.46),transparent_70%),radial-gradient(30%_36%_at_100%_-6%,rgb(20_194_240/0.12),transparent_70%)]" />
+      {/* Estrelas: pontos espalhados, repetidos em blocos grandes para não formar padrão visível. */}
+      <div className="absolute inset-0 opacity-60 [background-image:radial-gradient(1px_1px_at_12%_18%,#cfd6ff_50%,transparent_51%),radial-gradient(1px_1px_at_71%_9%,#b79dff_50%,transparent_51%),radial-gradient(1.5px_1.5px_at_38%_64%,#bdf4ff_50%,transparent_51%),radial-gradient(1px_1px_at_88%_47%,#fff_50%,transparent_51%),radial-gradient(1px_1px_at_54%_86%,#b79dff_50%,transparent_51%),radial-gradient(1px_1px_at_23%_92%,#fff_50%,transparent_51%)] [background-size:560px_420px]" />
+      <svg className="absolute bottom-0 left-0 h-[46%] w-[34%] opacity-80" viewBox="0 0 500 400" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="cn-streak-a" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#3fdcff" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#7c4dff" stopOpacity="0.9" />
+            <stop offset="1" stopColor="#3fdcff" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="M-20 170 C120 250 220 330 330 420" fill="none" stroke="url(#cn-streak-a)" strokeWidth="2.5" />
+        <path d="M-20 240 C90 300 170 350 240 420" fill="none" stroke="url(#cn-streak-a)" strokeWidth="1.5" opacity="0.7" />
       </svg>
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-ink-900 to-transparent" />
+      <svg className="absolute right-0 bottom-0 h-[46%] w-[34%] opacity-80" viewBox="0 0 500 400" preserveAspectRatio="none">
+        <path d="M520 150 C380 240 270 320 170 420" fill="none" stroke="url(#cn-streak-a)" strokeWidth="2.5" />
+        <path d="M520 230 C410 290 330 350 270 420" fill="none" stroke="url(#cn-streak-a)" strokeWidth="1.5" opacity="0.7" />
+      </svg>
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-ink-950/80 to-transparent" />
     </div>
   );
 }
 
 // --- Botões ------------------------------------------------------------------
 
-type Variant = 'primary' | 'danger' | 'quiet' | 'outline' | 'bare';
+type Variant = 'primary' | 'neon' | 'danger' | 'quiet' | 'outline' | 'bare';
 
 const VARIANTS: Record<Variant, string> = {
   primary:
     'border border-brand-400/70 bg-linear-to-b from-brand-500 to-brand-700 text-white shadow-glow hover:from-brand-400 hover:to-brand-600',
+  neon: 'border border-neon-300/70 bg-linear-to-b from-neon-400 to-neon-600 text-ink-950 shadow-neon hover:from-neon-300 hover:to-neon-500',
   danger:
     'border border-live-500/70 bg-linear-to-b from-live-600 to-live-700 text-white hover:from-live-500 hover:to-live-600',
   quiet: 'border border-ink-600 bg-ink-800/90 text-fog-100 hover:border-ink-500 hover:bg-ink-750',

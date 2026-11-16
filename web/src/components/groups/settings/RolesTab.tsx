@@ -11,7 +11,7 @@ const bitOf = (permission: PermissionInfo): bigint => 1n << BigInt(permission.bi
 const ENFORCEMENT_NOTE: Record<PermissionInfo['enforcement'], string | null> = {
   servidor: null,
   aplicativo: 'Aplicada pelo aplicativo de quem assiste ou transmite; o servidor de transmissão não tem como impor.',
-  sem_efeito: 'Ainda sem efeito: o recurso não existe no ShareRoom. A escolha fica guardada.',
+  sem_efeito: 'Ainda sem efeito: o recurso não existe no Cosmic Night. A escolha fica guardada.',
 };
 
 /** Lista de permissões por categoria, com um interruptor para cada. `locked` diz quais a pessoa não pode mexer. */

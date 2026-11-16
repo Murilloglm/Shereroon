@@ -23,6 +23,9 @@ const ICON = resource('icon.png', '../build/icon.png');
 
 // Pasta de dados própria para testes automatizados: não mistura com a do aplicativo instalado.
 if (process.env.SHAREROOM_USER_DATA) app.setPath('userData', process.env.SHAREROOM_USER_DATA);
+// O aplicativo mudou de nome (era ShareRoom), mas continua na mesma pasta de dados: quem já usava não perde
+// a conta conectada, as salas recentes nem as preferências.
+else app.setPath('userData', join(app.getPath('appData'), 'ShareRoom'));
 
 /** Endereço do backend e do site público. Vêm do arquivo gerado na compilação; variáveis de ambiente valem por cima. */
 function loadConfig() {
@@ -232,21 +235,21 @@ const command = (name) => win?.webContents.send('desktop:command', name);
 function trayTemplate() {
   const state = roomState;
   return [
-    { label: 'Abrir o ShareRoom', click: showWindow },
+    { label: 'Abrir o Cosmic Night', click: showWindow },
     { type: 'separator' },
     { label: state.inRoom ? `Sala: ${state.roomName || 'sem nome'}` : 'Você não está em uma sala', enabled: false },
     { label: state.micOn ? 'Desligar o microfone' : 'Ligar o microfone', enabled: state.inRoom, click: () => command('toggle-mic') },
     { label: 'Parar de transmitir a tela', enabled: state.sharing, click: () => command('stop-share') },
     { label: 'Sair da sala', enabled: state.inRoom, click: () => command('leave') },
     { type: 'separator' },
-    { label: 'Fechar o ShareRoom', click: quit },
+    { label: 'Fechar o Cosmic Night', click: quit },
   ];
 }
 
 function refreshTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate(trayTemplate()));
-  tray.setToolTip(roomState.sharing ? 'ShareRoom — transmitindo a sua tela' : roomState.inRoom ? `ShareRoom — ${roomState.roomName || 'em uma sala'}` : 'ShareRoom');
+  tray.setToolTip(roomState.sharing ? 'Cosmic Night — transmitindo a sua tela' : roomState.inRoom ? `Cosmic Night — ${roomState.roomName || 'em uma sala'}` : 'Cosmic Night');
 }
 
 function createTray() {
@@ -333,7 +336,7 @@ function createWindow() {
     minWidth: 420,
     minHeight: 620,
     show: false,
-    title: 'ShareRoom',
+    title: 'Cosmic Night',
     backgroundColor: '#0b0914',
     autoHideMenuBar: true,
     icon: ICON,
@@ -357,7 +360,7 @@ function createWindow() {
     win.hide();
     if (!warnedAboutTray) {
       warnedAboutTray = true;
-      tray?.displayBalloon({ title: 'O ShareRoom continua aberto', content: 'Você segue na sala. Para sair de vez, use o ícone perto do relógio.' });
+      tray?.displayBalloon({ title: 'O Cosmic Night continua aberto', content: 'Você segue na sala. Para sair de vez, use o ícone perto do relógio.' });
     }
   });
   win.on('closed', () => {
@@ -432,7 +435,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     if (connectionError) {
-      dialog.showErrorBox('ShareRoom', 'Esta versão não possui um servidor online válido. Baixe uma versão atualizada do ShareRoom quando o serviço estiver disponível.');
+      dialog.showErrorBox('Cosmic Night', 'Esta versão não possui um servidor online válido. Baixe uma versão atualizada do Cosmic Night quando o serviço estiver disponível.');
       app.quit();
       return;
     }

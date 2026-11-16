@@ -11,7 +11,7 @@ async function sha256(file) {
 }
 
 export async function writePreviewChecksums(releaseDir) {
-  const installers = (await readdir(releaseDir)).filter(name => /^ShareRoom-Setup-\d+\.\d+\.\d+\.exe$/.test(name));
+  const installers = (await readdir(releaseDir)).filter(name => /^CosmicNight-Setup-\d+\.\d+\.\d+\.exe$/.test(name));
   if (installers.length !== 1) throw new Error('O preview deve conter exatamente um instalador.');
   const installer = installers[0];
   const report = JSON.parse(await readFile(resolve(releaseDir, 'signature-report.json'), 'utf8'));

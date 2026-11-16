@@ -138,21 +138,21 @@ jobs:
           if (-not $report.passed -or -not $report.requireValid -or $report.expectedPublisher -cne $env:SHAREROOM_PUBLISHER_NAME) {
             throw 'As evidências da auditoria obrigatória não correspondem a esta release.'
           }
-          foreach ($asset in @("ShareRoom-Setup-${env:RELEASE_VERSION}.exe", "ShareRoom-Setup-${env:RELEASE_VERSION}.exe.blockmap", 'latest.yml', 'SHA256SUMS.txt', "ShareRoom-Setup-${env:RELEASE_VERSION}.exe.sha256", 'signature-report.json')) {
+          foreach ($asset in @("CosmicNight-Setup-${env:RELEASE_VERSION}.exe", "CosmicNight-Setup-${env:RELEASE_VERSION}.exe.blockmap", 'latest.yml', 'SHA256SUMS.txt', "CosmicNight-Setup-${env:RELEASE_VERSION}.exe.sha256", 'signature-report.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path desktop/release $asset) -PathType Leaf)) { throw "Artefato obrigatório ausente: $asset" }
           }
 
       - name: Guardar instalador assinado e evidências
         uses: actions/upload-artifact@v7
         with:
-          name: ShareRoom-Windows-${{ steps.version.outputs.version }}
+          name: CosmicNight-Windows-${{ steps.version.outputs.version }}
           if-no-files-found: error
           path: |
-            desktop/release/ShareRoom-Setup-${{ steps.version.outputs.version }}.exe
-            desktop/release/ShareRoom-Setup-${{ steps.version.outputs.version }}.exe.blockmap
+            desktop/release/CosmicNight-Setup-${{ steps.version.outputs.version }}.exe
+            desktop/release/CosmicNight-Setup-${{ steps.version.outputs.version }}.exe.blockmap
             desktop/release/latest.yml
             desktop/release/SHA256SUMS.txt
-            desktop/release/ShareRoom-Setup-${{ steps.version.outputs.version }}.exe.sha256
+            desktop/release/CosmicNight-Setup-${{ steps.version.outputs.version }}.exe.sha256
             desktop/release/signature-report.json
 
   publish:
@@ -164,7 +164,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: ShareRoom-Windows-${{ needs.build.outputs.version }}
+          name: CosmicNight-Windows-${{ needs.build.outputs.version }}
           path: release
 
       - name: Publicar somente os bytes verificados no GitHub Releases
@@ -181,7 +181,7 @@ jobs:
             echo 'Já existe um Release para esta tag. Use uma nova versão; os instaladores oficiais não são sobrescritos.' >&2
             exit 1
           fi
-          installer="ShareRoom-Setup-$RELEASE_VERSION.exe"
+          installer="CosmicNight-Setup-$RELEASE_VERSION.exe"
           installer_sha=''
           while read -r hash filename; do
             if [[ "$filename" == "$installer" ]]; then installer_sha="$hash"; fi
@@ -194,18 +194,18 @@ jobs:
           asset_url="https://github.com/$RELEASE_REPOSITORY/releases/download/$RELEASE_TAG"
           notes_file="$RUNNER_TEMP/shareroom-release-notes.md"
           {
-            printf 'Instalador oficial do ShareRoom %s para Windows 10/11 x64.\n\n' "$RELEASE_VERSION"
+            printf 'Instalador oficial do Cosmic Night %s para Windows 10/11 x64.\n\n' "$RELEASE_VERSION"
             printf '[Baixar %s](%s/%s)\n\n' "$installer" "$asset_url" "$installer"
             printf 'Editor verificado (CN do certificado): %s.\n\n' "$publisher"
             printf 'SHA-256 do instalador:\n\n```text\n%s  %s\n```\n\n' "$installer_sha" "$installer"
             printf '[Todos os hashes SHA-256](%s/SHA256SUMS.txt) · [Relatório Authenticode](%s/signature-report.json).\n\n' "$asset_url" "$asset_url"
             printf '[Diagnóstico de bloqueios no Windows](https://github.com/%s/blob/%s/docs/windows-signing-options.md).\n' "$RELEASE_REPOSITORY" "$RELEASE_TAG"
           } > "$notes_file"
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --draft --title "ShareRoom $RELEASE_VERSION" --notes-file "$notes_file"
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --draft --title "Cosmic Night $RELEASE_VERSION" --notes-file "$notes_file"
           gh release upload "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
-            "release/ShareRoom-Setup-$RELEASE_VERSION.exe" \
-            "release/ShareRoom-Setup-$RELEASE_VERSION.exe.blockmap" \
+            "release/CosmicNight-Setup-$RELEASE_VERSION.exe" \
+            "release/CosmicNight-Setup-$RELEASE_VERSION.exe.blockmap" \
             release/latest.yml release/SHA256SUMS.txt \
-            "release/ShareRoom-Setup-$RELEASE_VERSION.exe.sha256" \
+            "release/CosmicNight-Setup-$RELEASE_VERSION.exe.sha256" \
             release/signature-report.json
           gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --latest

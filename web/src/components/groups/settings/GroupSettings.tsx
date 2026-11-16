@@ -7,11 +7,12 @@ import { copyText } from '../../../lib/format.ts';
 import { groups, type GroupView } from '../../../lib/groups/client.ts';
 import { Button, cx, Modal, Notice, TextInput, Toggle } from '../../ui.tsx';
 import { can, fieldLabel, fileToIcon, GroupIcon, memberName, selectClass, useAction, when } from '../common.tsx';
+import { BotsTab } from './BotsTab.tsx';
 import { ChannelsTab } from './ChannelsTab.tsx';
 import { MembersTab } from './MembersTab.tsx';
 import { RolesTab } from './RolesTab.tsx';
 
-export type SettingsTab = 'geral' | 'cargos' | 'canais' | 'membros' | 'convites' | 'banimentos' | 'auditoria';
+export type SettingsTab = 'geral' | 'cargos' | 'canais' | 'membros' | 'bots' | 'convites' | 'banimentos' | 'auditoria';
 
 /** Link de convite de grupo. No aplicativo de Windows aponta para o site, para abrir em qualquer navegador. */
 export function groupInviteLink(code: string): string {
@@ -373,6 +374,7 @@ export function GroupSettings({ view, tab, onTab, onClose }: { view: GroupView; 
     ['cargos', 'Cargos', can(view, P.MANAGE_ROLES)],
     ['canais', 'Canais', can(view, P.MANAGE_CHANNELS)],
     ['membros', 'Membros', true],
+    ['bots', 'Bots', can(view, P.INSTALL_BOTS) || can(view, P.CONFIGURE_BOTS) || can(view, P.VIEW_BOT_LOGS)],
     ['convites', 'Convites', can(view, P.CREATE_INVITE)],
     ['banimentos', 'Banimentos', can(view, P.BAN_MEMBERS)],
     ['auditoria', 'Auditoria', can(view, P.VIEW_AUDIT_LOG)],
@@ -404,6 +406,7 @@ export function GroupSettings({ view, tab, onTab, onClose }: { view: GroupView; 
         {current === 'cargos' && <RolesTab view={view} />}
         {current === 'canais' && <ChannelsTab view={view} />}
         {current === 'membros' && <MembersTab view={view} />}
+        {current === 'bots' && <BotsTab view={view} />}
         {current === 'convites' && <Invites view={view} />}
         {current === 'banimentos' && <Bans view={view} />}
         {current === 'auditoria' && <Audit view={view} />}

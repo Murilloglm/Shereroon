@@ -10,8 +10,8 @@ if (process.env.SHAREROOM_REQUIRE_SIGNING === '1' && (!owner || !repo)) {
 
 module.exports = {
   appId: 'app.shareroom.desktop',
-  productName: 'ShareRoom',
-  copyright: 'ShareRoom',
+  productName: 'Cosmic Night',
+  copyright: 'Cosmic Night',
   directories: { output: 'release', buildResources: 'build' },
   files: ['src/**/*', 'package.json'],
   asar: true,
@@ -21,6 +21,8 @@ module.exports = {
     { from: 'build/icon.png', to: 'icon.png' },
   ],
   win: {
+    // Nome do arquivo executável sem espaço: scripts de auditoria e atalhos dependem dele.
+    executableName: 'CosmicNight',
     target: [{ target: 'nsis', arch: ['x64'] }],
     icon: 'build/icon.png',
     ...signing.options,
@@ -34,8 +36,8 @@ module.exports = {
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    shortcutName: 'ShareRoom',
-    artifactName: 'ShareRoom-Setup-${version}.${ext}',
+    shortcutName: 'Cosmic Night',
+    artifactName: 'CosmicNight-Setup-${version}.${ext}',
   },
   // O executável final não aceita ser usado como Node comum nem abrir portas de depuração, e só carrega o
   // código do pacote conferido. SHAREROOM_TEST_BUILD=1 gera uma cópia sem essas travas, só para os testes

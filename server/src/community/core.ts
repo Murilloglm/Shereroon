@@ -512,7 +512,7 @@ export class Community {
   // --- Grupos -----------------------------------------------------------------------------
 
   /** Os grupos da pessoa, cada um dizendo se tem novidade para ela (respeitando o que ela silenciou). */
-  async myGroups(user: User): Promise<(Group & { unread: boolean; mentions: number })[]> {
+  async myGroups(user: User): Promise<(Group & { unread: boolean; mentions: number; notify: { level: NotifyLevel; channels: Record<string, NotifyLevel> } })[]> {
     const rows = await this.#db.query('SELECT g.* FROM groups g JOIN members m ON m.group_id = g.id WHERE m.user_id = $1 ORDER BY m.joined_at', [user.id]);
     const list = rows.map(toGroup);
     const [unread, notify] = await Promise.all([this.#unread(user.id, list.map((group) => group.id)), this.#notify(user.id)]);
@@ -531,7 +531,7 @@ export class Community {
           mentions += state.mentions;
           if (state.mentions > 0 || (level === 'tudo' && Number(state.last ?? 0) > Number(state.read ?? 0))) lit = true;
         }
-        return { ...group, unread: lit, mentions };
+        return { ...group, unread: lit, mentions, notify: settings };
       }),
     );
   }

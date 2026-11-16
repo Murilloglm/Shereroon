@@ -73,6 +73,18 @@ como segredo `DATABASE_URL` no Dashboard do Render. O servidor aplica as migraç
 Esse valor foi omitido do Blueprint para não exigir banco nem sobrescrever um segredo cadastrado depois.
 O PGlite local é apenas para desenvolvimento e não é armazenamento de produção no Render.
 
+Passo a passo com um PostgreSQL gratuito que não expira (Neon):
+
+1. Crie uma conta em <https://neon.tech> e um projeto (região mais próxima dos usuários).
+2. No painel do projeto, copie a *connection string* (começa com `postgresql://` e termina com `sslmode=require`).
+3. No Render, serviço → **Environment** → adicione `DATABASE_URL` com esse valor e salve. O Render reimplanta.
+4. Abra `https://ENDERECO-REAL-DO-SERVICO/api/features`: a resposta passa a ter `"groups":true`.
+
+Os arquivos enviados nos canais (imagens, vídeos, documentos) ficam no próprio banco, então sobrevivem aos
+reinícios da hospedagem. Dois limites protegem o espaço do plano, ajustáveis por variável de ambiente:
+`MAX_FILE_MB` (tamanho de cada arquivo, padrão 10, teto 50) e `GROUP_STORAGE_MB` (total por grupo, padrão 400).
+Num plano com 0,5 GB de banco, reduza `GROUP_STORAGE_MB` ou apague mensagens com arquivos antigos de vez em quando.
+
 ## Limites dos planos gratuitos
 
 O Render Free independe do PC, mas hiberna após 15 minutos sem tráfego e pode levar cerca de um minuto

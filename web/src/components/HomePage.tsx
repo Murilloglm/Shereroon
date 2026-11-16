@@ -108,7 +108,7 @@ export function HomePage() {
             </li>
             <li className="flex gap-3">
               <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand-400" />
-              Os números na tela são os medidos na transmissão. Se o real ficar abaixo do pedido, o ShareRoom avisa.
+              Os números na tela são os medidos na transmissão. Se o real ficar abaixo do pedido, o Cosmic Night avisa.
             </li>
             <li className="flex gap-3">
               <span className="mt-2 size-1.5 shrink-0 rounded-full bg-brand-400" />

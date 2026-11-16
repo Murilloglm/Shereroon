@@ -118,7 +118,7 @@ if (webRoot && process.env.SERVE_WEB !== '0') {
 
 const port = Number(process.env.PORT ?? 8787);
 const server = serve({ fetch: app.fetch, port, hostname: process.env.HOST ?? '0.0.0.0' }, (info) => {
-  console.log(`ShareRoom API em http://localhost:${info.port}`);
+  console.log(`Cosmic Night API em http://localhost:${info.port}`);
   console.log(`  LiveKit: ${config.livekitUrl}`);
   console.log(`  Origens autorizadas: ${config.allowedOrigins.join(', ') || '(nenhuma — defina ALLOWED_ORIGINS)'}`);
   if (webRoot) console.log(`  Servindo o frontend de ${webRoot}`);

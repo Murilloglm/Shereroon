@@ -193,6 +193,8 @@ export interface SessionState {
   devices: AudioDevices;
   outputDeviceId: string | null;
   outputVolume: number;
+  /** Som recebido desligado (vozes e transmissões), sem mexer nos volumes escolhidos. */
+  deafened: boolean;
   volumes: Record<string, number>;
   publisher: PublisherView | null;
   viewer: ViewerView | null;
@@ -324,6 +326,7 @@ export class RoomSession {
       devices: { inputs: [], outputs: [] },
       outputDeviceId: null,
       outputVolume: storage.get<number>('shareroom:volume-saida', 1),
+      deafened: false,
       volumes: {},
       publisher: null,
       viewer: null,
@@ -585,7 +588,9 @@ export class RoomSession {
 
   /** Só toca o áudio de tela da transmissão que está em destaque; as vozes tocam sempre. */
   #applyAudioRouting(): void {
-    const { selected, volumes, outputVolume } = this.store.get();
+    const state = this.store.get();
+    const { selected, volumes } = state;
+    const outputVolume = state.deafened ? 0 : state.outputVolume;
     for (const participant of this.#room.remoteParticipants.values()) {
       const screenAudio = participant.getTrackPublication(Track.Source.ScreenShareAudio) as RemoteTrackPublication | undefined;
       if (screenAudio) {
@@ -616,6 +621,12 @@ export class RoomSession {
   /** Volume (0 a 1) do áudio de uma transmissão, só para quem está ouvindo. Use `voz:<id>` para o microfone. */
   setVolume(key: string, volume: number): void {
     this.store.set((state) => ({ volumes: { ...state.volumes, [key]: Math.min(1, Math.max(0, volume)) } }));
+    this.#applyAudioRouting();
+  }
+
+  /** Liga ou desliga tudo o que a pessoa ouve da sala. */
+  setDeafened(deafened: boolean): void {
+    this.store.set({ deafened });
     this.#applyAudioRouting();
   }
 

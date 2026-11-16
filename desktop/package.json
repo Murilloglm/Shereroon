@@ -1,10 +1,10 @@
 {
   "name": "shareroom-desktop",
-  "productName": "ShareRoom",
+  "productName": "Cosmic Night",
   "version": "0.1.0",
   "private": true,
-  "description": "ShareRoom para Windows: compartilhamento de tela em salas privadas",
-  "author": "ShareRoom",
+  "description": "Cosmic Night para Windows: grupos, voz e compartilhamento de tela",
+  "author": "Cosmic Night",
   "type": "module",
   "main": "src/main.mjs",
   "scripts": {

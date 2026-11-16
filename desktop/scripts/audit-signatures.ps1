@@ -37,7 +37,7 @@ $installers = @($files | Where-Object {
 if ($installers.Count -ne 1) {
     $issues.Add("Expected exactly one ShareRoom-Setup-*.exe; found $($installers.Count).")
 }
-foreach ($required in @('win-unpacked/ShareRoom.exe', 'win-unpacked/resources/helper/ShareRoomAudio.exe')) {
+foreach ($required in @('win-unpacked/CosmicNight.exe', 'win-unpacked/resources/helper/ShareRoomAudio.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $releaseRoot $required) -PathType Leaf)) {
         $issues.Add("Missing required binary: $required")
     }

@@ -1,17 +1,22 @@
-import { ArrowLeft, ChevronDown, Compass, Crown, FolderPlus, Hash, Home, Lock, LogOut, Mic, MicOff, PhoneOff, Plus, Settings, UserPlus, Users, Volume2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { ArrowLeft, AudioLines, Bell, BellOff, ChevronDown, ChevronRight, Compass, Crown, FolderPlus, Hash, Lock, MicOff, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PhoneOff, Plus, Settings, UserPlus, Users, Volume2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
-import { groups, type ChannelKind, type ChannelView, type GroupView, type MemberView } from '../../lib/groups/client.ts';
+import { alertIncoming } from '../../lib/groups/alerts.ts';
+import { groups, type ChannelKind, type ChannelView, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
+import type { ParticipantView, RoomSession } from '../../lib/session.ts';
+import { storage } from '../../lib/storage.ts';
 import { useStore } from '../../lib/store.ts';
 import { RoomView } from '../room/RoomView.tsx';
-import { Avatar, Button, Card, cx, IconButton, Logo, Menu, MenuItem, Modal, Notice, TextInput, Toast, Toggle } from '../ui.tsx';
+import { Avatar, Button, Card, cx, IconButton, Logo, LogoMark, Menu, MenuItem, MenuLabel, Modal, Notice, TextInput, Toast, Toggle } from '../ui.tsx';
 import { AuthPage } from './AuthPage.tsx';
-import { Chat } from './Chat.tsx';
+import { Chat, NOTIFY_LABELS } from './Chat.tsx';
 import { can, fieldLabel, groupHash, GroupIcon, memberName, nameColor, topRole, useAction } from './common.tsx';
+import { usePanel } from './panels.tsx';
 import { CreateChannelModal } from './settings/ChannelsTab.tsx';
 import { extractGroupInvite, groupInviteLink, GroupSettings, type SettingsTab } from './settings/GroupSettings.tsx';
+import { UserPanel } from './UserPanel.tsx';
 import { useVoice, VoiceLobby, VoicePeople, type VoiceState } from './Voice.tsx';
 
 const WIDE = '(min-width: 1024px)';
@@ -215,45 +220,92 @@ function InviteModal({ view, onClose }: { view: GroupView; onClose: () => void }
   );
 }
 
+/** Novidade de um canal para esta conta, já descontado o que ela silenciou. */
+function unreadOf(view: GroupView, channelId: string): { unread: boolean; mentions: number; muted: boolean } {
+  const state = view.unread[channelId];
+  const muted = (view.notify.channels[channelId] ?? view.notify.level) === 'nada';
+  return { muted, mentions: muted ? 0 : (state?.mentions ?? 0), unread: !muted && state !== undefined && Number(state.last ?? 0) > Number(state.read ?? 0) };
+}
+
+/** Membros agrupados como no restante do app: dono, depois cada cargo (do mais alto ao mais baixo), online sem cargo e offline. */
 function MemberList({ view, className }: { view: GroupView; className?: string }) {
-  const rank = (member: MemberView) => (member.userId === view.group.ownerId ? 1e9 : (topRole(view, member)?.position ?? 0));
-  const sorted = [...view.members].sort((a, b) => rank(b) - rank(a) || memberName(a).localeCompare(memberName(b)));
-  const sections: [string, MemberView[]][] = [
-    ['Online', sorted.filter((member) => member.online)],
-    ['Offline', sorted.filter((member) => !member.online)],
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const inVoice = new Set(Object.values(view.voice).flat());
+  const byName = (a: MemberView, b: MemberView) => memberName(a).localeCompare(memberName(b));
+  const online = view.members.filter((member) => member.online).sort(byName);
+  const owner = online.filter((member) => member.userId === view.group.ownerId);
+  const rest = online.filter((member) => member.userId !== view.group.ownerId);
+  const sections: { id: string; title: string; color?: string; icon?: ReactNode; members: MemberView[] }[] = [
+    { id: 'dono', title: 'Dono', color: 'var(--color-warn-400)', icon: <Crown className="size-3.5" aria-hidden="true" />, members: owner },
+    ...view.roles
+      .filter((role) => !role.isEveryone)
+      .sort((a, b) => b.position - a.position)
+      .map((role) => ({ id: role.id, title: role.name, color: role.color ?? undefined, members: rest.filter((member) => topRole(view, member)?.id === role.id) })),
+    { id: 'online', title: 'Online', members: rest.filter((member) => !topRole(view, member)) },
+    { id: 'offline', title: 'Offline', members: view.members.filter((member) => !member.online).sort(byName) },
   ];
+  const toggle = (id: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
   return (
-    <aside className={cx('min-h-0 overflow-y-auto p-3', className)} data-testid="member-list">
+    <aside className={cx('min-h-0 overflow-y-auto p-2.5', className)} data-testid="member-list">
+      <h2 className="px-2 pt-1 pb-2 text-[15px] font-extrabold">Membros — {view.members.length}</h2>
       {sections.map(
-        ([title, members]) =>
-          members.length > 0 && (
-            <section key={title} className="mb-4">
-              <h2 className="px-2 pb-1.5 text-xs font-extrabold tracking-wide text-fog-500 uppercase">
-                {title} — {members.length}
-              </h2>
-              <ul className="grid gap-0.5">
-                {members.map((member) => {
-                  const role = topRole(view, member);
-                  return (
-                    <li key={member.userId} className={cx('flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-ink-800', !member.online && 'opacity-55')} data-testid="member" data-user={member.username} data-online={member.online}>
-                      <Avatar id={member.userId} name={memberName(member)} size={34} online={member.online} />
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-1 truncate text-sm font-bold" style={{ color: nameColor(view, member) }}>
-                          <span className="truncate" data-testid="member-name">
-                            {memberName(member)}
-                          </span>
-                          {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
-                        </p>
-                        {role && (
-                          <p className="truncate text-xs text-fog-500" data-testid="member-top-role">
-                            {role.name}
+        (section) =>
+          section.members.length > 0 && (
+            <section key={section.id} className="mb-2">
+              <button
+                type="button"
+                className="flex w-full items-center gap-1.5 rounded-lg bg-white/[0.03] px-2 py-1.5 text-left text-xs font-extrabold tracking-wide text-fog-400 uppercase hover:bg-white/[0.06]"
+                style={{ color: section.color }}
+                aria-expanded={!collapsed.has(section.id)}
+                onClick={() => toggle(section.id)}
+                data-testid="member-section"
+                data-section={section.title}
+              >
+                <ChevronRight className={cx('size-3.5 shrink-0 transition-transform', !collapsed.has(section.id) && 'rotate-90')} aria-hidden="true" />
+                {section.icon}
+                <span className="min-w-0 flex-1 truncate">
+                  {section.title} — {section.members.length}
+                </span>
+              </button>
+              {!collapsed.has(section.id) && (
+                <ul className="mt-1 grid gap-0.5">
+                  {section.members.map((member) => {
+                    const role = topRole(view, member);
+                    const status = !member.online ? 'Offline' : inVoice.has(member.userId) ? 'Em chamada' : 'Online';
+                    return (
+                      <li key={member.userId} className={cx('flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
+                        <Avatar id={member.userId} name={memberName(member)} size={34} online={member.online} />
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1 truncate text-sm font-bold text-neon-300" style={{ color: nameColor(view, member) }}>
+                            <span className="truncate" data-testid="member-name">
+                              {memberName(member)}
+                            </span>
+                            {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
                           </p>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                          <p className="flex items-center gap-1 truncate text-xs text-fog-500">
+                            <span className={cx('size-1.5 shrink-0 rounded-full', !member.online ? 'bg-fog-500' : status === 'Em chamada' ? 'bg-neon-400' : 'bg-ok-400')} />
+                            {role && (
+                              <>
+                                <span className="truncate" data-testid="member-top-role">
+                                  {role.name}
+                                </span>
+                                <span aria-hidden="true">•</span>
+                              </>
+                            )}
+                            <span className="shrink-0">{status}</span>
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </section>
           ),
       )}
@@ -262,90 +314,188 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
 }
 
 function VoiceBar({ view, voice, onLeave }: { view: GroupView | null; voice: VoiceState; onLeave: () => void }) {
-  const micOn = useStore(voice.session.store, (state) => state.micOn);
-  const micBusy = useStore(voice.session.store, (state) => state.micBusy);
   const sharing = useStore(voice.session.store, (state) => state.share.active);
-  const speak = useStore(voice.session.store, (state) => state.rights.speak);
+  const phase = useStore(voice.session.store, (state) => state.phase);
   const channel = view?.group.id === voice.groupId ? view.channels.find((item) => item.id === voice.channelId) : undefined;
+  const reconnecting = phase === 'reconnecting';
   return (
-    <div className="flex items-center gap-2 border-t border-ink-700 bg-ink-850 px-3 py-2.5" data-testid="voice-bar">
+    <div className="flex items-center gap-2 border-t border-brand-500/15 bg-ok-400/[0.06] px-3 py-2" data-testid="voice-bar">
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => navigate(groupHash(voice.groupId, voice.channelId))}>
-        <p className="flex items-center gap-1.5 text-sm font-bold text-ok-400">
-          <span className="size-2 rounded-full bg-ok-400" /> {sharing ? 'Transmitindo a tela' : 'Voz conectada'}
+        <p className={cx('flex items-center gap-1.5 text-sm font-bold', reconnecting ? 'text-warn-400' : 'text-ok-400')}>
+          <AudioLines className={cx('size-4', reconnecting && 'animate-pulse')} aria-hidden="true" />
+          {reconnecting ? 'Reconectando…' : sharing ? 'Transmitindo a tela' : 'Voz conectada'}
         </p>
-        <p className="truncate text-xs text-fog-400">{channel?.name ?? 'outro grupo'}</p>
+        <p className="truncate text-xs text-fog-400">{channel?.name ?? 'em outro grupo'}</p>
       </button>
-      <IconButton label={micOn ? 'Desligar o microfone' : 'Ligar o microfone'} disabled={micBusy || (!speak && !micOn)} onClick={() => void voice.session.setMic(!micOn)} data-testid="voice-bar-mic">
-        {micOn ? <Mic className="size-5 text-ok-400" /> : <MicOff className="size-5" />}
-      </IconButton>
-      <IconButton label="Sair do canal de voz" className="hover:text-live-300" onClick={onLeave} data-testid="voice-bar-leave">
+      <IconButton label="Sair do canal de voz" className="bg-live-600/25 text-live-300 hover:bg-live-600 hover:text-white" onClick={onLeave} data-testid="voice-bar-leave">
         <PhoneOff className="size-5" />
       </IconButton>
     </div>
   );
 }
 
-function ChannelList({ view, selected, voice, onPick, onModal, onLeaveVoice }: {
+/** Quem está num canal de voz. No canal em que esta conta está conectada, mostra também quem fala, microfone e transmissão. */
+function VoicePeopleRows({ people, session }: { people: MemberView[]; session: RoomSession | null }) {
+  return session ? <LiveVoicePeople people={people} session={session} /> : <VoicePeopleList people={people} live={new Map()} />;
+}
+
+function LiveVoicePeople({ people, session }: { people: MemberView[]; session: RoomSession }) {
+  const participants = useStore(session.store, (state) => state.participants);
+  return <VoicePeopleList people={people} live={new Map(participants.map((participant) => [participant.identity, participant]))} />;
+}
+
+function VoicePeopleList({ people, live }: { people: MemberView[]; live: Map<string, ParticipantView> }) {
+  return (
+    <ul className="mt-0.5 mb-1 ml-7 grid gap-0.5" data-testid="channel-voice-people">
+      {people.map((member) => {
+        const state = live.get(member.userId);
+        return (
+          <li key={member.userId} className="flex items-center gap-2 py-0.5 text-sm text-fog-300" data-user={member.username} data-speaking={state?.speaking === true}>
+            <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} />
+            <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+            {state?.sharing && <span className="shrink-0 rounded bg-live-500 px-1 text-[10px] font-extrabold text-white">AO VIVO</span>}
+            {state && !state.micOn && <MicOff className="size-3.5 shrink-0 text-fog-500" aria-label="Microfone desligado" />}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ChannelList({ view, selected, voice, onPick, onModal }: {
   view: GroupView;
   selected: string | undefined;
   voice: VoiceState | null;
   onPick: (channel: ChannelView) => void;
   onModal: (modal: ModalState) => void;
-  onLeaveVoice: () => void;
 }) {
   const { run } = useAction();
+  const collapsedKey = `shareroom:categorias:${view.group.id}`;
+  const [collapsed, setCollapsed] = useState<string[]>(() => storage.get<string[]>(collapsedKey, []));
+  const [drag, setDrag] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   const byPosition = (a: ChannelView, b: ChannelView) => a.position - b.position || a.name.localeCompare(b.name);
   const categories = view.channels.filter((channel) => channel.kind === 'categoria').sort(byPosition);
   const childrenOf = (parentId: string | null) => view.channels.filter((channel) => channel.kind !== 'categoria' && channel.parentId === parentId).sort(byPosition);
   const manage = can(view, P.MANAGE_CHANNELS);
+  const online = view.members.filter((member) => member.online).length;
+  const dragged = drag ? view.channels.find((channel) => channel.id === drag) : undefined;
+
+  const toggleCategory = (id: string) =>
+    setCollapsed((current) => {
+      const next = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+      storage.set(collapsedKey, next);
+      return next;
+    });
+
+  /** Solta o canal arrastado antes de `before`, ou no fim da categoria `into`. O backend confere a permissão. */
+  const drop = (target: { before?: ChannelView; into?: string | null }) => {
+    setOver(null);
+    setDrag(null);
+    if (!dragged || dragged.id === target.before?.id) return;
+    let items: { id: string; position: number; parentId?: string | null }[];
+    if (dragged.kind === 'categoria') {
+      if (target.before?.kind !== 'categoria') return;
+      const order = categories.filter((item) => item.id !== dragged.id);
+      order.splice(order.findIndex((item) => item.id === target.before!.id), 0, dragged);
+      items = order.map((item, position) => ({ id: item.id, position }));
+    } else {
+      const parentId = target.before && target.before.kind !== 'categoria' ? target.before.parentId : (target.into ?? null);
+      const siblings = childrenOf(parentId).filter((item) => item.id !== dragged.id);
+      const at = target.before && target.before.kind !== 'categoria' ? siblings.findIndex((item) => item.id === target.before!.id) : -1;
+      siblings.splice(at < 0 ? siblings.length : at, 0, dragged);
+      items = siblings.map((item, position) => ({ id: item.id, position, parentId }));
+    }
+    void run(() => groups.change('PUT', `/api/groups/${view.group.id}/channels/order`, { items }));
+  };
+
+  const dragProps = (channel: ChannelView, target: { before?: ChannelView; into?: string | null }) =>
+    manage
+      ? {
+          draggable: true,
+          onDragStart: (event: DragEvent<HTMLElement>) => {
+            event.stopPropagation();
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', channel.name);
+            setDrag(channel.id);
+          },
+          onDragEnd: () => {
+            setDrag(null);
+            setOver(null);
+          },
+          onDragOver: (event: DragEvent<HTMLElement>) => {
+            if (!dragged || dragged.id === channel.id || (dragged.kind === 'categoria' && channel.kind !== 'categoria')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setOver(channel.id);
+          },
+          onDrop: (event: DragEvent<HTMLElement>) => {
+            event.preventDefault();
+            event.stopPropagation();
+            drop(target);
+          },
+        }
+      : {};
 
   const row = (channel: ChannelView) => {
     const inside = (view.voice[channel.id] ?? []).map((userId) => view.members.find((member) => member.userId === userId)).filter((member) => member !== undefined);
     const Icon = channel.private ? Lock : channel.kind === 'voz' ? Volume2 : Hash;
+    const news = channel.kind === 'texto' ? unreadOf(view, channel.id) : { unread: false, mentions: 0, muted: false };
+    const active = selected === channel.id;
+    const connected = voice?.channelId === channel.id;
     return (
-      <li key={channel.id}>
-        <button
-          type="button"
-          onClick={() => onPick(channel)}
-          data-testid="channel"
-          data-kind={channel.kind}
-          data-name={channel.name}
-          aria-current={selected === channel.id}
-          className={cx(
-            'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[15px] font-semibold transition-colors',
-            selected === channel.id ? 'bg-brand-500/20 text-white' : 'text-fog-300 hover:bg-ink-800 hover:text-fog-100',
-          )}
-        >
-          <Icon className="size-4 shrink-0 text-fog-500" aria-hidden="true" />
-          <span className="truncate">{channel.name}</span>
-          {channel.kind === 'voz' && channel.userLimit > 0 && (
-            <span className="ml-auto shrink-0 text-xs text-fog-500">
-              {inside.length}/{channel.userLimit}
+      <li key={channel.id} className={cx('relative', over === channel.id && 'shadow-[0_-2px_0_var(--color-neon-400)]', drag === channel.id && 'opacity-40')} data-testid="channel-item" data-unread={news.unread} data-mentions={news.mentions} {...dragProps(channel, { before: channel })}>
+        {news.unread && !active && <span className="absolute top-1/2 -left-2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-white" aria-hidden="true" />}
+        <div className={cx('flex items-center rounded-lg border border-transparent transition-colors', active ? 'cn-selected text-white' : connected ? 'bg-ok-400/10' : 'hover:bg-white/5')}>
+          <button
+            type="button"
+            onClick={() => onPick(channel)}
+            data-testid="channel"
+            data-kind={channel.kind}
+            data-name={channel.name}
+            aria-current={active}
+            className={cx(
+              'flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-[15px] font-semibold',
+              active ? 'text-white' : news.unread ? 'text-white' : news.muted ? 'text-fog-500' : 'text-fog-300 hover:text-fog-100',
+            )}
+          >
+            <Icon className={cx('size-4 shrink-0', active ? 'text-brand-200' : 'text-fog-500')} aria-hidden="true" />
+            <span className="truncate">{channel.name}</span>
+          </button>
+          {news.mentions > 0 && (
+            <span className="mr-2 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-extrabold text-white shadow-glow" data-testid="channel-mentions" aria-label={`${news.mentions} menções`}>
+              {news.mentions > 99 ? '99+' : news.mentions}
             </span>
           )}
-        </button>
-        {inside.length > 0 && (
-          <ul className="mt-0.5 mb-1 ml-7 grid gap-0.5" data-testid="channel-voice-people">
-            {inside.map((member) => (
-              <li key={member.userId} className="flex items-center gap-2 text-sm text-fog-300" data-user={member.username}>
-                <Avatar id={member.userId} name={memberName(member)} size={22} online />
-                <span className="truncate">{memberName(member)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+          {news.muted && <BellOff className="mr-2 size-3.5 shrink-0 text-fog-500" aria-label="Canal silenciado" />}
+          {channel.kind === 'voz' && (inside.length > 0 || channel.userLimit > 0) && (
+            <span className="mr-2 shrink-0 text-xs text-fog-500">
+              {inside.length}
+              {channel.userLimit > 0 && `/${channel.userLimit}`}
+            </span>
+          )}
+        </div>
+        {inside.length > 0 && <VoicePeopleRows people={inside} session={connected ? voice.session : null} />}
       </li>
     );
   };
 
+  const level = view.notify.level;
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <Menu
         side="bottom"
         trigger={({ toggle, open }) => (
-          <button type="button" onClick={toggle} aria-expanded={open} className="flex w-full items-center gap-2 border-b border-ink-700 px-4 py-3.5 text-left hover:bg-ink-800/60" data-testid="group-menu">
-            <span className="min-w-0 flex-1 truncate text-[17px] font-extrabold" data-testid="group-title">
-              {view.group.name}
+          <button type="button" onClick={toggle} aria-expanded={open} className="flex w-full items-center gap-3 border-b border-brand-500/15 bg-linear-to-br from-brand-500/20 via-transparent to-neon-500/10 px-3.5 py-3 text-left hover:from-brand-500/30" data-testid="group-menu">
+            <GroupIcon group={view.group} size={42} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[16px] leading-tight font-extrabold" data-testid="group-title">
+                {view.group.name}
+              </span>
+              <span className="flex items-center gap-1.5 truncate text-xs text-fog-400">
+                <span className="size-1.5 shrink-0 rounded-full bg-ok-400" />
+                {online} online • {view.members.length} {view.members.length === 1 ? 'membro' : 'membros'}
+              </span>
             </span>
             <ChevronDown className={cx('size-4 shrink-0 text-fog-400 transition-transform', open && 'rotate-180')} />
           </button>
@@ -385,6 +535,12 @@ function ChannelList({ view, selected, voice, onPick, onModal, onLeaveVoice }: {
               >
                 Meu apelido neste grupo
               </MenuItem>
+              <MenuLabel>Avisos deste grupo</MenuLabel>
+              {(Object.keys(NOTIFY_LABELS) as NotifyLevel[]).map((value) => (
+                <MenuItem key={value} icon={value === 'nada' ? <BellOff className="size-4" /> : <Bell className="size-4" />} selected={level === value} onClick={() => (close(), void run(() => groups.setNotify(view.group.id, value)))} data-testid={`group-notify-${value}`}>
+                  {NOTIFY_LABELS[value]}
+                </MenuItem>
+              ))}
             </div>
           );
         }}
@@ -392,21 +548,28 @@ function ChannelList({ view, selected, voice, onPick, onModal, onLeaveVoice }: {
 
       <nav className="min-h-0 flex-1 overflow-y-auto p-2" aria-label="Canais" data-testid="channel-list">
         <ul className="grid gap-0.5">{childrenOf(null).map(row)}</ul>
-        {categories.map((category) => (
-          <section key={category.id} className="mt-3">
-            <h2 className="flex items-center gap-1 px-2 pb-1 text-xs font-extrabold tracking-wide text-fog-500 uppercase" data-testid="category" data-name={category.name}>
-              <span className="min-w-0 flex-1 truncate">{category.name}</span>
-              {manage && (
-                <IconButton label={`Criar canal em ${category.name}`} className="size-6" onClick={() => onModal({ type: 'canal', kind: 'texto', parentId: category.id })}>
-                  <Plus className="size-4" />
-                </IconButton>
-              )}
-            </h2>
-            <ul className="grid gap-0.5">{childrenOf(category.id).map(row)}</ul>
-          </section>
-        ))}
+        {categories.map((category) => {
+          const closed = collapsed.includes(category.id);
+          const children = childrenOf(category.id);
+          return (
+            <section key={category.id} className={cx('mt-3', over === category.id && 'rounded-lg shadow-[0_0_0_1px_var(--color-neon-400)]', drag === category.id && 'opacity-40')} {...dragProps(category, dragged?.kind === 'categoria' ? { before: category } : { into: category.id })}>
+              <h2 className="flex items-center gap-1 px-1 pb-1 text-xs font-extrabold tracking-wide text-fog-500 uppercase" data-testid="category" data-name={category.name}>
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-1 text-left uppercase hover:text-fog-100" aria-expanded={!closed} onClick={() => toggleCategory(category.id)}>
+                  <ChevronRight className={cx('size-3.5 shrink-0 transition-transform', !closed && 'rotate-90')} aria-hidden="true" />
+                  <span className="truncate">{category.name}</span>
+                </button>
+                {manage && (
+                  <IconButton label={`Criar canal em ${category.name}`} className="size-6" onClick={() => onModal({ type: 'canal', kind: 'texto', parentId: category.id })}>
+                    <Plus className="size-4" />
+                  </IconButton>
+                )}
+              </h2>
+              {/* Categoria recolhida ainda mostra o canal aberto, o que tem novidade e a chamada em que a pessoa está. */}
+              <ul className="grid gap-0.5">{children.filter((channel) => !closed || channel.id === selected || voice?.channelId === channel.id || (channel.kind === 'texto' && unreadOf(view, channel.id).unread)).map(row)}</ul>
+            </section>
+          );
+        })}
       </nav>
-      {voice && <VoiceBar view={view} voice={voice} onLeave={onLeaveVoice} />}
     </div>
   );
 }
@@ -422,6 +585,8 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
   const [pane, setPane] = useState<'lista' | 'conteudo'>(channelId ? 'conteudo' : 'lista');
   const { voice, joining, join, leave } = useVoice(view);
   const openedFor = useRef<string | undefined>(undefined);
+  const channelsPanel = usePanel('canais', 'left', 264, 208, 420, 'a coluna de canais');
+  const membersPanel = usePanel('membros', 'right', 256, 200, 400, 'a lista de membros');
 
   // Link de convite aberto com o site já na tela (só o endereço mudou): mostra o convite.
   useEffect(() => {
@@ -463,6 +628,33 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
     }
   }, [groupId, loading, view, list]);
 
+  // Mensagem que chega de outra pessoa: notificação e som, conforme o que a conta escolheu para o canal.
+  useEffect(() => {
+    groups.onIncoming = (incoming) => {
+      const state = groups.store.get();
+      const inView = state.view?.group.id === incoming.groupId ? state.view : null;
+      const author = inView?.members.find((member) => member.userId === incoming.message.author.id);
+      const name = author ? memberName(author) : incoming.message.author.name;
+      const where = inView?.channels.find((item) => item.id === incoming.message.channelId)?.name;
+      const group = state.groups.find((item) => item.id === incoming.groupId)?.name ?? 'Cosmic Night';
+      alertIncoming(incoming, {
+        title: where ? `${name} em #${where}` : `${name} • ${group}`,
+        watching: incoming.message.channelId === channelId && document.visibilityState === 'visible' && document.hasFocus(),
+        open: () => navigate(groupHash(incoming.groupId, incoming.message.channelId)),
+      });
+    };
+    return () => {
+      groups.onIncoming = null;
+    };
+  }, [channelId]);
+
+  // O título da janela mostra quantas menções esperam e se há algo não lido.
+  const pendingMentions = list.reduce((total, group) => total + (group.mentions ?? 0), 0);
+  const anyUnread = list.some((group) => group.unread);
+  useEffect(() => {
+    document.title = `${pendingMentions > 0 ? `(${pendingMentions}) ` : anyUnread ? '• ' : ''}${current ? `${current.group.name} – ` : ''}Cosmic Night`;
+  }, [pendingMentions, anyUnread, current]);
+
   const pick = (target: ChannelView) => {
     navigate(groupHash(current!.group.id, target.id));
     setPane('conteudo');
@@ -473,86 +665,91 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
   const inThisVoice = Boolean(voice && channel && voice.channelId === channel.id);
   const showContent = wide || pane === 'conteudo';
   const showList = wide || pane === 'lista';
+  const showChannels = !wide || channelsPanel.open;
+  const showMembers = wide && current !== null && membersPanel.open;
+  const gap = <span className="w-2.5 shrink-0" aria-hidden="true" />;
 
   return (
-    <div className="flex h-dvh overflow-hidden" data-testid="groups" data-live={live}>
+    <div className="flex h-dvh overflow-hidden p-2 sm:p-2.5" data-testid="groups" data-live={live}>
       {showList && (
         <>
-          <nav className="flex w-[4.5rem] shrink-0 flex-col items-center gap-2 border-r border-ink-700 bg-ink-900/70 py-3" aria-label="Seus grupos" data-testid="group-rail">
-            <IconButton label="Voltar para o início do ShareRoom" className="size-12 rounded-2xl bg-ink-800" onClick={() => navigate('#/')}>
-              <Home className="size-5" />
-            </IconButton>
-            <span className="h-px w-8 bg-ink-600" aria-hidden="true" />
+          <nav className="cn-panel flex w-[4.5rem] shrink-0 flex-col items-center gap-2 py-2.5" aria-label="Seus grupos" data-testid="group-rail">
+            <button type="button" title="Início do Cosmic Night" aria-label="Voltar para o início do Cosmic Night" className="rounded-2xl p-0.5 transition-shadow hover:shadow-glow" onClick={() => navigate('#/')} data-testid="rail-home">
+              <LogoMark size={48} />
+            </button>
+            <span className="h-px w-8 bg-brand-500/30" aria-hidden="true" />
             <ul className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto px-1 py-0.5">
               {list.map((group) => (
-                <li key={group.id}>
-                  <button type="button" title={group.name} aria-label={group.name} aria-current={group.id === groupId} onClick={() => navigate(groupHash(group.id))} data-testid="rail-group" data-name={group.name}>
+                <li key={group.id} className="relative">
+                  {group.id === groupId ? (
+                    <span className="absolute top-1/2 -left-2.5 h-9 w-1 -translate-y-1/2 rounded-r-full bg-neon-400 shadow-neon" aria-hidden="true" />
+                  ) : (
+                    group.unread && <span className="absolute top-1/2 -left-2.5 h-2.5 w-1 -translate-y-1/2 rounded-r-full bg-white" aria-hidden="true" />
+                  )}
+                  <button type="button" title={group.name} aria-label={group.name} aria-current={group.id === groupId} onClick={() => navigate(groupHash(group.id))} data-testid="rail-group" data-name={group.name} data-unread={group.unread === true} data-mentions={group.mentions ?? 0}>
                     <GroupIcon group={group} active={group.id === groupId} />
                   </button>
+                  {(group.mentions ?? 0) > 0 && (
+                    <span className="pointer-events-none absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-ink-900 bg-live-500 px-1 text-[11px] font-extrabold text-white" data-testid="rail-mentions">
+                      {group.mentions! > 99 ? '99+' : group.mentions}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
-            <IconButton label="Criar um grupo" className="size-12 rounded-2xl border border-dashed border-ink-500 text-brand-300" onClick={() => setModal({ type: 'criar-grupo' })} data-testid="rail-create">
+            <IconButton label="Criar um grupo" className="size-12 rounded-2xl border border-dashed border-brand-400/50 text-brand-300" onClick={() => setModal({ type: 'criar-grupo' })} data-testid="rail-create">
               <Plus className="size-5" />
             </IconButton>
-            <IconButton label="Entrar em um grupo" className="size-12 rounded-2xl border border-dashed border-ink-500 text-brand-300" onClick={() => setModal({ type: 'entrar' })} data-testid="rail-join">
+            <IconButton label="Entrar em um grupo" className="size-12 rounded-2xl border border-dashed border-brand-400/50 text-brand-300" onClick={() => setModal({ type: 'entrar' })} data-testid="rail-join">
               <Compass className="size-5" />
             </IconButton>
-            <Menu
-              side="top"
-              trigger={({ toggle }) => (
-                <button type="button" onClick={toggle} aria-label="Sua conta" className="mt-1 rounded-full" data-testid="account-menu">
-                  <Avatar id={account.id} name={account.displayName} size={40} online={live} />
-                </button>
-              )}
-            >
-              <div className="w-56">
-                <p className="truncate px-2.5 pt-1.5 text-sm font-bold">{account.displayName}</p>
-                <p className="truncate px-2.5 pb-2 text-xs text-fog-500">@{account.username}</p>
-                <MenuItem icon={<LogOut className="size-4" />} onClick={() => void groups.logout()} data-testid="account-logout">
-                  Sair da conta
-                </MenuItem>
-              </div>
-            </Menu>
-          </nav>
-
-          <div className={cx('flex min-h-0 flex-col border-r border-ink-700 bg-ink-850/80', wide ? 'w-64 shrink-0' : 'min-w-0 flex-1')}>
-            {current ? (
-              <ChannelList view={current} selected={channelId} voice={voice} onPick={pick} onModal={setModal} onLeaveVoice={() => void leave()} />
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="p-4">
-                  <Logo compact />
-                  <p className="mt-4 text-sm leading-relaxed text-fog-400">
-                    {list.length === 0
-                      ? 'Você ainda não está em nenhum grupo. Crie um ou entre com um convite.'
-                      : loading
-                        ? 'Abrindo o grupo…'
-                        : 'Escolha um grupo na barra ao lado.'}
-                  </p>
-                  <div className="mt-4 grid gap-2">
-                    <Button variant="primary" onClick={() => setModal({ type: 'criar-grupo' })}>
-                      Criar um grupo
-                    </Button>
-                    <Button onClick={() => setModal({ type: 'entrar' })}>Entrar em um grupo</Button>
-                  </div>
-                </div>
-                {voice && (
-                  <div className="mt-auto">
-                    <VoiceBar view={view} voice={voice} onLeave={() => void leave()} />
-                  </div>
-                )}
+            {wide && (
+              <div className="mt-1 flex flex-col gap-1 border-t border-brand-500/20 pt-2">
+                <IconButton label={channelsPanel.open ? 'Recolher a coluna de canais' : 'Mostrar a coluna de canais'} onClick={channelsPanel.toggle} data-testid="toggle-channels" aria-pressed={channelsPanel.open}>
+                  {channelsPanel.open ? <PanelLeftClose className="size-5" /> : <PanelLeftOpen className="size-5" />}
+                </IconButton>
+                <IconButton label={membersPanel.open ? 'Recolher a lista de membros' : 'Mostrar a lista de membros'} onClick={membersPanel.toggle} data-testid="toggle-members-rail" aria-pressed={membersPanel.open}>
+                  {membersPanel.open ? <PanelRightClose className="size-5" /> : <PanelRightOpen className="size-5" />}
+                </IconButton>
               </div>
             )}
-          </div>
+          </nav>
+
+          {showChannels && (
+            <>
+              {gap}
+              <div className={cx('cn-panel flex min-h-0 flex-col overflow-hidden', wide ? 'shrink-0' : 'min-w-0 flex-1')} style={wide ? { width: channelsPanel.width } : undefined} data-testid="channels-panel">
+                {current ? (
+                  <ChannelList view={current} selected={channelId} voice={voice} onPick={pick} onModal={setModal} />
+                ) : (
+                  <div className="min-h-0 flex-1 p-4">
+                    <Logo compact />
+                    <p className="mt-4 text-sm leading-relaxed text-fog-400">
+                      {list.length === 0 ? 'Você ainda não está em nenhum grupo. Crie um ou entre com um convite.' : loading ? 'Abrindo o grupo…' : 'Escolha um grupo na barra ao lado.'}
+                    </p>
+                    <div className="mt-4 grid gap-2">
+                      <Button variant="primary" onClick={() => setModal({ type: 'criar-grupo' })}>
+                        Criar um grupo
+                      </Button>
+                      <Button onClick={() => setModal({ type: 'entrar' })}>Entrar em um grupo</Button>
+                    </div>
+                  </div>
+                )}
+                {voice && <VoiceBar view={view} voice={voice} onLeave={() => void leave()} />}
+                <UserPanel account={account} live={live} session={voice?.session ?? null} />
+              </div>
+            </>
+          )}
         </>
       )}
 
+      {wide && (showChannels ? channelsPanel.resizer : gap)}
+
       {/* A sala de voz fica montada enquanto a conexão existir, mesmo com um canal de texto na tela: assim a
           transmissão e o mixer não param quando a pessoa vai conversar por texto. */}
-      <div className={cx('min-w-0 flex-1 flex-col', showContent ? 'flex' : 'hidden')}>
+      <main className={cx('cn-panel min-w-0 flex-1 flex-col overflow-hidden', showContent ? 'flex' : 'hidden')}>
         {!wide && current && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-ink-700 px-2 py-1.5">
+          <div className="flex shrink-0 items-center gap-2 border-b border-brand-500/15 px-2 py-1.5">
             <Button size="sm" onClick={() => setPane('lista')} data-testid="back-to-channels">
               <ArrowLeft className="size-4" aria-hidden="true" />
               Canais
@@ -571,21 +768,25 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
         {!inThisVoice &&
           (current && channel ? (
             channel.kind === 'texto' ? (
-              <Chat key={channel.id} view={current} channel={channel} />
+              <Chat key={channel.id} view={current} channel={channel} membersOpen={membersPanel.open} onToggleMembers={wide ? membersPanel.toggle : undefined} />
             ) : (
               <VoiceLobby view={current} channel={channel} joining={joining === channel.id} onJoin={() => void join(current.group.id, channel.id)} />
             )
           ) : (
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-fog-400">
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-fog-400">
+              <LogoMark size={120} className="opacity-80" />
               {loading ? 'Carregando…' : groupId ? 'Escolha um canal.' : 'Seus grupos aparecem na barra à esquerda.'}
             </div>
           ))}
-      </div>
+      </main>
 
-      {wide && current && (
-        <div className="flex w-64 shrink-0 flex-col border-l border-ink-700 bg-ink-850/60">
-          {inThisVoice && voice ? <VoicePeople view={current} voice={voice} className="m-2 min-h-0 flex-1" /> : <MemberList view={current} className="flex-1" />}
-        </div>
+      {showMembers && current && (
+        <>
+          {membersPanel.resizer}
+          <div className="cn-panel flex shrink-0 flex-col overflow-hidden" style={{ width: membersPanel.width }} data-testid="members-panel">
+            {inThisVoice && voice ? <VoicePeople view={current} voice={voice} className="m-2 min-h-0 flex-1" /> : <MemberList view={current} className="flex-1" />}
+          </div>
+        </>
       )}
 
       {modal?.type === 'criar-grupo' && <CreateGroupModal onClose={() => setModal(null)} />}
@@ -618,7 +819,7 @@ export function GroupsPage({ groupId, channelId, invite }: { groupId?: string; c
 
   useEffect(() => {
     void groups.start();
-    document.title = 'Grupos – ShareRoom';
+    document.title = 'Grupos – Cosmic Night';
   }, []);
 
   return (

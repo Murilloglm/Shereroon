@@ -49,7 +49,7 @@ function Setup({ phase, onRetry }: { phase: HelperPhase; onRetry: () => void }) 
           </p>
         ) : (
           <>
-            <Notice tone="aviso">O componente de áudio do aplicativo não respondeu. Tente de novo; se continuar, feche e abra o ShareRoom.</Notice>
+            <Notice tone="aviso">O componente de áudio do aplicativo não respondeu. Tente de novo; se continuar, feche e abra o Cosmic Night.</Notice>
             <Button variant="outline" onClick={onRetry} className="w-fit" data-testid="mixer-retry">
               <RefreshCw className="size-4" aria-hidden="true" />
               Tentar de novo
@@ -94,7 +94,7 @@ function Setup({ phase, onRetry }: { phase: HelperPhase; onRetry: () => void }) 
       {phase === 'negado' && (
         <Notice tone="aviso">Você recusou este site no ShareRoom Áudio. Para mudar de ideia, tente de novo e responda “Sim”.</Notice>
       )}
-      {phase === 'substituido' && <Notice tone="aviso">O mixer está em uso em outra aba do ShareRoom neste computador.</Notice>}
+      {phase === 'substituido' && <Notice tone="aviso">O mixer está em uso em outra aba do Cosmic Night neste computador.</Notice>}
       {(phase === 'ausente' || phase === 'parado') && (
         <>
           <Notice tone="aviso">
@@ -413,7 +413,7 @@ export function MixerPanel({
                     systemSource?.state === 'error'
                       ? (systemSource.error ?? 'O Windows recusou a captura')
                       : system.enabled
-                        ? desktop ? 'Todos os sons do PC, menos o próprio ShareRoom' : 'Todos os sons do PC, menos este navegador'
+                        ? desktop ? 'Todos os sons do PC, menos o próprio Cosmic Night' : 'Todos os sons do PC, menos este navegador'
                         : 'Sons do Windows e outros apps'
                   }
                   tone={systemSource?.state === 'error' ? 'aviso' : undefined}

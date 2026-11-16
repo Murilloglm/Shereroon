@@ -11,6 +11,13 @@ export interface Account {
   displayName: string;
 }
 
+export type NotifyLevel = 'tudo' | 'mencoes' | 'nada';
+
+export interface NotifySettings {
+  level: NotifyLevel;
+  channels: Record<string, NotifyLevel>;
+}
+
 export interface GroupSummary {
   id: string;
   name: string;
@@ -18,6 +25,25 @@ export interface GroupSummary {
   icon: string | null;
   isPublic: boolean;
   ownerId: string;
+  /** Tem novidade para esta conta (já descontado o que ela silenciou). */
+  unread?: boolean;
+  mentions?: number;
+  notify?: NotifySettings;
+}
+
+export interface UnreadState {
+  last: string | null;
+  read: string | null;
+  mentions: number;
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  width: number | null;
+  height: number | null;
 }
 
 export interface RoleView {
@@ -63,17 +89,26 @@ export interface GroupView {
   channels: ChannelView[];
   members: MemberView[];
   voice: Record<string, string[]>;
+  /** Por canal de texto: última mensagem, até onde esta conta leu e menções pendentes. */
+  unread: Record<string, UnreadState>;
+  notify: NotifySettings;
 }
 
 export interface ChatMessage {
   id: string;
   channelId: string;
-  author: { id: string | null; name: string; username: string | null };
+  author: { id: string | null; name: string; username: string | null; bot?: boolean };
   content: string;
+  /** Complementos de mensagens de bots: botões que enviam um comando como se a pessoa tivesse digitado. */
+  meta?: { buttons?: { label: string; command: string; style?: 'primario' | 'perigo' }[] } | null;
   mentionEveryone: boolean;
   pinned: boolean;
   createdAt: string;
   editedAt: string | null;
+  reply: { id: string; authorId: string | null; authorName: string; excerpt: string } | null;
+  mentions: string[];
+  attachments: Attachment[];
+  reactions: { emoji: string; users: string[] }[];
 }
 
 export interface ChannelMessages {
@@ -94,6 +129,17 @@ export interface GroupsState {
   /** O canal de tempo real está conectado. */
   live: boolean;
   notice: string | null;
+  /** Tamanho máximo de um arquivo, informado pelo servidor. */
+  maxFileBytes: number;
+}
+
+/** Uma mensagem que chegou de outra pessoa, para quem cuida dos avisos (notificação e som). */
+export interface Incoming {
+  groupId: string;
+  message: ChatMessage;
+  /** Esta conta foi mencionada (pelo nome ou por @everyone). */
+  mentioned: boolean;
+  level: NotifyLevel;
 }
 
 /** Avisos de voz dirigidos a esta conta (um moderador agiu sobre ela). */
@@ -117,6 +163,8 @@ function toView(raw: any): GroupView {
     channels: raw.channels.map(bigintFields),
     members: raw.members,
     voice: raw.voice ?? {},
+    unread: raw.unread ?? {},
+    notify: raw.notify ?? { level: 'tudo', channels: {} },
   };
 }
 
@@ -147,8 +195,10 @@ export class GroupsClient {
     messages: {},
     live: false,
     notice: null,
+    maxFileBytes: 10 * 1024 * 1024,
   });
   onVoiceSignal: ((signal: VoiceSignal) => void) | null = null;
+  onIncoming: ((incoming: Incoming) => void) | null = null;
 
   #token: string | null = readToken();
   #socket: WebSocket | null = null;
@@ -157,6 +207,9 @@ export class GroupsClient {
   #started: Promise<void> | null = null;
   #refreshTimer: ReturnType<typeof setTimeout> | null = null;
   #openChannel: string | null = null;
+  #groupsTimer: ReturnType<typeof setTimeout> | null = null;
+  readonly #reading = new Map<string, string>();
+  readonly #fileUrls = new Map<string, Promise<string>>();
 
   /** Chamada autenticada. Sessão vencida derruba para a tela de entrada. */
   async call<T = any>(method: string, path: string, body?: unknown): Promise<T> {
@@ -178,8 +231,9 @@ export class GroupsClient {
 
   async #start(): Promise<void> {
     try {
-      const features = await request<{ groups: boolean }>('GET', '/api/features', { timeoutMs: 70_000 });
+      const features = await request<{ groups: boolean; maxFileBytes?: number }>('GET', '/api/features', { timeoutMs: 70_000 });
       if (!features.groups) return this.store.set({ status: 'indisponivel' });
+      if (features.maxFileBytes) this.store.set({ maxFileBytes: features.maxFileBytes });
     } catch (error) {
       // Servidor antigo (sem a rota) ou fora do ar: sem grupos por enquanto.
       this.store.set({ status: 'indisponivel', notice: error instanceof ApiError && error.status === 0 ? error.message : null });
@@ -215,6 +269,21 @@ export class GroupsClient {
     if (token) await request('POST', '/api/auth/logout', { body: {}, token }).catch(() => undefined);
   }
 
+  async updateProfile(displayName: string): Promise<void> {
+    const { user } = await this.call<{ user: Account }>('PATCH', '/api/auth/me', { displayName });
+    this.store.set({ account: user });
+    await this.refreshView();
+  }
+
+  /** Troca a senha. O servidor encerra as outras sessões e devolve uma nova para este aparelho. */
+  async changePassword(current: string, next: string): Promise<void> {
+    const { token } = await this.call<{ token: string }>('POST', '/api/auth/password', { current, next });
+    this.#token = token;
+    writeToken(token);
+    this.#disconnect();
+    this.#connect();
+  }
+
   async #signedIn(account: Account): Promise<void> {
     this.store.set({ status: 'dentro', account });
     await this.refreshGroups();
@@ -225,6 +294,7 @@ export class GroupsClient {
     this.#token = null;
     writeToken(null);
     this.#disconnect();
+    this.#forgetFiles();
     this.store.set({ status: this.store.get().status === 'indisponivel' ? 'indisponivel' : 'fora', account: null, groups: [], view: null, messages: {}, live: false });
   }
 
@@ -326,9 +396,124 @@ export class GroupsClient {
     }
   }
 
-  async send(channelId: string, content: string): Promise<void> {
-    const { message } = await this.call<{ message: ChatMessage }>('POST', `/api/channels/${channelId}/messages`, { content });
+  async send(channelId: string, content: string, extra: { replyTo?: string; attachments?: string[] } = {}): Promise<void> {
+    const { message } = await this.call<{ message: ChatMessage }>('POST', `/api/channels/${channelId}/messages`, { content, ...extra });
     this.#upsert(message);
+    this.#sawMessage(message, this.store.get().view?.group.id ?? '');
+  }
+
+  async react(message: ChatMessage, emoji: string, on: boolean): Promise<void> {
+    this.#upsert((await this.call<{ message: ChatMessage }>(on ? 'PUT' : 'DELETE', `/api/messages/${message.id}/reactions/${encodeURIComponent(emoji)}`)).message);
+  }
+
+  /** Mensagens fixadas do canal, direto do servidor (não só as que já estão carregadas na tela). */
+  async pinned(channelId: string): Promise<ChatMessage[]> {
+    return (await this.call<{ messages: ChatMessage[] }>('GET', `/api/channels/${channelId}/messages?pinned=1&limit=100`)).messages;
+  }
+
+  // --- Arquivos ---------------------------------------------------------------------------
+
+  /** Envia um arquivo para o canal. Ele só aparece para os outros quando a mensagem for enviada. */
+  upload(channelId: string, file: File, size: { width: number; height: number } | null, onProgress: (fraction: number) => void): { done: Promise<Attachment>; cancel: () => void } {
+    const xhr = new XMLHttpRequest();
+    const done = new Promise<Attachment>((resolve, reject) => {
+      const query = new URLSearchParams({ name: file.name, ...(size ? { w: String(size.width), h: String(size.height) } : {}) });
+      xhr.open('POST', `${API_BASE}/api/channels/${channelId}/files?${query}`);
+      xhr.setRequestHeader('authorization', `Bearer ${this.#token ?? ''}`);
+      xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
+      xhr.responseType = 'json';
+      xhr.timeout = 10 * 60_000;
+      xhr.upload.onprogress = (event) => event.lengthComputable && onProgress(event.loaded / event.total);
+      xhr.onload = () => {
+        const data = xhr.response as { file?: Attachment; error?: { code?: string; message?: string } } | null;
+        if (xhr.status === 200 && data?.file) return resolve(data.file);
+        if (data?.error?.code === 'sessao_invalida') this.#signedOut();
+        reject(new ApiError(data?.error?.code ?? 'erro', data?.error?.message ?? `O servidor respondeu com erro ${xhr.status}.`, xhr.status));
+      };
+      xhr.onerror = () => reject(new ApiError('sem_conexao', 'Não foi possível enviar o arquivo. Confira sua internet e tente de novo.', 0));
+      xhr.ontimeout = () => reject(new ApiError('sem_conexao', 'O envio do arquivo demorou demais.', 0));
+      xhr.onabort = () => reject(new ApiError('cancelado', 'Envio cancelado.', 0));
+      xhr.send(file);
+    });
+    return { done, cancel: () => xhr.abort() };
+  }
+
+  /**
+   * Endereço local (blob:) de um arquivo do chat. O arquivo é baixado com a sessão da conta, então o
+   * servidor confere a permissão a cada leitura; o resultado fica guardado enquanto a página estiver aberta.
+   */
+  fileUrl(fileId: string): Promise<string> {
+    let pending = this.#fileUrls.get(fileId);
+    if (!pending) {
+      pending = (async () => {
+        const response = await fetch(`${API_BASE}/api/files/${fileId}`, { headers: { authorization: `Bearer ${this.#token ?? ''}` }, credentials: 'omit' });
+        if (!response.ok) throw new ApiError('arquivo_inexistente', 'Este arquivo não está mais disponível.', response.status);
+        return URL.createObjectURL(await response.blob());
+      })();
+      this.#fileUrls.set(fileId, pending);
+      pending.catch(() => this.#fileUrls.delete(fileId));
+    }
+    return pending;
+  }
+
+  #forgetFiles(): void {
+    for (const pending of this.#fileUrls.values()) void pending.then((url) => URL.revokeObjectURL(url)).catch(() => undefined);
+    this.#fileUrls.clear();
+  }
+
+  // --- Não lidas e notificações -------------------------------------------------------------
+
+  /** Avisa o servidor de que a conta leu o canal até esta mensagem. Chamadas repetidas viram uma só. */
+  markRead(channelId: string, messageId: string | undefined): void {
+    const view = this.store.get().view;
+    const state = view?.unread[channelId];
+    if (!view || !messageId || (this.#reading.get(channelId) ?? state?.read ?? '0') === messageId) return;
+    if (Number(messageId) <= Number(this.#reading.get(channelId) ?? state?.read ?? 0)) return;
+    this.#reading.set(channelId, messageId);
+    this.store.set({ view: { ...view, unread: { ...view.unread, [channelId]: { last: state?.last ?? messageId, read: messageId, mentions: 0 } } } });
+    void this.call('POST', `/api/channels/${channelId}/read`, { messageId })
+      .then(() => this.#scheduleGroups())
+      .catch(() => this.#reading.delete(channelId));
+  }
+
+  async setNotify(groupId: string, level: NotifyLevel | null, channelId?: string): Promise<void> {
+    await this.call('PUT', `/api/groups/${groupId}/notify`, { level, ...(channelId ? { channelId } : {}) });
+    await Promise.all([this.refreshView(), this.refreshGroups().catch(() => undefined)]);
+  }
+
+  /** Nível que vale para um canal: o do canal, se a conta escolheu um; senão, o do grupo. */
+  levelFor(groupId: string, channelId: string): NotifyLevel {
+    const state = this.store.get();
+    const settings = state.view?.group.id === groupId ? state.view.notify : state.groups.find((group) => group.id === groupId)?.notify;
+    return settings?.channels[channelId] ?? settings?.level ?? 'tudo';
+  }
+
+  #scheduleGroups(): void {
+    if (this.#groupsTimer) return;
+    this.#groupsTimer = setTimeout(() => {
+      this.#groupsTimer = null;
+      void this.refreshGroups().catch(() => undefined);
+    }, 800);
+  }
+
+  /** Atualiza o "não lido" do canal com uma mensagem que acabou de chegar (ou que esta conta enviou). */
+  #sawMessage(message: ChatMessage, groupId: string): void {
+    const state = this.store.get();
+    const me = state.account?.id;
+    const own = message.author.id === me;
+    const mentioned = !own && (message.mentionEveryone || (me !== undefined && message.mentions.includes(me)));
+    const view = state.view;
+    if (view && view.group.id === groupId && view.channels.some((channel) => channel.id === message.channelId)) {
+      const before = view.unread[message.channelId] ?? { last: null, read: null, mentions: 0 };
+      if (Number(message.id) > Number(before.last ?? 0)) {
+        if (own) this.#reading.set(message.channelId, message.id);
+        this.store.set({
+          view: { ...view, unread: { ...view.unread, [message.channelId]: { last: message.id, read: own ? message.id : before.read, mentions: own ? 0 : before.mentions + (mentioned ? 1 : 0) } } },
+        });
+      }
+    }
+    this.#scheduleGroups();
+    if (!own) this.onIncoming?.({ groupId, message, mentioned, level: this.levelFor(groupId, message.channelId) });
   }
 
   async edit(messageId: string, content: string): Promise<void> {
@@ -451,11 +636,15 @@ export class GroupsClient {
         }
         break;
       case 'message.created':
+        this.#upsert(event.message as ChatMessage);
+        this.#sawMessage(event.message as ChatMessage, event.groupId as string);
+        break;
       case 'message.updated':
         this.#upsert(event.message as ChatMessage);
         break;
       case 'message.deleted':
         this.#drop(event.channelId as string, event.id as string);
+        this.#scheduleGroups();
         break;
       case 'voice.muted':
       case 'voice.move':

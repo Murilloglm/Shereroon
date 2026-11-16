@@ -117,7 +117,7 @@ function AudioMenuItems({ session, close, onOpenMixer, systemAudio }: { session:
         <MenuItem
           selected={systemAudio.on}
           icon={<Volume2 className="size-4" />}
-          hint="Tudo o que toca no PC, menos o próprio ShareRoom: as vozes da sala não voltam como eco."
+          hint="Tudo o que toca no PC, menos o próprio Cosmic Night: as vozes da sala não voltam como eco."
           data-testid="audio-system"
           onClick={() => {
             close();

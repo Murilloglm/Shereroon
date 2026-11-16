@@ -1,7 +1,11 @@
-# ShareRoom
+# Cosmic Night
 
-Compartilhamento de tela em tempo real para assistir com amigos: salas privadas por link, sem cadastro e
-sem instalar nada para quem assiste. Funciona no computador e dá para assistir pelo celular.
+Grupos com canais de texto e de voz, cargos e permissões, e compartilhamento de tela em tempo real para
+assistir com amigos. As salas privadas por link continuam: sem cadastro e sem instalar nada para quem assiste.
+Funciona no computador e dá para assistir pelo celular.
+
+> O projeto se chamava ShareRoom. O nome antigo ainda aparece em nomes internos (variáveis `SHAREROOM_*`, o
+> repositório, o componente de áudio `ShareRoomAudio.exe`), que não mudaram para não quebrar instalações.
 
 **Downloads para Windows:** [página de download](https://murilloglm.github.io/Shereroon/) ou
 [GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
@@ -391,7 +395,7 @@ reconexão após o SFU cair, o cenário "só o jogo → jogo + voz → só a voz
 (voz com ventilador entrando como microfone, e um aplicativo com ruído filtrado sozinho no mixer), e o
 aplicativo de Windows (seletor, captura de janela, som do computador, bandeja, travas de navegação). Os
 testes do aplicativo rodam também contra a versão empacotada, com
-`SHAREROOM_APP_EXE=desktop\release\win-unpacked\ShareRoom.exe` e um pacote gerado com `SHAREROOM_TEST_BUILD=1`.
+`SHAREROOM_APP_EXE=desktop\release\win-unpacked\CosmicNight.exe` e um pacote gerado com `SHAREROOM_TEST_BUILD=1`.
 
 `E2E_HEADLESS=1` roda sem janelas, mas pula os testes de som (o Chrome sem janela não produz áudio).
 

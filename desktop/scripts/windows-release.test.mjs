@@ -32,7 +32,7 @@ test('preview público mantém fuses, recusa assinatura/test hooks e não habili
 test('preview só publica hashes quando a auditoria unsigned corresponde aos bytes finais', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'shareroom-preview-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const installer = 'ShareRoom-Setup-0.1.0.exe';
+  const installer = 'CosmicNight-Setup-0.1.0.exe';
   await writeFile(join(dir, installer), 'preview');
   const sha256 = createHash('sha256').update('preview').digest('hex');
   const report = { requireValid: false, files: [{ path: installer, status: 'NotSigned', sha256 }] };
@@ -85,18 +85,18 @@ test('Azure exige perfil/conta e endpoint HTTPS; segredos ficam só no ambiente'
 test('hashes usam os bytes finais e só assets de distribuição; pastas ambíguas falham', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'shareroom-checksums-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const installer = 'ShareRoom-Setup-1.2.3.exe';
+  const installer = 'CosmicNight-Setup-1.2.3.exe';
   const assets = [installer, `${installer}.blockmap`, 'latest.yml', 'signature-report.json'];
   for (const name of assets) await writeFile(join(dir, name), `final:${name}`);
   await writeFile(join(dir, 'builder-debug.yml'), 'interno');
-  await writeFile(join(dir, 'ShareRoom-Setup-1.2.3.__uninstaller.exe'), 'temporario');
+  await writeFile(join(dir, 'CosmicNight-Setup-1.2.3.__uninstaller.exe'), 'temporario');
   assert.deepEqual(await writeChecksums(dir), assets);
   const expected = assets.map(name => `${createHash('sha256').update(`final:${name}`).digest('hex')}  ${name}\n`).join('');
   assert.equal(await readFile(join(dir, 'SHA256SUMS.txt'), 'utf8'), expected);
   assert.equal(await readFile(join(dir, `${installer}.sha256`), 'utf8'), expected.split('\n')[0] + '\n');
   await rm(join(dir, 'latest.yml'));
   await assert.rejects(writeChecksums(dir), /ENOENT/);
-  await writeFile(join(dir, 'ShareRoom-Setup-1.2.4.exe'), 'outra versão');
+  await writeFile(join(dir, 'CosmicNight-Setup-1.2.4.exe'), 'outra versão');
   await assert.rejects(writeChecksums(dir), /exatamente um/);
 });
 
@@ -104,7 +104,7 @@ test('preserva bytes do desinstalador depois de assinar e rejeita assinatura omi
   const dir = await mkdtemp(join(tmpdir(), 'shareroom-uninstaller-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(join(dir, 'out'));
-  const file = join(dir, 'ShareRoom-Setup-1.2.3.__uninstaller.exe');
+  const file = join(dir, 'CosmicNight-Setup-1.2.3.__uninstaller.exe');
   const packager = { signIf: async path => { await writeFile(path, 'bytes-assinados'); return true; } };
   await preserveUninstaller({ packager, outDir: join(dir, 'out'), electronPlatformName: 'win32' });
   assert.equal(await packager.signIf(file), true);

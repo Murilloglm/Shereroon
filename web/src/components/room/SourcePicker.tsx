@@ -129,7 +129,7 @@ function Picker({ mixer }: { mixer: AppMixer }) {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Transmitir também o som do computador</p>
               <p className="text-[13px] leading-snug text-fog-400">
-                Tudo o que toca no PC, menos o próprio ShareRoom, então as vozes da sala não voltam como eco. Para escolher
+                Tudo o que toca no PC, menos o próprio Cosmic Night, então as vozes da sala não voltam como eco. Para escolher
                 aplicativo por aplicativo, use o mixer.
               </p>
             </div>

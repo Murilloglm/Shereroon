@@ -87,7 +87,7 @@ export function RoomGate({ invite }: { invite: string }) {
   useEffect(() => () => void session.leave(), [session]);
 
   useEffect(() => {
-    document.title = info ? `${info.name} – ShareRoom` : 'ShareRoom – Compartilhar Tela';
+    document.title = info ? `${info.name} – Cosmic Night` : 'Cosmic Night';
   }, [info]);
 
   if (phase === 'connected' || phase === 'reconnecting') {

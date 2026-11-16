@@ -83,7 +83,7 @@ function AppSection() {
     <Section title="Aplicativo">
       <div className="flex items-center gap-4" data-testid="app-update" data-state={status?.state ?? ''}>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">ShareRoom para Windows {app.config.version}</p>
+          <p className="text-sm font-semibold">Cosmic Night para Windows {app.config.version}</p>
           <p className="text-[13px] leading-snug text-fog-400">{updateText(status)}</p>
         </div>
         {status?.state === 'pronta' ? (

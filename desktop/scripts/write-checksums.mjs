@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 export async function writeChecksums(releaseDir) {
   const names = await readdir(releaseDir);
-  const installers = names.filter(name => /^ShareRoom-Setup-\d+\.\d+\.\d+(?:-[\da-z.-]+)?\.exe$/i.test(name));
-  if (installers.length !== 1) throw new Error('Esperado exatamente um instalador ShareRoom na pasta de release.');
+  const installers = names.filter(name => /^CosmicNight-Setup-\d+\.\d+\.\d+(?:-[\da-z.-]+)?\.exe$/i.test(name));
+  if (installers.length !== 1) throw new Error('Esperado exatamente um instalador do Cosmic Night na pasta de release.');
   const installer = installers[0];
   const assets = [installer, `${installer}.blockmap`, 'latest.yml', 'signature-report.json'];
   const lines = [];

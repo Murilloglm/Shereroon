@@ -3,24 +3,32 @@
 @theme {
   --font-sans: 'Nunito Sans Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
 
-  /* Fundo: preto arroxeado, do mais fundo ao mais claro */
-  --color-ink-950: #06050c;
-  --color-ink-900: #0b0914;
-  --color-ink-850: #100d1c;
-  --color-ink-800: #151226;
-  --color-ink-750: #1b1730;
-  --color-ink-700: #241e3f;
-  --color-ink-600: #342b5a;
-  --color-ink-500: #4a3f7a;
+  /* Fundo: azul-noite quase preto, do mais fundo ao mais claro */
+  --color-ink-950: #03040b;
+  --color-ink-900: #060712;
+  --color-ink-850: #0a0c1b;
+  --color-ink-800: #0f1124;
+  --color-ink-750: #15182f;
+  --color-ink-700: #1d2142;
+  --color-ink-600: #2b305e;
+  --color-ink-500: #414789;
 
-  /* Roxo da marca */
-  --color-brand-200: #dccbff;
-  --color-brand-300: #c4a5ff;
-  --color-brand-400: #a877ff;
-  --color-brand-500: #8b4dff;
-  --color-brand-600: #7332ea;
-  --color-brand-700: #5a22c4;
-  --color-brand-800: #43189a;
+  /* Roxo neon da marca */
+  --color-brand-100: #ece5ff;
+  --color-brand-200: #d6c8ff;
+  --color-brand-300: #b79dff;
+  --color-brand-400: #9873ff;
+  --color-brand-500: #7c4dff;
+  --color-brand-600: #6536e8;
+  --color-brand-700: #4f26c0;
+  --color-brand-800: #3a1b95;
+
+  /* Ciano neon: ação principal, quem fala, destaques */
+  --color-neon-200: #bdf4ff;
+  --color-neon-300: #82e9ff;
+  --color-neon-400: #3fdcff;
+  --color-neon-500: #14c2f0;
+  --color-neon-600: #0b98c4;
 
   /* Parar / perigo */
   --color-live-300: #ff8aa6;
@@ -35,13 +43,14 @@
   --color-warn-400: #ffc65c;
 
   /* Texto */
-  --color-fog-100: #f4f1fb;
-  --color-fog-300: #cbc5df;
-  --color-fog-400: #a59fbd;
-  --color-fog-500: #7c7697;
+  --color-fog-100: #eff0fb;
+  --color-fog-300: #c4c8e2;
+  --color-fog-400: #969bbd;
+  --color-fog-500: #6b7096;
 
-  --shadow-glow: 0 0 22px -6px rgb(139 77 255 / 0.75);
-  --shadow-panel: 0 18px 50px -24px rgb(0 0 0 / 0.9);
+  --shadow-glow: 0 0 24px -6px rgb(124 77 255 / 0.85);
+  --shadow-neon: 0 0 22px -6px rgb(63 220 255 / 0.8);
+  --shadow-panel: 0 0 0 1px rgb(124 77 255 / 0.06), 0 20px 60px -28px rgb(0 0 0 / 0.95);
 
   --animate-rise: rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade: fade 180ms ease-out both;
@@ -112,7 +121,7 @@
   }
 
   ::selection {
-    background: rgb(139 77 255 / 0.45);
+    background: rgb(124 77 255 / 0.5);
   }
 
   * {
@@ -131,6 +140,48 @@
 }
 
 @layer components {
+  /* Painel flutuante dos grupos: vidro azul-noite com contorno neon discreto. */
+  .cn-panel {
+    border: 1px solid rgb(124 77 255 / 0.16);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgb(13 15 32 / 0.92), rgb(8 9 21 / 0.94));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.035),
+      0 0 0 1px rgb(3 4 11 / 0.6),
+      0 24px 60px -34px rgb(0 0 0 / 0.95);
+    backdrop-filter: blur(10px);
+  }
+  /* Item escolhido (canal, grupo): preenchimento roxo com brilho. */
+  .cn-selected {
+    border-color: rgb(152 115 255 / 0.75);
+    background: linear-gradient(90deg, rgb(124 77 255 / 0.34), rgb(124 77 255 / 0.14));
+    box-shadow:
+      inset 0 0 0 1px rgb(152 115 255 / 0.35),
+      0 0 20px -8px rgb(124 77 255 / 0.9);
+  }
+  /* Alça para redimensionar um painel. */
+  .cn-resizer {
+    width: 10px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    position: relative;
+    z-index: 5;
+    touch-action: none;
+  }
+  .cn-resizer::after {
+    content: '';
+    position: absolute;
+    inset: 18px 4px;
+    border-radius: 999px;
+    background: transparent;
+    transition: background 120ms;
+  }
+  .cn-resizer:hover::after,
+  .cn-resizer[data-dragging='true']::after {
+    background: var(--color-brand-400);
+    box-shadow: 0 0 12px rgb(124 77 255 / 0.9);
+  }
+
   /* Controle deslizante: a parte preenchida usa --fill (0% a 100%), definida inline. */
   .sr-range {
     appearance: none;
@@ -170,7 +221,7 @@
     border-radius: 50%;
     background: var(--color-brand-200);
     border: 2px solid var(--color-brand-500);
-    box-shadow: 0 0 10px -1px rgb(139 77 255 / 0.9);
+    box-shadow: 0 0 10px -1px rgb(124 77 255 / 0.9);
   }
   .sr-range::-moz-range-thumb {
     width: 12px;
