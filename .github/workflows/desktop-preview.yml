@@ -1,0 +1,198 @@
+# Canal de TESTE sem assinatura. Não substitui a release oficial assinada.
+# Só executa manualmente e publica uma pré-versão que não vira "Latest".
+name: Pré-versão Windows sem assinatura
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag opcional começando com preview- (padrão: preview-NÚMERO-DA-EXECUÇÃO)'
+        required: false
+        type: string
+      api_url:
+        description: 'Backend HTTPS opcional; vazio usa localhost:8787, sem salas pela internet'
+        required: false
+        type: string
+      site_url:
+        description: 'Site HTTPS opcional para os links de convite'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-preview-${{ inputs.tag || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.preview.outputs.version }}
+      tag: ${{ steps.preview.outputs.tag }}
+      api_url: ${{ steps.preview.outputs.api_url }}
+      site_url: ${{ steps.preview.outputs.site_url }}
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      SHAREROOM_API_URL: ${{ inputs.api_url }}
+      SHAREROOM_SITE_URL: ${{ inputs.site_url }}
+      SHAREROOM_REQUIRE_SIGNING: '0'
+      SHAREROOM_SIGNING_PROVIDER: ''
+      SHAREROOM_TEST_BUILD: '0'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Validar a pré-versão e os endereços opcionais
+        id: preview
+        env:
+          PREVIEW_TAG_INPUT: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = ([string]$env:PREVIEW_TAG_INPUT).Trim()
+          if (-not $tag) { $tag = "preview-$env:GITHUB_RUN_NUMBER" }
+          if ($tag -notmatch '^preview-[A-Za-z0-9][A-Za-z0-9._-]{0,90}$') {
+            throw 'Use uma tag começando com preview-, sem espaços ou barras; tags v* são exclusivas de releases assinadas.'
+          }
+          git check-ref-format "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw 'A tag informada não é uma referência Git válida.' }
+          $version = (Get-Content -Raw desktop/package.json | ConvertFrom-Json).version
+          if ($version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw 'A versão do desktop deve ter o formato X.Y.Z para este workflow.'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          foreach ($entry in @(@('SHAREROOM_API_URL', 'api_url'), @('SHAREROOM_SITE_URL', 'site_url'))) {
+            $address = ([string][Environment]::GetEnvironmentVariable($entry[0])).Trim()
+            if ($address) {
+              $uri = $null
+              if ($address -match '[\r\n]' -or -not [Uri]::TryCreate($address, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https' -or $uri.UserInfo) {
+                throw "$($entry[0]) deve ser uma URL HTTPS sem credenciais ou quebras de linha, ou ficar vazia."
+              }
+            }
+            "$($entry[1])=$address" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Dependências e verificação do código
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix desktop ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix desktop test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Compilar interface, auxiliar e instalador de teste
+        run: |
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build:helper
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix desktop run dist:preview
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Registrar assinaturas e calcular os hashes do teste
+        env:
+          PREVIEW_VERSION: ${{ steps.preview.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'desktop/release-preview'
+          if (Test-Path -LiteralPath (Join-Path $releaseDir 'win-unpacked/resources/app-update.yml')) {
+            throw 'Uma pré-versão sem assinatura não pode conter canal de atualização automática.'
+          }
+          # Apenas registra o estado real. Não exige assinatura nem declara confiança pública.
+          ./desktop/scripts/audit-signatures.ps1 -ReleaseDir $releaseDir -ReportPath (Join-Path $releaseDir 'signature-report.json')
+          $installer = "ShareRoom-Setup-${env:PREVIEW_VERSION}.exe"
+          $report = Get-Content -Raw (Join-Path $releaseDir 'signature-report.json') | ConvertFrom-Json
+          $installerRecord = @($report.files | Where-Object { $_.path -eq $installer })
+          if ($report.requireValid -or $installerRecord.Count -ne 1 -or $installerRecord[0].status -ne 'NotSigned') {
+            throw 'O relatório não identifica o instalador de teste sem assinatura esperado.'
+          }
+          npm --prefix desktop run checksums:preview
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Guardar os artefatos sem assinatura
+        uses: actions/upload-artifact@v7
+        with:
+          name: ShareRoom-Unsigned-Test-${{ steps.preview.outputs.tag }}
+          if-no-files-found: error
+          path: |
+            desktop/release-preview/ShareRoom-Setup-${{ steps.preview.outputs.version }}.exe
+            desktop/release-preview/ShareRoom-Setup-${{ steps.preview.outputs.version }}.exe.sha256
+            desktop/release-preview/SHA256SUMS.txt
+            desktop/release-preview/signature-report.json
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ShareRoom-Unsigned-Test-${{ needs.build.outputs.tag }}
+          path: release
+
+      - name: Publicar pré-versão explicitamente sem assinatura
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_TAG: ${{ needs.build.outputs.tag }}
+          PREVIEW_VERSION: ${{ needs.build.outputs.version }}
+          PREVIEW_API_URL: ${{ needs.build.outputs.api_url }}
+          PREVIEW_SITE_URL: ${{ needs.build.outputs.site_url }}
+          PREVIEW_COMMIT: ${{ github.sha }}
+          PREVIEW_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          (cd release && sha256sum --check --strict SHA256SUMS.txt)
+          # Uma tag existente nunca é reaproveitada, mesmo que não tenha Release.
+          tag_count="$(gh api "repos/$PREVIEW_REPOSITORY/git/matching-refs/tags/$PREVIEW_TAG" --jq 'length')"
+          if [[ "$tag_count" != '0' ]]; then
+            echo 'A tag ou outra tag com esse prefixo já existe. Escolha uma nova tag preview-; nenhum instalador será sobrescrito.' >&2
+            exit 1
+          fi
+          if gh release view "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Já existe um Release para esta pré-versão. Escolha outra tag preview-.' >&2
+            exit 1
+          fi
+          installer="ShareRoom-Setup-$PREVIEW_VERSION.exe"
+          asset_url="https://github.com/$PREVIEW_REPOSITORY/releases/download/$PREVIEW_TAG"
+          notes_file="$RUNNER_TEMP/shareroom-preview-notes.md"
+          {
+            printf '**VERSÃO DE TESTE SEM ASSINATURA DIGITAL.**\n\n'
+            printf 'O Windows 11 pode bloquear este instalador ou seus componentes por Smart App Control, App Control for Business ou SmartScreen. Não há garantia de instalação ou execução.\n\n'
+            printf 'SHA-256 confere a integridade dos bytes baixados; não prova a identidade do editor e não torna o aplicativo confiável para outros computadores.\n\n'
+            if [[ -z "$PREVIEW_API_URL" ]]; then
+              printf '**Este pacote usa o backend local http://localhost:8787 e não conecta os amigos pela internet.**\n\n'
+            else
+              printf 'Backend HTTPS configurado neste pacote: %s. A disponibilidade do serviço não é garantida por esta publicação.\n\n' "$PREVIEW_API_URL"
+            fi
+            if [[ -z "$PREVIEW_SITE_URL" ]]; then
+              printf 'Nenhum site público foi configurado para os links de convite.\n\n'
+            fi
+            printf '[Baixar instalador de teste %s](%s/%s) · [SHA-256](%s/SHA256SUMS.txt) · [Relatório das assinaturas](%s/signature-report.json).\n\n' "$installer" "$asset_url" "$installer" "$asset_url" "$asset_url"
+            printf 'Não desative as proteções de segurança. Em caso de bloqueio, consulte [o diagnóstico pelos logs do Windows](https://github.com/%s/blob/%s/docs/windows-signing-options.md).\n\n' "$PREVIEW_REPOSITORY" "$PREVIEW_COMMIT"
+            printf 'Esta pré-versão não usa atualização automática e não é uma release oficial assinada.\n'
+          } > "$notes_file"
+          gh release create "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" --target "$PREVIEW_COMMIT" --draft --prerelease --latest=false --title "ShareRoom $PREVIEW_VERSION — TESTE SEM ASSINATURA" --notes-file "$notes_file"
+          gh release upload "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" \
+            "release/$installer" "release/$installer.sha256" \
+            release/SHA256SUMS.txt release/signature-report.json
+          gh release edit "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" --draft=false --prerelease --latest=false

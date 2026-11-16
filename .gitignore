@@ -42,6 +42,7 @@ npm-debug.log*
 
 # aplicativo de Windows
 desktop/release/
+desktop/release-preview/
 desktop/src/config.json
 
 # Site legado: tem seu próprio repositório e hospedagem. Downloads oficiais usam GitHub Releases.

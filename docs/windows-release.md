@@ -51,11 +51,30 @@ O projeto já foi enviado para [Murilloglm/Shereroon](https://github.com/Murillo
 `origin` configurado e o workflow `.github/workflows/desktop-release.yml` ativo.
 O canal de downloads é [GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
 Releases imutáveis estão habilitados e o token padrão do Actions usa permissões de leitura; o job de
-publicação solicita a escrita necessária. Ainda não há release, tag de versão ou instalador oficial publicado.
+publicação solicita a escrita necessária. A distribuição gratuita atual usa **pré-versões sem assinatura**,
+com tags `preview-*`; elas não são versões oficiais assinadas e podem ser bloqueadas pelo Windows.
 O workflow separado de GitHub Pages está desabilitado no repositório enquanto a hospedagem do app não
 estiver configurada; o código dele foi preservado para uma implantação futura.
-Agora configure Settings, variables e secrets no GitHub conforme as tabelas abaixo.
+Para o canal de versões assinadas, configure Settings, variables e secrets no GitHub conforme as tabelas abaixo.
 Não armazene chaves ou senhas no Git, no frontend ou nos artefatos.
+
+### Distribuição gratuita imediata: pré-versões no GitHub Releases
+
+O usuário escolheu este canal sem criar conta na Store ou contratar assinatura. O workflow manual
+`.github/workflows/desktop-preview.yml` gera e publica uma **prerelease** com EXE, relatório de assinaturas,
+`SHA256SUMS.txt` e `.exe.sha256`. Ele usa `preview-*`, sem acionar o workflow oficial `v*`, não sobrescreve
+releases existentes e não marca o preview como `latest` estável. O build mantém os fuses de segurança,
+sem habilitar ganchos de teste, e não recebe canal de atualização automática.
+
+`npm run desktop:dist:preview` gera `desktop/release-preview/ShareRoom-Setup-0.1.0.exe`. O relatório
+`signature-report.json` registra `NotSigned`; os hashes só são gerados se ele corresponder aos bytes finais.
+SHA-256 verifica os bytes e **não substitui a assinatura do editor**. A auditoria informa as assinaturas
+ausentes; ela não aprova a instalação no Windows. Não desative proteções para executar o preview.
+
+Sem URLs públicas definidas, esta compilação usa `http://localhost:8787` e serve para teste local.
+A primeira pré-versão é [preview-v0.1.0](https://github.com/Murilloglm/Shereroon/releases/tag/preview-v0.1.0).
+O pacote antigo `0.1.0` auditado no início foi preservado em outra pasta; o asset da pré-versão foi recompilado
+e tem seu próprio SHA-256 na página do Release.
 
 Em **Settings → Secrets and variables → Actions → Variables**, configure:
 

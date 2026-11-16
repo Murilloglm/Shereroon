@@ -12,10 +12,12 @@
     "config": "node scripts/write-config.mjs",
     "pack": "npm run config && electron-builder --dir --config electron-builder.config.cjs --publish never",
     "dist": "npm run config && electron-builder --win nsis --config electron-builder.config.cjs --publish never",
+    "dist:preview": "npm run config && electron-builder --win nsis --config electron-builder.preview.config.cjs --publish never",
     "dist:signed": "npm run config && node scripts/build-signed.mjs",
     "release": "npm run dist:signed",
     "audit:signatures": "powershell -NoProfile -File scripts/audit-signatures.ps1",
     "checksums": "node scripts/write-checksums.mjs",
+    "checksums:preview": "node scripts/write-preview-checksums.mjs",
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {

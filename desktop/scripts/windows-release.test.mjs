@@ -5,11 +5,46 @@ import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { writeChecksums } from './write-checksums.mjs';
+import { writePreviewChecksums } from './write-preview-checksums.mjs';
 const require = createRequire(import.meta.url);
 const { createSigningConfig } = require('./windows-signing.cjs');
 const preserveUninstaller = require('./preserve-uninstaller.cjs');
 const base = { SHAREROOM_REQUIRE_SIGNING: '1', SHAREROOM_PUBLISHER_NAME: 'Editor validado' };
+
+test('preview público mantém fuses, recusa assinatura/test hooks e não habilita updater', () => {
+  const run = extra => spawnSync(process.execPath, ['-e', `const c=require(${JSON.stringify(require.resolve('../electron-builder.preview.config.cjs'))});process.stdout.write(JSON.stringify(c));`], {
+    encoding: 'utf8', env: { ...process.env, SHAREROOM_REQUIRE_SIGNING: '0', SHAREROOM_SIGNING_PROVIDER: '', SHAREROOM_TEST_BUILD: '0', ...extra },
+  });
+  const result = run({});
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout);
+  assert.equal(config.publish, null);
+  assert.equal(config.win.signExecutable, false);
+  assert.equal(config.electronFuses.onlyLoadAppFromAsar, true);
+  assert.equal(config.directories.output, 'release-preview');
+  assert.notEqual(run({ SHAREROOM_REQUIRE_SIGNING: '1' }).status, 0);
+  assert.notEqual(run({ SHAREROOM_SIGNING_PROVIDER: 'signtool' }).status, 0);
+  assert.notEqual(run({ SHAREROOM_TEST_BUILD: '1' }).status, 0);
+});
+
+test('preview só publica hashes quando a auditoria unsigned corresponde aos bytes finais', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'shareroom-preview-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const installer = 'ShareRoom-Setup-0.1.0.exe';
+  await writeFile(join(dir, installer), 'preview');
+  const sha256 = createHash('sha256').update('preview').digest('hex');
+  const report = { requireValid: false, files: [{ path: installer, status: 'NotSigned', sha256 }] };
+  await writeFile(join(dir, 'signature-report.json'), JSON.stringify(report));
+  await writePreviewChecksums(dir);
+  assert.equal(await readFile(join(dir, `${installer}.sha256`), 'utf8'), `${sha256}  ${installer}\n`);
+  await writeFile(join(dir, installer), 'bytes alterados depois da auditoria');
+  await assert.rejects(writePreviewChecksums(dir), /não corresponde/);
+  report.requireValid = true;
+  await writeFile(join(dir, 'signature-report.json'), JSON.stringify(report));
+  await assert.rejects(writePreviewChecksums(dir), /somente/);
+});
 
 test('release exige um provedor e a identidade real; preview não assina automaticamente', () => {
   assert.equal(createSigningConfig({}).options.signExecutable, false);

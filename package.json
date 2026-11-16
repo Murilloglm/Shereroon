@@ -19,6 +19,7 @@
     "build": "npm run build -w web",
     "desktop": "npm --prefix desktop start",
     "desktop:dist": "npm run build && npm run build:helper && npm --prefix desktop run dist",
+    "desktop:dist:preview": "npm run build && npm run build:helper && npm --prefix desktop run dist:preview",
     "desktop:dist:signed": "npm run build && npm run build:helper && npm --prefix desktop run dist:signed",
     "build:helper": "powershell -NoProfile -File helper/build.ps1",
     "start": "npm run start -w server",
