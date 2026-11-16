@@ -6,7 +6,9 @@ sem instalar nada para quem assiste. Funciona no computador e dá para assistir 
 **Downloads para Windows:** [GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
 O canal gratuito de pré-versões distribui o instalador de teste **sem assinatura digital**; o Windows pode
 bloqueá-lo. A versão atual usa backend local e ainda não conecta amigos pela internet. O canal de versões
-assinadas exige certificado confiável e backend/site públicos. Veja [build e publicação](docs/windows-release.md).
+assinadas exige certificado confiável e backend/site públicos. Os próximos builds de distribuição exigem
+servidores HTTPS públicos. A [implantação em nuvem](docs/cloud-deploy.md) está preparada e aguarda acesso
+às contas Render e LiveKit; ainda não há serviço de produção ativo. Veja [build e publicação](docs/windows-release.md).
 
 - **Frontend:** React + TypeScript + Vite + Tailwind (`web/`)
 - **Backend de salas:** Node.js + Hono (`server/`) — emite os tokens temporários; não guarda nada
@@ -262,13 +264,14 @@ não existe "aba do navegador", que é a única fonte de 120 FPS.
 npm run build && npm run build:helper
 npm install --prefix desktop
 npm run desktop          # abre o aplicativo usando o backend local (npm run dev em outro terminal)
-npm run desktop:dist     # preview local sem assinatura; pode ser bloqueado pelo Windows
+npm run desktop:dist     # distribuição sem assinatura; exige URLs públicas de API/site
 ```
 
 O aplicativo precisa saber onde estão o backend e o site. São endereços públicos, definidos ao gerar o
 instalador: `SHAREROOM_API_URL` (o mesmo `VITE_API_URL` do site) e `SHAREROOM_SITE_URL` (o endereço do site,
-usado nos links de convite, que assim abrem em qualquer navegador). Sem eles, o aplicativo procura o backend
-em `http://localhost:8787`. O backend aceita o aplicativo sem configuração extra.
+usado nos links de convite, que assim abrem em qualquer navegador). Builds de distribuição recusam endereços
+ausentes, locais ou privados. `npm run desktop` e `npm --prefix desktop run pack` continuam disponíveis para
+desenvolvimento local explícito. O backend aceita o aplicativo sem configuração extra.
 
 **Publicar e atualizar.** Primeiro configure um certificado público/serviço de assinatura e as variáveis
 descritas em [Windows: build e releases oficiais](docs/windows-release.md). Depois envie uma nova tag
@@ -300,48 +303,32 @@ Limites conhecidos:
 
 ## Publicar para os amigos (com HTTPS)
 
-O GitHub Pages hospeda só o site (arquivos estáticos). Salas, transmissão e TURN ficam em serviços externos:
+O caminho preparado hospeda a interface e a API no mesmo serviço Render, com transmissão pelo LiveKit Cloud.
+O PC do autor pode ficar desligado depois da implantação. O código está pronto para esse deploy, mas os
+serviços ainda não foram criados: falta conectar as contas e cadastrar as credenciais reais.
 
 | Parte | Onde | Custo |
 |---|---|---|
-| Site (frontend) | GitHub Pages, publicado pelo GitHub Actions | Grátis |
-| Backend de salas | [Render](https://render.com) (arquivo `render.yaml`) ou outro host de Node | Plano grátis |
+| Interface e backend | [Render](https://render.com), com `render.yaml` | Plano grátis com hibernação e cotas |
 | SFU, sinalização e TURN | [LiveKit Cloud](https://cloud.livekit.io) | Plano grátis com limites |
 
 **1. LiveKit Cloud.** Crie um projeto e anote três valores: a URL (`wss://…livekit.cloud`), a *API Key* e
 o *API Secret*.
 
-**2. Envie o projeto para o GitHub.** Crie um repositório vazio em <https://github.com/new> e, nesta pasta:
-
-```bash
-git init -b main
-git add .
-git commit -m "ShareRoom"
-git remote add origin https://github.com/SEU-USUARIO/NOME-DO-REPOSITORIO.git
-git push -u origin main
-```
-
-O `.gitignore` já deixa de fora `node_modules`, `dist`, `.env`, os binários baixados e a pasta `imagens/`.
-
-**3. Backend no Render.** *New → Blueprint* → escolha o repositório. Ele lê o `render.yaml` e pede:
+**2. Deploy no Render.** O projeto já está em [Murilloglm/Shereroon](https://github.com/Murilloglm/Shereroon).
+Abra [Deploy to Render](https://render.com/deploy?repo=https://github.com/Murilloglm/Shereroon).
+O Blueprint lê o `render.yaml` e pede:
 
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`: os valores do passo 1
-- `ALLOWED_ORIGINS`: `https://SEU-USUARIO.github.io` (só a origem, sem o nome do repositório)
 
 Anote o endereço que o Render der (algo como `https://shareroom-api-xxxx.onrender.com`).
 
-**4. GitHub Pages.** No repositório:
+**3. Interface e aplicativo Windows.** A própria URL do Render serve a interface e `/api`; GitHub Pages
+é opcional. A origem pública do Render é autorizada automaticamente. Após testar o serviço, use essa URL
+em `SHAREROOM_API_URL` e `SHAREROOM_SITE_URL` para gerar uma nova versão do instalador. Veja
+[o guia completo de implantação](docs/cloud-deploy.md), incluindo banco durável para contas/grupos.
 
-- **Settings → Pages → Build and deployment → Source: GitHub Actions**
-- **Settings → Secrets and variables → Actions → Variables → New repository variable**:
-  `VITE_API_URL` = o endereço do Render
-
-Depois vá em **Actions → Publicar site no GitHub Pages → Run workflow** (ou faça um novo `git push`). O site
-fica em `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/`.
-
-A partir daí, toda atualização é `git add .`, `git commit -m "…"` e `git push`.
-
-**5. Confira a transmissão, não só o site.** O site abrir não prova que a transmissão funciona. Depois de
+**4. Confira a transmissão, não só o site.** O site abrir não prova que a transmissão funciona. Depois de
 publicar:
 
 1. Abra o site e crie uma sala. Se aparecer "Sem resposta do backend", confira `VITE_API_URL` e

@@ -3,15 +3,14 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { connectionConfig } from '../src/connection-config.mjs';
 
 const out = resolve(dirname(fileURLToPath(import.meta.url)), '../src/config.json');
-const config = {
+const config = connectionConfig({
   apiUrl: (process.env.SHAREROOM_API_URL ?? '').trim(),
   siteUrl: (process.env.SHAREROOM_SITE_URL ?? '').trim(),
-};
+}, { local: process.argv.includes('--local') });
 writeFileSync(out, `${JSON.stringify(config, null, 2)}\n`);
 console.log(
-  config.apiUrl
-    ? `Backend do aplicativo: ${config.apiUrl}\nSite para os convites: ${config.siteUrl || '(nenhum: o convite será só o código)'}`
-    : 'SHAREROOM_API_URL não definido: este aplicativo vai procurar o backend em http://localhost:8787 (uso local).',
+  `Modo ${config.connectionMode}: ${config.apiUrl}\nSite para os convites: ${config.siteUrl || '(nenhum: uso local)'}`,
 );

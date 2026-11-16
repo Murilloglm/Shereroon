@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node scripts/start.mjs",
     "config": "node scripts/write-config.mjs",
-    "pack": "npm run config && electron-builder --dir --config electron-builder.config.cjs --publish never",
+    "config:local": "node scripts/write-config.mjs --local",
+    "pack": "npm run config:local && electron-builder --dir --config electron-builder.config.cjs --publish never",
     "dist": "npm run config && electron-builder --win nsis --config electron-builder.config.cjs --publish never",
     "dist:preview": "npm run config && electron-builder --win nsis --config electron-builder.preview.config.cjs --publish never",
     "dist:signed": "npm run config && node scripts/build-signed.mjs",

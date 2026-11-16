@@ -10,11 +10,11 @@ on:
         required: false
         type: string
       api_url:
-        description: 'Backend HTTPS opcional; vazio usa localhost:8787, sem salas pela internet'
+        description: 'Backend HTTPS público; usa VITE_API_URL do repositório se vazio'
         required: false
         type: string
       site_url:
-        description: 'Site HTTPS opcional para os links de convite'
+        description: 'Site HTTPS público; padrão é o mesmo endereço do backend'
         required: false
         type: string
 
@@ -37,8 +37,8 @@ jobs:
       run:
         shell: pwsh
     env:
-      SHAREROOM_API_URL: ${{ inputs.api_url }}
-      SHAREROOM_SITE_URL: ${{ inputs.site_url }}
+      SHAREROOM_API_URL: ${{ inputs.api_url || vars.VITE_API_URL }}
+      SHAREROOM_SITE_URL: ${{ inputs.site_url || vars.SHAREROOM_SITE_URL || inputs.api_url || vars.VITE_API_URL }}
       SHAREROOM_REQUIRE_SIGNING: '0'
       SHAREROOM_SIGNING_PROVIDER: ''
       SHAREROOM_TEST_BUILD: '0'
@@ -55,7 +55,7 @@ jobs:
             package-lock.json
             desktop/package-lock.json
 
-      - name: Validar a pré-versão e os endereços opcionais
+      - name: Validar a pré-versão e os endereços públicos
         id: preview
         env:
           PREVIEW_TAG_INPUT: ${{ inputs.tag }}
@@ -76,11 +76,9 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
           foreach ($entry in @(@('SHAREROOM_API_URL', 'api_url'), @('SHAREROOM_SITE_URL', 'site_url'))) {
             $address = ([string][Environment]::GetEnvironmentVariable($entry[0])).Trim()
-            if ($address) {
-              $uri = $null
-              if ($address -match '[\r\n]' -or -not [Uri]::TryCreate($address, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https' -or $uri.UserInfo) {
-                throw "$($entry[0]) deve ser uma URL HTTPS sem credenciais ou quebras de linha, ou ficar vazia."
-              }
+            $uri = $null
+            if (-not $address -or $address -match '[\r\n]' -or -not [Uri]::TryCreate($address, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https' -or $uri.UserInfo) {
+              throw "$($entry[0]) deve ser uma URL HTTPS pública. O preview distribuído não usa mais um backend local."
             }
             "$($entry[1])=$address" >> $env:GITHUB_OUTPUT
           }
@@ -179,14 +177,8 @@ jobs:
             printf '**VERSÃO DE TESTE SEM ASSINATURA DIGITAL.**\n\n'
             printf 'O Windows 11 pode bloquear este instalador ou seus componentes por Smart App Control, App Control for Business ou SmartScreen. Não há garantia de instalação ou execução.\n\n'
             printf 'SHA-256 confere a integridade dos bytes baixados; não prova a identidade do editor e não torna o aplicativo confiável para outros computadores.\n\n'
-            if [[ -z "$PREVIEW_API_URL" ]]; then
-              printf '**Este pacote usa o backend local http://localhost:8787 e não conecta os amigos pela internet.**\n\n'
-            else
-              printf 'Backend HTTPS configurado neste pacote: %s. A disponibilidade do serviço não é garantida por esta publicação.\n\n' "$PREVIEW_API_URL"
-            fi
-            if [[ -z "$PREVIEW_SITE_URL" ]]; then
-              printf 'Nenhum site público foi configurado para os links de convite.\n\n'
-            fi
+            printf 'Backend HTTPS configurado neste pacote: %s. A disponibilidade do serviço não é garantida por esta publicação.\n\n' "$PREVIEW_API_URL"
+            printf 'Site público para os convites: %s.\n\n' "$PREVIEW_SITE_URL"
             printf '[Baixar instalador de teste %s](%s/%s) · [SHA-256](%s/SHA256SUMS.txt) · [Relatório das assinaturas](%s/signature-report.json).\n\n' "$installer" "$asset_url" "$installer" "$asset_url" "$asset_url"
             printf 'Não desative as proteções de segurança. Em caso de bloqueio, consulte [o diagnóstico pelos logs do Windows](https://github.com/%s/blob/%s/docs/windows-signing-options.md).\n\n' "$PREVIEW_REPOSITORY" "$PREVIEW_COMMIT"
             printf 'Esta pré-versão não usa atualização automática e não é uma release oficial assinada.\n'

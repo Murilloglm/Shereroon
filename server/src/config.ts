@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 export interface Config {
   /** Endereço que os navegadores usam para falar com o LiveKit (ws:// ou wss://). */
   livekitUrl: string;
@@ -22,6 +24,36 @@ const DEV_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://l
 export const DESKTOP_ORIGIN = 'app://shareroom';
 
 export class ConfigError extends Error {}
+
+function isPublicHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
+  if (host === 'localhost' || /\.(localhost|local|localdomain)$/.test(host)) return false;
+  const ipVersion = isIP(host);
+  if (ipVersion === 4) {
+    const [a = 0, b = 0] = host.split('.').map(Number);
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)));
+  }
+  if (ipVersion === 6) {
+    // Só unicast global (2000::/3); exclui loopback, ULA, link-local e IPv4 mapeado.
+    return (Number.parseInt(host.split(':')[0]!, 16) & 0xe000) === 0x2000;
+  }
+  // Esta validação é sintática: não substitui controle de DNS/rede do provedor.
+  return host.includes('.') && !host.endsWith('.internal');
+}
+
+function publicUrl(value: string, protocol: 'wss:' | 'https:'): URL | null {
+  try {
+    if (!/^[a-z]+:\/\//i.test(value)) return null;
+    const url = new URL(value);
+    if (url.protocol !== protocol || url.username || url.password || url.href.includes('#') || !isPublicHost(url.hostname)) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
 
 /** Origem normalizada (esquema + host + porta), ou null se o valor não for uma URL http(s). */
 export function normalizeOrigin(value: string): string | null {
@@ -56,10 +88,20 @@ export function loadConfig(env: Env): Config {
   if (!/^wss?:\/\//.test(livekitUrl)) {
     throw new ConfigError('LIVEKIT_URL deve começar com ws:// ou wss://');
   }
+  if (production && !publicUrl(livekitUrl, 'wss:')) {
+    throw new ConfigError('LIVEKIT_URL deve ser uma URL wss:// pública válida, sem credenciais nem fragmento, em produção.');
+  }
+  const livekitApiUrl = env.LIVEKIT_API_URL?.trim() || livekitUrl.replace(/^ws/, 'http');
+  if (production && !publicUrl(livekitApiUrl, 'https:')) {
+    throw new ConfigError('LIVEKIT_API_URL deve ser uma URL https:// pública válida, sem credenciais nem fragmento, em produção.');
+  }
+  if (production && (apiKey === 'devkey' || apiSecret === 'secret')) {
+    throw new ConfigError('Credenciais de desenvolvimento do LiveKit não são permitidas em produção.');
+  }
 
   const appSecret = env.APP_SECRET?.trim() || `shareroom:${apiSecret}`;
-  if (production && appSecret.length < 16) {
-    throw new ConfigError('APP_SECRET (ou LIVEKIT_API_SECRET) é curto demais para assinar convites com segurança.');
+  if (production && (!env.APP_SECRET?.trim() || appSecret.length < 16)) {
+    throw new ConfigError('APP_SECRET deve ser definido explicitamente com pelo menos 16 caracteres em produção.');
   }
 
   const origins = (env.ALLOWED_ORIGINS ?? '')
@@ -71,6 +113,11 @@ export function loadConfig(env: Env): Config {
       if (!origin) throw new ConfigError(`ALLOWED_ORIGINS contém um valor inválido: "${item}"`);
       return origin;
     });
+  if (production && env.RENDER_EXTERNAL_URL?.trim()) {
+    const external = publicUrl(env.RENDER_EXTERNAL_URL.trim(), 'https:');
+    if (!external) throw new ConfigError('RENDER_EXTERNAL_URL deve ser uma URL https:// pública válida, sem credenciais nem fragmento.');
+    origins.push(external.origin);
+  }
 
   const ttl = Number(env.TOKEN_TTL_SECONDS ?? 600);
   if (!Number.isFinite(ttl) || ttl < 60 || ttl > 86_400) {
@@ -79,7 +126,7 @@ export function loadConfig(env: Env): Config {
 
   return {
     livekitUrl,
-    livekitApiUrl: env.LIVEKIT_API_URL?.trim() || livekitUrl.replace(/^ws/, 'http'),
+    livekitApiUrl,
     apiKey,
     apiSecret,
     appSecret,

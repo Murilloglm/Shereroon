@@ -25,7 +25,8 @@ O diagnóstico definitivo exige os eventos do PC afetado. Consulte
 
 ## O que o build passa a exigir
 
-- Preview: `npm run desktop:dist` continua disponível sem assinatura. Pode ser bloqueado; não é release oficial.
+- Preview: `npm run desktop:dist` continua disponível sem assinatura, mas agora exige destinos HTTPS públicos.
+  Pode ser bloqueado; não é release oficial. O desenvolvimento local usa `npm run desktop` ou o comando `pack`.
 - Oficial: `npm run desktop:dist:signed` exige provedor, identidade do editor e credencial; ao terminar
   o empacotamento, executa auditoria obrigatória e gera os hashes. Também exige URLs HTTPS de produção.
 - `forceCodeSigning` impede fallback silencioso sem assinatura. DLLs e módulos `.node`, além dos EXEs,
@@ -66,13 +67,17 @@ O usuário escolheu este canal sem criar conta na Store ou contratar assinatura.
 releases existentes e não marca o preview como `latest` estável. O build mantém os fuses de segurança,
 sem habilitar ganchos de teste, e não recebe canal de atualização automática.
 
-`npm run desktop:dist:preview` gera `desktop/release-preview/ShareRoom-Setup-0.1.0.exe`. O relatório
+`npm run desktop:dist:preview` gera `desktop/release-preview/ShareRoom-Setup-0.1.0.exe` depois de validar
+`SHAREROOM_API_URL` e `SHAREROOM_SITE_URL` públicos. O relatório
 `signature-report.json` registra `NotSigned`; os hashes só são gerados se ele corresponder aos bytes finais.
 SHA-256 verifica os bytes e **não substitui a assinatura do editor**. A auditoria informa as assinaturas
 ausentes; ela não aprova a instalação no Windows. Não desative proteções para executar o preview.
 
-Sem URLs públicas definidas, esta compilação usa `http://localhost:8787` e serve para teste local.
-A primeira pré-versão é [preview-v0.1.0](https://github.com/Murilloglm/Shereroon/releases/tag/preview-v0.1.0).
+A primeira pré-versão já publicada, [preview-v0.1.0](https://github.com/Murilloglm/Shereroon/releases/tag/preview-v0.1.0),
+usa `http://localhost:8787` e serve para teste local. Ela é imutável. As próximas compilações de distribuição
+recusam `localhost`, endereços privados e ausência de servidor; não voltam silenciosamente ao PC do autor.
+O workflow usa os inputs HTTPS ou as variables `VITE_API_URL`/`SHAREROOM_SITE_URL` do repositório. Para
+implantar a API e o site na nuvem, siga [cloud-deploy.md](cloud-deploy.md). Esse serviço ainda não está ativo.
 O pacote antigo `0.1.0` auditado no início foi preservado em outra pasta; o asset da pré-versão foi recompilado
 e tem seu próprio SHA-256 na página do Release.
 

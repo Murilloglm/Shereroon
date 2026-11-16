@@ -1,13 +1,13 @@
-# Backend de salas do ShareRoom no Render (https://render.com), com HTTPS automático.
-# No painel do Render: New → Blueprint → escolha este repositório. Ele vai pedir os valores marcados
-# com "sync: false". O frontend NÃO vai aqui: ele é publicado no GitHub Pages.
+# ShareRoom: API e interface no mesmo serviço Render, com HTTPS automático.
+# Deploy: https://render.com/deploy?repo=https://github.com/Murilloglm/Shereroon
+# Exige um projeto LiveKit Cloud real. Consulte docs/cloud-deploy.md antes de criar o serviço.
 services:
   - type: web
     name: shareroom-api
     runtime: node
     plan: free
-    buildCommand: npm ci --omit=dev --workspace=server --include-workspace-root
-    startCommand: npm run start
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -17,9 +17,13 @@ services:
       # O Render fica na frente do serviço: o IP real do visitante vem no cabeçalho X-Forwarded-For.
       - key: TRUST_PROXY
         value: "1"
-      # Não servir o frontend por aqui.
+      # A interface usa /api nesta mesma origem; GitHub Pages não é necessário.
       - key: SERVE_WEB
-        value: "0"
+        value: "1"
+      - key: VITE_API_URL
+        value: ""
+      - key: VITE_BASE
+        value: "./"
       # Chave que assina os convites. Gerada uma vez; se mudar, os links antigos param de valer.
       - key: APP_SECRET
         generateValue: true
@@ -30,10 +34,7 @@ services:
         sync: false
       - key: LIVEKIT_API_SECRET
         sync: false
-      # Origem do seu site, sem caminho. Exemplo: https://SEU-USUARIO.github.io
-      - key: ALLOWED_ORIGINS
-        sync: false
-      # Banco PostgreSQL das contas e dos grupos (Neon, Supabase ou o Postgres do próprio Render). É um segredo.
-      # Sem ele o servidor sobe do mesmo jeito, só com as salas por link.
-      - key: DATABASE_URL
-        sync: false
+      # RENDER_EXTERNAL_URL é fornecido pelo Render e aceito automaticamente pela API.
+      # Opcional: adicione ALLOWED_ORIGINS no Dashboard para outros sites/domínios autorizados.
+      # Opcional: adicione DATABASE_URL como segredo no Dashboard para contas, grupos e bots.
+      # Sem DATABASE_URL, funcionam as salas por link; nenhum banco é criado por este Blueprint.

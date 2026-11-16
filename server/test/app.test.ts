@@ -6,14 +6,15 @@ import { parseState, serializeState } from '../src/sfu.ts';
 import { FakeSfu } from './fake-sfu.ts';
 
 const ORIGIN = 'https://fulano.github.io';
-const config = loadConfig({
+const PRODUCTION_ENV = {
   NODE_ENV: 'production',
   LIVEKIT_URL: 'wss://exemplo.livekit.cloud',
   LIVEKIT_API_KEY: 'chave',
   LIVEKIT_API_SECRET: 'segredo-do-livekit-123',
   APP_SECRET: 'segredo-do-app-para-testes',
   ALLOWED_ORIGINS: `${ORIGIN}/shareroom/, http://localhost:5173`,
-});
+};
+const config = loadConfig(PRODUCTION_ENV);
 
 let sfu: FakeSfu;
 let now: number;
@@ -63,11 +64,73 @@ describe('configuração', () => {
   it('em desenvolvimento usa os padrões do livekit --dev', () => {
     const dev = loadConfig({});
     expect(dev.livekitUrl).toBe('ws://localhost:7880');
+    expect(dev.livekitApiUrl).toBe('http://localhost:7880');
+    expect(dev.apiKey).toBe('devkey');
+    expect(dev.apiSecret).toBe('secret');
+    expect(dev.appSecret).toBe('shareroom:secret');
     expect(dev.allowedOrigins).toContain('http://localhost:5173');
   });
 
   it('recusa LIVEKIT_URL sem ws://', () => {
     expect(() => loadConfig({ LIVEKIT_URL: 'https://errado' })).toThrow(/ws:\/\//);
+  });
+
+  it('em produção exige TLS no WebSocket e na API do LiveKit', () => {
+    expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_URL: 'ws://exemplo.livekit.cloud' })).toThrow(/LIVEKIT_URL/);
+    for (const url of ['http://api.livekit.cloud', 'wss://api.livekit.cloud', 'https://', 'https:api.livekit.cloud']) {
+      expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_API_URL: url }), url).toThrow(/LIVEKIT_API_URL/);
+    }
+    const explicitApi = loadConfig({ ...PRODUCTION_ENV, LIVEKIT_API_URL: 'https://api.livekit.cloud/custom-path' });
+    expect(explicitApi.livekitApiUrl).toBe('https://api.livekit.cloud/custom-path');
+    expect(loadConfig({ ...PRODUCTION_ENV, LIVEKIT_URL: 'wss://1.1.1.1' }).livekitApiUrl).toBe('https://1.1.1.1');
+  });
+
+  it('em produção recusa endpoints locais, privados e link-local nas duas URLs do LiveKit', () => {
+    for (const host of [
+      'localhost', 'LOCALHOST.', 'app.localhost', 'livekit.local', 'livekit',
+      '127.0.0.1', '127.22.33.44', '127.1', '2130706433', '0.0.0.0',
+      '10.0.0.1', '172.16.0.1', '172.31.255.254', '192.168.1.1', '169.254.169.254',
+      '100.64.0.1', '[::1]', '[::]', '[fc00::1]', '[fd12::1]', '[fe80::1]', '[::ffff:127.0.0.1]',
+    ]) {
+      expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_URL: `wss://${host}:7880` }), host).toThrow(/LIVEKIT_URL/);
+      expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_API_URL: `https://${host}:7880` }), host).toThrow(/LIVEKIT_API_URL/);
+    }
+  });
+
+  it('em produção recusa credenciais e fragmentos nas URLs sem repeti-los no erro', () => {
+    for (const suffix of ['login:senha-na-url@exemplo.livekit.cloud', 'exemplo.livekit.cloud/#fragmento', 'exemplo.livekit.cloud/#']) {
+      expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_URL: `wss://${suffix}` })).toThrow(/LIVEKIT_URL/);
+      expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_API_URL: `https://${suffix}` })).toThrow(/LIVEKIT_API_URL/);
+    }
+    expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_API_URL: 'https://login:senha-na-url@exemplo.livekit.cloud' })).not.toThrow(/senha-na-url/);
+  });
+
+  it('em produção recusa as credenciais padrão de desenvolvimento do LiveKit', () => {
+    expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_API_KEY: 'devkey' })).toThrow(/Credenciais de desenvolvimento/);
+    expect(() => loadConfig({ ...PRODUCTION_ENV, LIVEKIT_API_SECRET: 'secret' })).toThrow(/Credenciais de desenvolvimento/);
+  });
+
+  it('em produção exige APP_SECRET explícito com pelo menos 16 caracteres', () => {
+    for (const appSecret of [undefined, '', '   ', 'curto']) {
+      expect(() => loadConfig({ ...PRODUCTION_ENV, APP_SECRET: appSecret })).toThrow(/APP_SECRET/);
+    }
+    expect(loadConfig({ ...PRODUCTION_ENV, APP_SECRET: '0123456789abcdef' }).appSecret).toBe('0123456789abcdef');
+  });
+
+  it('autoriza a origem pública do próprio serviço Render junto das origens extras', () => {
+    const renderConfig = loadConfig({ ...PRODUCTION_ENV, RENDER_EXTERNAL_URL: 'https://shareroom.onrender.com/caminho' });
+    expect(renderConfig.allowedOrigins).toEqual([ORIGIN, 'http://localhost:5173', 'https://shareroom.onrender.com', 'app://shareroom']);
+    const onlyRender = loadConfig({ ...PRODUCTION_ENV, ALLOWED_ORIGINS: '', RENDER_EXTERNAL_URL: 'https://shareroom.onrender.com' });
+    expect(onlyRender.allowedOrigins).toEqual(['https://shareroom.onrender.com', 'app://shareroom']);
+    const deduplicated = loadConfig({ ...PRODUCTION_ENV, ALLOWED_ORIGINS: ORIGIN, RENDER_EXTERNAL_URL: `${ORIGIN}/shareroom` });
+    expect(deduplicated.allowedOrigins).toEqual([ORIGIN, 'app://shareroom']);
+  });
+
+  it('não autoriza uma URL externa insegura ou local do Render', () => {
+    for (const url of ['http://shareroom.onrender.com', 'https://localhost', 'https://10.0.0.1', 'https://[::1]', 'https://login:senha@shareroom.onrender.com', 'https://shareroom.onrender.com/#x']) {
+      expect(() => loadConfig({ ...PRODUCTION_ENV, RENDER_EXTERNAL_URL: url })).toThrow(/RENDER_EXTERNAL_URL/);
+    }
+    expect(loadConfig({ RENDER_EXTERNAL_URL: 'https://localhost' }).allowedOrigins).not.toContain('https://localhost');
   });
 });
 

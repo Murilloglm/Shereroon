@@ -1,13 +1,14 @@
 // ShareRoom para Windows. A interface é a mesma do site, servida de dentro do aplicativo (app://shareroom),
 // e o que o navegador não oferece vem daqui: seletor próprio de telas e janelas, áudio do computador e por
 // aplicativo sem instalar nada à parte, bandeja do sistema, funcionamento em segundo plano e atualização.
-import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, nativeImage, nativeTheme, powerSaveBlocker, protocol, session, shell, Tray } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerSaveBlocker, protocol, session, shell, Tray } from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runtimeConnection } from './connection-config.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SCHEME = 'app';
@@ -23,15 +24,6 @@ const ICON = resource('icon.png', '../build/icon.png');
 // Pasta de dados própria para testes automatizados: não mistura com a do aplicativo instalado.
 if (process.env.SHAREROOM_USER_DATA) app.setPath('userData', process.env.SHAREROOM_USER_DATA);
 
-function cleanUrl(value) {
-  try {
-    const url = new URL(String(value ?? '').trim());
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString().replace(/\/+$/, '') : '';
-  } catch {
-    return '';
-  }
-}
-
 /** Endereço do backend e do site público. Vêm do arquivo gerado na compilação; variáveis de ambiente valem por cima. */
 function loadConfig() {
   let file = {};
@@ -40,13 +32,16 @@ function loadConfig() {
   } catch {
     // sem arquivo: uso local, com o backend na própria máquina
   }
-  return {
-    apiUrl: cleanUrl(process.env.SHAREROOM_API_URL ?? file.apiUrl) || 'http://localhost:8787',
-    siteUrl: cleanUrl(process.env.SHAREROOM_SITE_URL ?? file.siteUrl),
-  };
+  return runtimeConnection(file, process.env, app.isPackaged);
 }
 
-const config = loadConfig();
+let config;
+let connectionError = false;
+try {
+  config = loadConfig();
+} catch {
+  connectionError = true;
+}
 let win = null;
 let tray = null;
 let quitting = false;
@@ -436,6 +431,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', quit);
 
   app.whenReady().then(async () => {
+    if (connectionError) {
+      dialog.showErrorBox('ShareRoom', 'Esta versão não possui um servidor online válido. Baixe uma versão atualizada do ShareRoom quando o serviço estiver disponível.');
+      app.quit();
+      return;
+    }
     nativeTheme.themeSource = 'dark';
     Menu.setApplicationMenu(null);
     app.setAppUserModelId('app.shareroom.desktop');
