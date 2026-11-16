@@ -68,12 +68,23 @@ try {
     const applied = await migrate(database);
     if (applied.length > 0) console.log(`Banco de dados: migrações aplicadas (${applied.join(', ')}).`);
     const accounts = new Accounts(database);
-    const community = new Community(database, new Hub(), sfu, { livekitUrl: config.livekitUrl, tokenTtlSeconds: config.tokenTtlSeconds });
+    const megabytes = (name: string, fallback: number, max: number): number => {
+      const value = Number(process.env[name]);
+      return (Number.isFinite(value) && value >= 1 ? Math.min(value, max) : fallback) * 1024 * 1024;
+    };
+    const community = new Community(database, new Hub(), sfu, {
+      livekitUrl: config.livekitUrl,
+      tokenTtlSeconds: config.tokenTtlSeconds,
+      // Os arquivos do chat ficam no banco: os limites protegem o espaço do plano contratado.
+      maxFileBytes: megabytes('MAX_FILE_MB', 10, 50),
+      groupStorageBytes: megabytes('GROUP_STORAGE_MB', 400, 100_000),
+    });
     // Os bots rodam aqui, no backend: seguem funcionando com todo mundo offline.
     const bots = new BotRuntime(database, community, officialBots());
     bots.start();
     groups = { accounts, community, bots };
     setInterval(() => void accounts.purgeExpired().catch(() => undefined), 6 * 60 * 60_000).unref();
+    setInterval(() => void community.purgeOrphanFiles().catch(() => undefined), 30 * 60_000).unref();
   }
 } catch (error) {
   console.error(`\nNão foi possível abrir o banco de dados: ${(error as Error).message}\n`);

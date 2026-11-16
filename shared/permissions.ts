@@ -38,12 +38,13 @@ const LIST = [
   // Texto
   ['VIEW_CHANNEL', 8, 'texto', 'Ver canais', 'Enxergar o canal e ler as mensagens. Sem isso o canal nem aparece na lista.', 'servidor'],
   ['SEND_MESSAGES', 9, 'texto', 'Enviar mensagens', 'Escrever nos canais de texto.', 'servidor'],
-  ['ATTACH_FILES', 10, 'texto', 'Anexar arquivos', 'Enviar arquivos junto com as mensagens.', 'sem_efeito'],
+  ['ATTACH_FILES', 10, 'texto', 'Anexar arquivos', 'Enviar imagens, vídeos e documentos junto com as mensagens.', 'servidor'],
   ['SEND_LINKS', 11, 'texto', 'Enviar links', 'Sem isso, mensagens com endereços de sites são recusadas.', 'servidor'],
   ['DELETE_MESSAGES', 12, 'texto', 'Excluir mensagens de outros membros', 'Apagar mensagens que não são suas.', 'servidor'],
   ['PIN_MESSAGES', 13, 'texto', 'Fixar mensagens', 'Fixar e desafixar mensagens no canal.', 'servidor'],
   ['MENTION_EVERYONE', 14, 'texto', 'Mencionar @everyone', 'Usar @everyone para chamar a atenção de todos os membros do canal.', 'servidor'],
   ['MANAGE_MESSAGES', 15, 'texto', 'Gerenciar mensagens', 'Inclui excluir mensagens de outros e fixar.', 'servidor'],
+  ['ADD_REACTIONS', 36, 'texto', 'Adicionar reações', 'Reagir às mensagens com emojis.', 'servidor'],
   // Voz
   ['CONNECT', 16, 'voz', 'Conectar', 'Entrar nos canais de voz.', 'servidor'],
   ['SPEAK', 17, 'voz', 'Falar', 'Ligar o microfone no canal de voz.', 'servidor'],
@@ -92,6 +93,7 @@ export const DEFAULT_EVERYONE: bigint =
   P.SEND_MESSAGES |
   P.ATTACH_FILES |
   P.SEND_LINKS |
+  P.ADD_REACTIONS |
   P.CREATE_INVITE |
   P.CONNECT |
   P.SPEAK |
@@ -171,7 +173,7 @@ export function basePermissions(subject: Subject, roles: readonly RoleLike[]): b
   return has(set, P.ADMINISTRATOR) ? ALL_PERMISSIONS : set;
 }
 
-const TIMEOUT_BLOCKED = P.SEND_MESSAGES | P.ATTACH_FILES | P.MENTION_EVERYONE | P.SPEAK | P.VIDEO | P.STREAM | P.SHARE_AUDIO | P.USE_COMMANDS;
+const TIMEOUT_BLOCKED = P.SEND_MESSAGES | P.ATTACH_FILES | P.ADD_REACTIONS | P.MENTION_EVERYONE | P.SPEAK | P.VIDEO | P.STREAM | P.SHARE_AUDIO | P.USE_COMMANDS;
 
 /**
  * Permissões da pessoa num canal. `layers` são as regras por canal, da mais geral para a mais específica:

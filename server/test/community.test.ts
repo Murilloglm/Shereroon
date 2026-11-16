@@ -315,6 +315,6 @@ describe('sem banco de dados', () => {
     expect(((await login.json()) as any).error.code).toBe('grupos_indisponiveis');
     const room = await app.request('/api/rooms', { method: 'POST', body: JSON.stringify({ name: 'Sala' }), headers: { 'content-type': 'application/json' } });
     expect(room.status).toBe(200);
-    expect(await (await w.app.request('/api/features')).json()).toEqual({ groups: true });
+    expect(await (await w.app.request('/api/features')).json()).toEqual({ groups: true, maxFileBytes: 10 * 1024 * 1024 });
   });
 });

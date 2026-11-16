@@ -105,6 +105,33 @@ export interface Message {
   createdAt: string;
   editedAt: string | null;
   meta: MessageMeta | null;
+  /** Mensagem à qual esta responde (null se não é resposta ou se a original foi apagada). */
+  reply: { id: string; authorId: string | null; authorName: string; excerpt: string } | null;
+  /** Contas mencionadas (por @usuario ou por serem o autor da mensagem respondida). */
+  mentions: string[];
+  attachments: Attachment[];
+  reactions: { emoji: string; users: string[] }[];
+}
+
+export interface Attachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+}
+
+export type NotifyLevel = 'tudo' | 'mencoes' | 'nada';
+const NOTIFY_LEVELS: readonly NotifyLevel[] = ['tudo', 'mencoes', 'nada'];
+
+export interface UnreadState {
+  /** Última mensagem do canal. */
+  last: string | null;
+  /** Até onde esta pessoa leu. */
+  read: string | null;
+  /** Menções a ela depois disso. */
+  mentions: number;
 }
 
 /** Complementos de uma mensagem de bot. Um botão, ao ser clicado, envia `command` como se a pessoa tivesse digitado. */
@@ -117,6 +144,10 @@ export interface MessageMeta {
 export interface CommunityOptions {
   livekitUrl: string;
   tokenTtlSeconds: number;
+  /** Tamanho máximo de um arquivo enviado no chat. */
+  maxFileBytes?: number;
+  /** Quanto cada grupo pode guardar em arquivos, somando todos os canais. */
+  groupStorageBytes?: number;
 }
 
 export const LIMITS = {
@@ -129,6 +160,41 @@ export const LIMITS = {
   descriptionChars: 300,
   iconChars: 140_000,
   voiceUsers: 99,
+  fileBytes: 10 * 1024 * 1024,
+  groupStorageBytes: 400 * 1024 * 1024,
+  fileNameChars: 120,
+  attachmentsPerMessage: 10,
+  reactionsPerMessage: 20,
+  excerptChars: 140,
+};
+
+/** Tipos que o navegador pode mostrar dentro da conversa. Todo o resto só sai como download. */
+const INLINE_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/mp4']);
+const MIME = /^[a-z0-9][a-z0-9.+-]{0,60}\/[a-z0-9][a-z0-9.+-]{0,80}$/;
+/** Um emoji: bandeira, tecla numerada ou pictograma (com tom de pele e junções, como 👨‍👩‍👧). */
+const EMOJI = /^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)$/u;
+const MENTION = /(^|[^A-Za-z0-9_.@])@([A-Za-z0-9_.]{3,24})/g;
+const MESSAGE_ID = /^\d{1,18}$/;
+const FILE_COLUMNS = 'id, name, mime, size, width, height';
+
+const toAttachment = (row: Row): Attachment => ({
+  id: String(row.id),
+  name: String(row.name),
+  mime: String(row.mime),
+  size: num(row.size),
+  width: row.width === null || row.width === undefined ? null : num(row.width),
+  height: row.height === null || row.height === undefined ? null : num(row.height),
+});
+
+const jsonArray = (value: unknown): unknown[] => {
+  const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value;
+  return Array.isArray(parsed) ? parsed : [];
+};
+
+/** Lado de uma imagem informado por quem enviou. Serve só para reservar o espaço na tela. */
+const dimension = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 20_000 ? parsed : null;
 };
 
 const NOT_FOUND = () => new ApiError(404, 'grupo_inexistente', 'Grupo não encontrado.');
@@ -188,9 +254,26 @@ const toMessage = (row: Row): Message => ({
   createdAt: iso(row.created_at),
   editedAt: isoOrNull(row.edited_at),
   meta: row.meta === null || row.meta === undefined ? null : ((typeof row.meta === 'string' ? JSON.parse(row.meta) : row.meta) as MessageMeta),
+  reply:
+    row.reply_id === null || row.reply_id === undefined
+      ? null
+      : {
+          id: String(row.reply_id),
+          authorId: row.reply_author_id === null ? null : String(row.reply_author_id),
+          authorName: String(row.reply_author_name ?? 'Conta removida'),
+          excerpt: Array.from(String(row.reply_content ?? '')).slice(0, LIMITS.excerptChars).join(''),
+        },
+  mentions: jsonArray(row.mentions).map(String),
+  attachments: [],
+  reactions: [],
 });
 
-const MESSAGE_SELECT = `SELECT m.*, u.display_name, u.username, u.is_bot FROM messages m LEFT JOIN users u ON u.id = m.author_id`;
+const MESSAGE_SELECT = `SELECT m.*, u.display_name, u.username, u.is_bot,
+       r.id AS reply_id, r.author_id AS reply_author_id, r.content AS reply_content, coalesce(r.author_name, ru.display_name) AS reply_author_name
+  FROM messages m
+  LEFT JOIN users u ON u.id = m.author_id
+  LEFT JOIN messages r ON r.id = m.reply_to
+  LEFT JOIN users ru ON ru.id = r.author_id`;
 
 /** O que acontece nos grupos e interessa aos bots. Sai depois de a mudança já estar gravada. */
 export type CommunityEvent =
@@ -211,6 +294,8 @@ export class Community {
   readonly #channelGroup = new Map<string, string>();
   /** Quem foi movido por um moderador pode entrar no canal de destino uma vez, mesmo sem a permissão "Conectar". */
   readonly #movePass = new Map<string, { channelId: string; expires: number }>();
+  /** Limites de arquivos desta instalação (vêm da configuração; os testes ajustam). */
+  readonly limits: { fileBytes: number; groupStorageBytes: number };
 
   constructor(db: Db, hub: Hub, sfu: Sfu, options: CommunityOptions, limiter = new RateLimiter()) {
     this.#db = db;
@@ -218,6 +303,7 @@ export class Community {
     this.#sfu = sfu;
     this.#options = options;
     this.#limiter = limiter;
+    this.limits = { fileBytes: options.maxFileBytes ?? LIMITS.fileBytes, groupStorageBytes: options.groupStorageBytes ?? LIMITS.groupStorageBytes };
     hub.canSeeChannel = (groupId, channelId, userId) => this.canSee(groupId, channelId, userId);
     hub.onVoiceDropped = (userId, place) => void sfu.removeParticipant(voiceRoom(place.channelId), userId).catch(() => undefined);
     hub.onVoiceChanged = (userId, before, after) => {
@@ -425,9 +511,108 @@ export class Community {
 
   // --- Grupos -----------------------------------------------------------------------------
 
-  async myGroups(user: User): Promise<Group[]> {
+  /** Os grupos da pessoa, cada um dizendo se tem novidade para ela (respeitando o que ela silenciou). */
+  async myGroups(user: User): Promise<(Group & { unread: boolean; mentions: number })[]> {
     const rows = await this.#db.query('SELECT g.* FROM groups g JOIN members m ON m.group_id = g.id WHERE m.user_id = $1 ORDER BY m.joined_at', [user.id]);
-    return rows.map(toGroup);
+    const list = rows.map(toGroup);
+    const [unread, notify] = await Promise.all([this.#unread(user.id, list.map((group) => group.id)), this.#notify(user.id)]);
+    return Promise.all(
+      list.map(async (group) => {
+        const snap = await this.snapshot(group.id);
+        const me = snap.members.get(user.id);
+        const settings = notify.get(group.id) ?? { level: 'tudo' as NotifyLevel, channels: {} };
+        let lit = false;
+        let mentions = 0;
+        for (const [channelId, state] of unread.get(group.id) ?? []) {
+          const channel = snap.channels.get(channelId);
+          if (!me || !channel || !has(this.permissionsIn(snap, this.subjectOf(snap, me), channel), P.VIEW_CHANNEL)) continue;
+          const level = settings.channels[channelId] ?? settings.level;
+          if (level === 'nada') continue;
+          mentions += state.mentions;
+          if (state.mentions > 0 || (level === 'tudo' && Number(state.last ?? 0) > Number(state.read ?? 0))) lit = true;
+        }
+        return { ...group, unread: lit, mentions };
+      }),
+    );
+  }
+
+  /** Por grupo e canal de texto: última mensagem, até onde a pessoa leu e menções pendentes. */
+  async #unread(userId: string, groupIds: readonly string[]): Promise<Map<string, Map<string, UnreadState>>> {
+    const result = new Map<string, Map<string, UnreadState>>();
+    if (groupIds.length === 0) return result;
+    const rows = await this.#db.query(
+      `SELECT c.id, c.group_id, r.last_read_id AS read,
+              (SELECT max(m.id) FROM messages m WHERE m.channel_id = c.id) AS last,
+              (SELECT count(*) FROM messages m
+                WHERE m.channel_id = c.id AND m.id > coalesce(r.last_read_id, 0) AND m.author_id IS DISTINCT FROM $1
+                  AND (m.mention_everyone OR m.mentions @> $2::jsonb)) AS mentions
+         FROM channels c LEFT JOIN read_states r ON r.channel_id = c.id AND r.user_id = $1
+        WHERE c.group_id = ANY($3::text[]) AND c.kind = 'texto'`,
+      [userId, JSON.stringify([userId]), groupIds],
+    );
+    for (const row of rows) {
+      const groupId = String(row.group_id);
+      if (!result.has(groupId)) result.set(groupId, new Map());
+      result.get(groupId)!.set(String(row.id), {
+        last: row.last === null || row.last === undefined ? null : String(row.last),
+        read: row.read === null || row.read === undefined ? null : String(row.read),
+        mentions: num(row.mentions),
+      });
+    }
+    return result;
+  }
+
+  /** O que a pessoa escolheu de notificação, por grupo. */
+  async #notify(userId: string, groupId?: string): Promise<Map<string, { level: NotifyLevel; channels: Record<string, NotifyLevel> }>> {
+    const rows = await this.#db.query('SELECT group_id, channel_id, level FROM notify_settings WHERE user_id = $1 AND ($2::text IS NULL OR group_id = $2)', [userId, groupId ?? null]);
+    const result = new Map<string, { level: NotifyLevel; channels: Record<string, NotifyLevel> }>();
+    for (const row of rows) {
+      const id = String(row.group_id);
+      if (!result.has(id)) result.set(id, { level: 'tudo', channels: {} });
+      const entry = result.get(id)!;
+      if (row.channel_id === '') entry.level = String(row.level) as NotifyLevel;
+      else entry.channels[String(row.channel_id)] = String(row.level) as NotifyLevel;
+    }
+    return result;
+  }
+
+  async setNotify(user: User, groupId: string, input: Record<string, unknown>): Promise<void> {
+    const ctx = await this.#ctx(user, groupId);
+    const level = input.level;
+    if (level !== null && !NOTIFY_LEVELS.includes(level as NotifyLevel)) {
+      throw new ApiError(400, 'nivel_invalido', 'Escolha entre todas as mensagens, só menções ou nada.');
+    }
+    let channelId = '';
+    if (input.channelId !== undefined && input.channelId !== null) {
+      const channel = typeof input.channelId === 'string' ? ctx.snap.channels.get(input.channelId) : undefined;
+      if (!channel || !has(this.permissionsIn(ctx.snap, ctx.subject, channel), P.VIEW_CHANNEL)) throw NO_CHANNEL();
+      channelId = channel.id;
+    }
+    if (level === null) {
+      await this.#db.query('DELETE FROM notify_settings WHERE user_id = $1 AND group_id = $2 AND channel_id = $3', [user.id, groupId, channelId]);
+    } else {
+      await this.#db.query(
+        `INSERT INTO notify_settings (user_id, group_id, channel_id, level) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, group_id, channel_id) DO UPDATE SET level = EXCLUDED.level`,
+        [user.id, groupId, channelId, level],
+      );
+    }
+  }
+
+  /** Marca o canal como lido até uma mensagem. Nunca volta atrás. */
+  async markRead(user: User, channelId: string, messageId: unknown): Promise<void> {
+    await this.#channelCtx(user, channelId);
+    if (typeof messageId !== 'string' || !MESSAGE_ID.test(messageId)) throw new ApiError(400, 'mensagem_invalida', 'Informe a última mensagem lida.');
+    await this.#read(this.#db, user.id, channelId, messageId);
+  }
+
+  async #read(db: Db, userId: string, channelId: string, messageId: string): Promise<void> {
+    await db.query(
+      `INSERT INTO read_states (user_id, channel_id, last_read_id)
+       VALUES ($1, $2, LEAST($3::bigint, (SELECT coalesce(max(id), 0) FROM messages)))
+       ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_id = GREATEST(read_states.last_read_id, EXCLUDED.last_read_id)`,
+      [userId, channelId, messageId],
+    );
   }
 
   async publicGroups(user: User, search: unknown): Promise<(Group & { memberCount: number; joined: boolean })[]> {
@@ -540,8 +725,12 @@ export class Community {
       }));
 
     const top = topPosition(subject, snap.roles);
+    const [unread, notify] = await Promise.all([this.#unread(user.id, [groupId]), this.#notify(user.id, groupId)]);
+    const settings = notify.get(groupId) ?? { level: 'tudo' as NotifyLevel, channels: {} };
     return {
       group: snap.group,
+      unread: Object.fromEntries([...(unread.get(groupId) ?? [])].filter(([channelId]) => visible.has(channelId))),
+      notify: { level: settings.level, channels: Object.fromEntries(Object.entries(settings.channels).filter(([channelId]) => visible.has(channelId))) },
       me: {
         userId: user.id,
         isOwner: subject.isOwner,
@@ -634,6 +823,13 @@ export class Community {
     const [count] = await db.query('SELECT count(*) AS total FROM members WHERE user_id = $1', [user.id]);
     if (num(count?.total) >= LIMITS.groupsPerUser) throw new ApiError(409, 'grupos_demais', `Cada conta participa de no máximo ${LIMITS.groupsPerUser} grupos.`);
     await db.query('INSERT INTO members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [groupId, user.id]);
+    // Quem entra agora não recebe o histórico inteiro como "não lido".
+    await db.query(
+      `INSERT INTO read_states (user_id, channel_id, last_read_id)
+       SELECT $2, c.id, (SELECT coalesce(max(id), 0) FROM messages) FROM channels c WHERE c.group_id = $1 AND c.kind = 'texto'
+       ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_id = GREATEST(read_states.last_read_id, EXCLUDED.last_read_id)`,
+      [groupId, user.id],
+    );
   }
 
   #joined(groupId: string, user: User): void {
@@ -1198,36 +1394,86 @@ export class Community {
     const { channel } = await this.#channelCtx(user, channelId);
     if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
     const limit = Math.min(100, Math.max(1, Number(options.limit) || 50));
-    const before = typeof options.before === 'string' && /^\d{1,18}$/.test(options.before) ? options.before : null;
+    const before = typeof options.before === 'string' && MESSAGE_ID.test(options.before) ? options.before : null;
     const rows = await this.#db.query(
       `${MESSAGE_SELECT} WHERE m.channel_id = $1 AND ($2::bigint IS NULL OR m.id < $2::bigint) AND ($3 = false OR m.pinned) ORDER BY m.id DESC LIMIT ${limit}`,
       [channelId, before, options.pinned === true],
     );
-    return rows.map(toMessage).reverse();
+    return (await this.#hydrate(rows)).reverse();
+  }
+
+  /** Junta a cada mensagem os anexos e as reações dela. */
+  async #hydrate(rows: Row[]): Promise<Message[]> {
+    const messages = rows.map(toMessage);
+    if (messages.length === 0) return messages;
+    const ids = messages.map((message) => message.id);
+    const [files, reactions] = await Promise.all([
+      this.#db.query(`SELECT ${FILE_COLUMNS}, message_id FROM files WHERE message_id = ANY($1::bigint[]) ORDER BY seq`, [ids]),
+      this.#db.query('SELECT message_id, emoji, user_id FROM reactions WHERE message_id = ANY($1::bigint[]) ORDER BY seq', [ids]),
+    ]);
+    const byId = new Map(messages.map((message) => [message.id, message]));
+    for (const row of files) byId.get(String(row.message_id))?.attachments.push(toAttachment(row));
+    for (const row of reactions) {
+      const message = byId.get(String(row.message_id));
+      if (!message) continue;
+      const emoji = String(row.emoji);
+      let item = message.reactions.find((reaction) => reaction.emoji === emoji);
+      if (!item) message.reactions.push((item = { emoji, users: [] }));
+      item.users.push(String(row.user_id));
+    }
+    return messages;
   }
 
   /**
    * Envia uma mensagem. `extra` só é usado pelos bots (botões e nome de exibição); um bot continua
    * precisando ver o canal e ter "Enviar mensagens" nele, como qualquer membro.
    */
-  async sendMessage(user: User, channelId: string, value: unknown, extra: { meta?: MessageMeta; as?: string } = {}): Promise<Message> {
+  async sendMessage(user: User, channelId: string, value: unknown, extra: { meta?: MessageMeta; as?: string; replyTo?: unknown; attachments?: unknown } = {}): Promise<Message> {
     const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
     if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
     if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo e não pode enviar mensagens por enquanto.');
     this.#need(ctx, P.SEND_MESSAGES, perms);
     const fromBot = ctx.me.bot;
-    const content = this.#content(ctx, perms, value);
+    const attachments = this.#attachmentIds(extra.attachments);
+    if (attachments.length > 0) this.#need(ctx, P.ATTACH_FILES, perms);
+    // Com anexo, o texto é opcional.
+    const content = attachments.length > 0 && !cleanText(value, LIMITS.messageChars, true) ? '' : this.#content(ctx, perms, value);
+    let replyTo: string | null = null;
+    let replyAuthor: string | null = null;
+    if (extra.replyTo !== undefined && extra.replyTo !== null) {
+      const [target] = typeof extra.replyTo === 'string' && MESSAGE_ID.test(extra.replyTo)
+        ? await this.#db.query('SELECT author_id FROM messages WHERE id = $1::bigint AND channel_id = $2', [extra.replyTo, channelId])
+        : [];
+      if (!target) throw new ApiError(400, 'resposta_invalida', 'A mensagem que você está respondendo não existe mais neste canal.');
+      replyTo = extra.replyTo as string;
+      replyAuthor = target.author_id === null ? null : String(target.author_id);
+    }
     // O limite de velocidade é para pessoas; bots têm os próprios limites na Central de Bots.
     if (!fromBot && !this.#limiter.take(`mensagem:${user.id}`, 10, 10_000)) {
       throw new ApiError(429, 'devagar', 'Você está enviando mensagens rápido demais. Espere alguns segundos.');
     }
     // @everyone só vale como menção para quem tem a permissão; para os demais é texto comum.
     const mention = /(^|\s)@everyone\b/.test(content) && has(perms, P.MENTION_EVERYONE);
-    const [inserted] = await this.#db.query(
-      'INSERT INTO messages (channel_id, author_id, author_name, content, mention_everyone, meta) VALUES ($1, $2, $3, $4, $5, $6::jsonb) RETURNING id',
-      [channelId, user.id, fromBot ? (extra.as ?? null) : null, content, mention, fromBot && extra.meta ? JSON.stringify(extra.meta) : null],
-    );
-    const message = await this.#message(String(inserted!.id));
+    const mentions = this.#mentions(ctx.snap, content, user.id, replyAuthor);
+    const id = await this.#db.tx(async (tx) => {
+      const [inserted] = await tx.query(
+        'INSERT INTO messages (channel_id, author_id, author_name, content, mention_everyone, meta, reply_to, mentions) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::bigint, $8::jsonb) RETURNING id',
+        [channelId, user.id, fromBot ? (extra.as ?? null) : null, content, mention, fromBot && extra.meta ? JSON.stringify(extra.meta) : null, replyTo, JSON.stringify(mentions)],
+      );
+      const messageId = String(inserted!.id);
+      if (attachments.length > 0) {
+        // Só entra arquivo que esta pessoa enviou para este canal e que ainda não está em outra mensagem.
+        const attached = await tx.query(
+          'UPDATE files SET message_id = $1::bigint WHERE id = ANY($2::text[]) AND uploader_id = $3 AND channel_id = $4 AND message_id IS NULL RETURNING id',
+          [messageId, attachments, user.id, channelId],
+        );
+        if (attached.length !== attachments.length) throw new ApiError(400, 'anexo_invalido', 'Um dos arquivos não está mais disponível. Envie de novo.');
+      }
+      // Quem escreve já leu o canal até a própria mensagem.
+      await this.#read(tx, user.id, channelId, messageId);
+      return messageId;
+    });
+    const message = await this.#message(id);
     await this.hub.publishToChannel(ctx.snap.group.id, channelId, { t: 'message.created', groupId: ctx.snap.group.id, message });
     this.#emit({ type: 'message', groupId: ctx.snap.group.id, channel, message, author: user, fromBot });
     return message;
@@ -1245,6 +1491,30 @@ export class Community {
     return channel ? { groupId, channel } : null;
   }
 
+  #attachmentIds(value: unknown): string[] {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(item))) {
+      throw new ApiError(400, 'anexo_invalido', 'Lista de anexos inválida.');
+    }
+    const ids = [...new Set(value as string[])];
+    if (ids.length > LIMITS.attachmentsPerMessage) throw new ApiError(400, 'anexos_demais', `Cada mensagem leva no máximo ${LIMITS.attachmentsPerMessage} arquivos.`);
+    return ids;
+  }
+
+  /** Quem a mensagem menciona: cada @usuario que é membro do grupo e o autor da mensagem respondida. */
+  #mentions(snap: Snapshot, content: string, authorId: string, replyAuthor: string | null): string[] {
+    const byUsername = new Map([...snap.members.values()].map((member) => [member.username.toLowerCase(), member.userId]));
+    const found = new Set<string>();
+    for (const match of content.matchAll(MENTION)) {
+      const name = match[2]!.toLowerCase();
+      // "@ana." no fim da frase: o ponto faz parte da pontuação, não do nome.
+      const id = byUsername.get(name) ?? byUsername.get(name.replace(/\.+$/, ''));
+      if (id) found.add(id);
+    }
+    if (replyAuthor && replyAuthor !== authorId && snap.members.has(replyAuthor)) found.add(replyAuthor);
+    return [...found];
+  }
+
   #content(ctx: Ctx, perms: bigint, value: unknown): string {
     if (typeof value === 'string' && Array.from(value).length > LIMITS.messageChars) {
       throw new ApiError(400, 'mensagem_longa', `A mensagem pode ter no máximo ${LIMITS.messageChars} caracteres.`);
@@ -1258,11 +1528,11 @@ export class Community {
   async #message(id: string): Promise<Message> {
     const [row] = await this.#db.query(`${MESSAGE_SELECT} WHERE m.id = $1::bigint`, [id]);
     if (!row) throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
-    return toMessage(row);
+    return (await this.#hydrate([row]))[0]!;
   }
 
   async #messageCtx(user: User, messageId: string) {
-    if (!/^\d{1,18}$/.test(messageId)) throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
+    if (!MESSAGE_ID.test(messageId)) throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
     const [row] = await this.#db.query(`${MESSAGE_SELECT} WHERE m.id = $1::bigint`, [messageId]);
     if (!row) throw new ApiError(404, 'mensagem_inexistente', 'Mensagem não encontrada.');
     const message = toMessage(row);
@@ -1279,8 +1549,10 @@ export class Community {
     if (message.author.id !== user.id) throw new ApiError(403, 'nao_e_autor', 'Só quem escreveu pode editar a mensagem.');
     if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo.');
     this.#need(ctx, P.SEND_MESSAGES, perms);
-    const content = this.#content(ctx, perms, value);
-    await this.#db.query('UPDATE messages SET content = $2, edited_at = now() WHERE id = $1::bigint', [messageId, content]);
+    const [hasFiles] = await this.#db.query('SELECT 1 FROM files WHERE message_id = $1::bigint LIMIT 1', [messageId]);
+    const content = hasFiles && !cleanText(value, LIMITS.messageChars, true) ? '' : this.#content(ctx, perms, value);
+    const mentions = this.#mentions(ctx.snap, content, user.id, message.reply?.authorId ?? null);
+    await this.#db.query('UPDATE messages SET content = $2, mentions = $3::jsonb, edited_at = now() WHERE id = $1::bigint', [messageId, content, JSON.stringify(mentions)]);
     const updated = await this.#message(messageId);
     await this.hub.publishToChannel(ctx.snap.group.id, message.channelId, { t: 'message.updated', groupId: ctx.snap.group.id, message: updated });
     return updated;
@@ -1310,6 +1582,82 @@ export class Community {
     const updated = await this.#message(messageId);
     await this.hub.publishToChannel(ctx.snap.group.id, message.channelId, { t: 'message.updated', groupId: ctx.snap.group.id, message: updated });
     return updated;
+  }
+
+  // --- Reações ----------------------------------------------------------------------------
+
+  async react(user: User, messageId: string, emoji: string, on: boolean): Promise<Message> {
+    const { message, ctx, perms } = await this.#messageCtx(user, messageId);
+    if (emoji.length > 40 || !EMOJI.test(emoji)) throw new ApiError(400, 'emoji_invalido', 'Escolha um emoji para reagir.');
+    if (on) {
+      if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo.');
+      this.#need(ctx, P.ADD_REACTIONS, perms);
+      const [count] = await this.#db.query('SELECT count(DISTINCT emoji) AS total, coalesce(bool_or(emoji = $2), false) AS present FROM reactions WHERE message_id = $1::bigint', [messageId, emoji]);
+      if (count?.present !== true && num(count?.total) >= LIMITS.reactionsPerMessage) {
+        throw new ApiError(409, 'reacoes_demais', `Cada mensagem aceita até ${LIMITS.reactionsPerMessage} emojis diferentes.`);
+      }
+      await this.#db.query('INSERT INTO reactions (message_id, user_id, emoji) VALUES ($1::bigint, $2, $3) ON CONFLICT DO NOTHING', [messageId, user.id, emoji]);
+    } else {
+      await this.#db.query('DELETE FROM reactions WHERE message_id = $1::bigint AND user_id = $2 AND emoji = $3', [messageId, user.id, emoji]);
+    }
+    const updated = await this.#message(messageId);
+    await this.hub.publishToChannel(ctx.snap.group.id, message.channelId, { t: 'message.updated', groupId: ctx.snap.group.id, message: updated });
+    return updated;
+  }
+
+  // --- Arquivos ---------------------------------------------------------------------------
+
+  /** Guarda um arquivo para ser anexado à próxima mensagem da pessoa neste canal. */
+  async uploadFile(user: User, channelId: string, input: { name: unknown; mime: unknown; bytes: Uint8Array; width?: unknown; height?: unknown }): Promise<Attachment> {
+    const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
+    if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
+    if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo e não pode enviar arquivos por enquanto.');
+    this.#need(ctx, P.SEND_MESSAGES, perms);
+    this.#need(ctx, P.ATTACH_FILES, perms);
+    const size = input.bytes.byteLength;
+    if (size === 0) throw new ApiError(400, 'arquivo_vazio', 'O arquivo está vazio.');
+    if (size > this.limits.fileBytes) throw this.fileTooBig();
+    if (!ctx.me.bot && !this.#limiter.take(`arquivo:${user.id}`, 30, 60_000)) {
+      throw new ApiError(429, 'devagar', 'Você está enviando arquivos rápido demais. Espere um minuto.');
+    }
+    const groupId = ctx.snap.group.id;
+    const [used] = await this.#db.query('SELECT coalesce(sum(size), 0) AS total FROM files WHERE group_id = $1', [groupId]);
+    if (num(used?.total) + size > this.limits.groupStorageBytes) {
+      throw new ApiError(413, 'grupo_sem_espaco', 'O grupo chegou ao limite de armazenamento de arquivos. Apague mensagens com arquivos antigos para liberar espaço.');
+    }
+    const name = cleanText(input.name, LIMITS.fileNameChars).replace(/[\\/:*?"<>|]/g, '_') || 'arquivo';
+    const declared = typeof input.mime === 'string' ? input.mime.split(';')[0]!.trim().toLowerCase() : '';
+    const mime = MIME.test(declared) ? declared : 'application/octet-stream';
+    const [row] = await this.#db.query(
+      `INSERT INTO files (id, group_id, channel_id, uploader_id, name, mime, size, width, height, data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING ${FILE_COLUMNS}`,
+      [newId(), groupId, channelId, user.id, name, mime, size, dimension(input.width), dimension(input.height), input.bytes],
+    );
+    return toAttachment(row!);
+  }
+
+  fileTooBig(): ApiError {
+    return new ApiError(413, 'arquivo_grande', `O arquivo passa do limite de ${Math.floor(this.limits.fileBytes / (1024 * 1024))} MB.`);
+  }
+
+  /** Lê um arquivo. Só para quem vê o canal dele; enquanto não foi anexado a uma mensagem, só para quem enviou. */
+  async readFile(user: User, fileId: string): Promise<{ name: string; mime: string; inline: boolean; data: Uint8Array }> {
+    const missing = () => new ApiError(404, 'arquivo_inexistente', 'Arquivo não encontrado.');
+    const [row] = await this.#db.query('SELECT channel_id, uploader_id, message_id, name, mime, data FROM files WHERE id = $1', [fileId]);
+    if (!row) throw missing();
+    try {
+      await this.#channelCtx(user, String(row.channel_id));
+    } catch {
+      throw missing();
+    }
+    if (row.message_id === null && row.uploader_id !== user.id) throw missing();
+    const mime = String(row.mime);
+    return { name: String(row.name), mime, inline: INLINE_MIME.has(mime), data: row.data as Uint8Array };
+  }
+
+  /** Apaga arquivos enviados há mais de uma hora que nunca viraram anexo de uma mensagem. */
+  async purgeOrphanFiles(now = new Date()): Promise<number> {
+    const rows = await this.#db.query('DELETE FROM files WHERE message_id IS NULL AND created_at < $1 RETURNING id', [new Date(now.getTime() - 60 * 60_000)]);
+    return rows.length;
   }
 
   // --- Registro de auditoria ---------------------------------------------------------------

@@ -58,7 +58,33 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
     return value;
   };
 
-  app.get('/api/features', (c) => c.json({ groups: true }));
+  /** Corpo binário (arquivo), lido aos pedaços para parar assim que passar do limite. */
+  const bytes = async (c: Context, maxBytes: number): Promise<Uint8Array> => {
+    if (Number(c.req.header('content-length') ?? 0) > maxBytes) throw community.fileTooBig();
+    const reader = c.req.raw.body?.getReader();
+    if (!reader) return new Uint8Array(0);
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw community.fileTooBig();
+      }
+      chunks.push(value);
+    }
+    const all = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      all.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return all;
+  };
+
+  app.get('/api/features', (c) => c.json({ groups: true, maxFileBytes: community.limits.fileBytes }));
 
   // --- Contas ---------------------------------------------------------------------------
 
@@ -256,9 +282,50 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
     }),
   );
 
-  app.post('/api/channels/:channelId/messages', async (c) =>
-    c.json({ message: await community.sendMessage(await who(c), id(c, 'channelId'), (await body(c, MESSAGE)).content) }),
-  );
+  app.post('/api/channels/:channelId/messages', async (c) => {
+    const user = await who(c);
+    const input = await body(c, MESSAGE);
+    return c.json({ message: await community.sendMessage(user, id(c, 'channelId'), input.content, { replyTo: input.replyTo, attachments: input.attachments }) });
+  });
+
+  app.post('/api/channels/:channelId/read', async (c) => {
+    await community.markRead(await who(c), id(c, 'channelId'), (await body(c)).messageId);
+    return c.json({ ok: true });
+  });
+
+  // O arquivo sobe antes da mensagem e é anexado quando ela é enviada.
+  app.post('/api/channels/:channelId/files', async (c) => {
+    const user = await who(c);
+    const channelId = id(c, 'channelId');
+    const data = await bytes(c, community.limits.fileBytes);
+    return c.json({
+      file: await community.uploadFile(user, channelId, { name: c.req.query('name'), mime: c.req.header('content-type'), bytes: data, width: c.req.query('w'), height: c.req.query('h') }),
+    });
+  });
+
+  app.get('/api/files/:fileId', async (c) => {
+    const file = await community.readFile(await who(c), id(c, 'fileId'));
+    return c.body(file.data as Uint8Array<ArrayBuffer>, 200, {
+      // Só imagem, vídeo e áudio saem com o tipo real; o resto é sempre download, nunca página.
+      'content-type': file.inline ? file.mime : 'application/octet-stream',
+      'content-disposition': `${file.inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+      'cache-control': 'private, max-age=31536000, immutable',
+    });
+  });
+
+  const reaction = async (c: Context, on: boolean) => {
+    const user = await who(c);
+    return c.json({ message: await community.react(user, id(c, 'messageId'), c.req.param('emoji') ?? '', on) });
+  };
+  app.put('/api/messages/:messageId/reactions/:emoji', (c) => reaction(c, true));
+  app.delete('/api/messages/:messageId/reactions/:emoji', (c) => reaction(c, false));
+
+  app.put('/api/groups/:groupId/notify', async (c) => {
+    await community.setNotify(await who(c), id(c, 'groupId'), await body(c));
+    return c.json({ ok: true });
+  });
 
   app.patch('/api/messages/:messageId', async (c) =>
     c.json({ message: await community.editMessage(await who(c), id(c, 'messageId'), (await body(c, MESSAGE)).content) }),

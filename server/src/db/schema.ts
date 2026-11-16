@@ -212,6 +212,69 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       CREATE INDEX bot_jobs_due ON bot_jobs(run_at) WHERE done_at IS NULL;
     `,
   },
+  {
+    id: 3,
+    name: 'chat: anexos, respostas, menções, reações, não lidas e notificações',
+    sql: `
+      ALTER TABLE messages ADD COLUMN reply_to BIGINT REFERENCES messages(id) ON DELETE SET NULL;
+      -- Contas mencionadas na mensagem (ids), para contar menções pendentes.
+      ALTER TABLE messages ADD COLUMN mentions JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+      -- Arquivos enviados no chat. O conteúdo fica no próprio banco: sobrevive a reinícios da hospedagem e só
+      -- sai pelo backend, que confere a permissão de ver o canal a cada leitura.
+      CREATE TABLE files (
+        id TEXT PRIMARY KEY,
+        seq BIGSERIAL,
+        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+        uploader_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        -- Nulo enquanto o arquivo foi enviado mas a mensagem ainda não: some sozinho se nunca for anexado.
+        message_id BIGINT REFERENCES messages(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        width INTEGER,
+        height INTEGER,
+        data BYTEA NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX files_message ON files(message_id);
+      CREATE INDEX files_group ON files(group_id);
+
+      CREATE TABLE reactions (
+        seq BIGSERIAL,
+        message_id BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        emoji TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (message_id, emoji, user_id)
+      );
+
+      -- Até onde cada pessoa leu cada canal.
+      CREATE TABLE read_states (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        channel_id TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+        last_read_id BIGINT NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, channel_id)
+      );
+      -- Quem já era membro começa com tudo lido: o histórico antigo não vira uma pilha de não lidas.
+      INSERT INTO read_states (user_id, channel_id, last_read_id)
+        SELECT m.user_id, c.id, (SELECT coalesce(max(id), 0) FROM messages)
+          FROM members m JOIN channels c ON c.group_id = m.group_id WHERE c.kind = 'texto';
+
+      -- Nível de notificação por pessoa: do grupo (channel_id vazio) e de cada canal.
+      CREATE TABLE notify_settings (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        channel_id TEXT NOT NULL DEFAULT '',
+        level TEXT NOT NULL CHECK (level IN ('tudo', 'mencoes', 'nada')),
+        PRIMARY KEY (user_id, group_id, channel_id)
+      );
+
+      -- Permissão nova "Adicionar reações" (bit 36): entra no @everyone dos grupos que já existem.
+      UPDATE roles SET permissions = permissions | 68719476736 WHERE is_everyone;
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */
