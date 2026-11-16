@@ -47,8 +47,14 @@ nem instalador apresentado como assinado, nem alteração no Defender ou nas pol
 
 O canal escolhido é **GitHub Releases**, em um repositório **público** chamado `Shereroon`.
 Tanto o código quanto os instaladores ficarão visíveis publicamente; os amigos poderão baixar sem convite.
-O workflow está em `.github/workflows/desktop-release.yml`. A conta precisa estar autenticada e o remoto
-configurado para enviar o projeto; depois configure Settings, variables e secrets no GitHub.
+O projeto já foi enviado para [Murilloglm/Shereroon](https://github.com/Murilloglm/Shereroon), com o remoto
+`origin` configurado e o workflow `.github/workflows/desktop-release.yml` ativo.
+O canal de downloads é [GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
+Releases imutáveis estão habilitados e o token padrão do Actions usa permissões de leitura; o job de
+publicação solicita a escrita necessária. Ainda não há release, tag de versão ou instalador oficial publicado.
+O workflow separado de GitHub Pages está desabilitado no repositório enquanto a hospedagem do app não
+estiver configurada; o código dele foi preservado para uma implantação futura.
+Agora configure Settings, variables e secrets no GitHub conforme as tabelas abaixo.
 Não armazene chaves ou senhas no Git, no frontend ou nos artefatos.
 
 Em **Settings → Secrets and variables → Actions → Variables**, configure:
@@ -136,7 +142,7 @@ o EXE da pasta `signing-audit` como alternativa ao instalador.
 
 ## Publicação e teste final
 
-1. Envie o projeto para o GitHub, configure as variables/secrets e faça uma execução manual do workflow.
+1. No repositório já criado, configure as variables/secrets e faça uma execução manual do workflow.
    Ela gera artefatos assinados e **não publica** Release.
 2. Teste o instalador em Windows 11 limpo com SAC habilitado: instalação, abertura, áudio/captura,
    atualização a partir de uma versão oficial anterior e desinstalação. Consulte os logs se houver bloqueio.
@@ -158,7 +164,7 @@ Assets oficiais: `ShareRoom-Setup-VERSAO.exe`, `.exe.blockmap`, `latest.yml`, `S
 `.exe.sha256` e `signature-report.json`. Compartilhe a URL HTTPS **do seu repositório oficial**:
 
 ```text
-https://github.com/SEU-USUARIO/SEU-REPOSITORIO/releases/latest
+https://github.com/Murilloglm/Shereroon/releases/latest
 ```
 
 Para conferir o download: `Get-FileHash -Algorithm SHA256 -LiteralPath .\ShareRoom-Setup-0.1.1.exe`
@@ -180,5 +186,6 @@ para conectar amigos pela internet, independentemente da assinatura.
 - Auditoria normal registrou os arquivos antigos; a auditoria `-RequireValid` os rejeitou.
 - SHA-256 do instalador antigo conferido novamente após as alterações e permaneceu igual.
 
-Não foi realizada assinatura de produção, execução no GitHub ou instalação com certificado confiável em
-outro PC. Essas validações dependem do repositório remoto e da identidade/certificado contratados.
+O código-fonte e o workflow foram enviados ao GitHub. Não foi realizada assinatura de produção,
+execução do build oficial de Windows no GitHub ou instalação com certificado confiável em outro PC.
+Essas validações dependem das URLs de produção e da identidade/certificado contratados.

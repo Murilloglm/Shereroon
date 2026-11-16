@@ -3,6 +3,10 @@
 Compartilhamento de tela em tempo real para assistir com amigos: salas privadas por link, sem cadastro e
 sem instalar nada para quem assiste. Funciona no computador e dá para assistir pelo celular.
 
+**Downloads oficiais para Windows:** [GitHub Releases](https://github.com/Murilloglm/Shereroon/releases).
+O canal está configurado; o primeiro instalador oficial aguarda certificado de assinatura confiável e
+backend/site públicos. Veja [como gerar e publicar uma release](docs/windows-release.md).
+
 - **Frontend:** React + TypeScript + Vite + Tailwind (`web/`)
 - **Backend de salas:** Node.js + Hono (`server/`) — emite os tokens temporários; não guarda nada
 - **Transmissão:** WebRTC com SFU [LiveKit](https://livekit.io) (sinalização, vários espectadores, TURN)
