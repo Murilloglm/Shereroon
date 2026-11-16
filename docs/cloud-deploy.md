@@ -33,6 +33,21 @@ Render. Para um domínio personalizado ou outro site, cadastre a origem HTTPS ad
 
 Abra `https://ENDERECO-REAL-DO-SERVICO/api/health`: a resposta esperada é `{"ok":true}`.
 Isso comprova apenas que a API respondeu; não valida credenciais LiveKit nem a transmissão.
+
+Abra em seguida `https://ENDERECO-REAL-DO-SERVICO/api/health/livekit`. Com `{"ok":true}`, o LiveKit
+aceitou a chave e o segredo. Se vier erro, o campo `code` diz o que corrigir no Render (Environment):
+
+| `code` | O que está errado |
+| --- | --- |
+| `sfu_chave_desconhecida` | `LIVEKIT_API_KEY` não existe no projeto de `LIVEKIT_URL` (valor errado, chave apagada ou de outro projeto). |
+| `sfu_segredo_incorreto` | A chave existe, mas `LIVEKIT_API_SECRET` não é o segredo dela. |
+| `sfu_autenticacao_recusada` | O LiveKit recusou sem dizer o motivo: gere um par novo. |
+| `sfu_indisponivel` | O LiveKit não respondeu: confira `LIVEKIT_URL` e tente de novo. |
+
+O segredo só aparece no LiveKit Cloud no momento em que a chave é criada. Para trocar: no projeto, em
+**Settings → API keys**, crie uma chave nova, copie a *API Key* e o *API Secret* direto para o Render e
+salve; o Render reimplanta sozinho. O mesmo diagnóstico aparece no log do deploy, na linha `LiveKit:`.
+
 Crie uma sala, entre por outro dispositivo em outra rede e confira vídeo, microfone e áudio do
 computador. Faça o teste com o PC do autor desligado e sem nenhum backend local em execução.
 

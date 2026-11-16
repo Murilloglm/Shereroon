@@ -26,6 +26,7 @@ import { big, iso, isoOrNull, num, type Db, type Row } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
 import { RateLimiter } from '../ratelimit.ts';
 import type { PublishRights, Sfu } from '../sfu.ts';
+import { describeSfuError, sfuError } from '../sfu-errors.ts';
 import { cleanText, newId, type User } from './auth.ts';
 import type { Hub } from './hub.ts';
 
@@ -1382,8 +1383,7 @@ export class Community {
         metadata: { voz: true },
       });
     } catch (error) {
-      console.error('[sfu]', error);
-      throw new ApiError(502, 'sfu_indisponivel', 'O servidor de transmissão não respondeu. Tente de novo em instantes.');
+      throw sfuError(error);
     }
     if (this.hub.isOnline(user.id)) await this.hub.setVoice(user.id, { groupId, channelId });
     return {
@@ -1428,7 +1428,7 @@ export class Community {
             await this.#sfu.setPublishing(voiceRoom(channelId), userId, rights);
           }
         } catch (error) {
-          console.error('[sfu]', error);
+          console.error('[sfu]', describeSfuError(error));
         }
       }
     }
@@ -1450,8 +1450,7 @@ export class Community {
       try {
         await run();
       } catch (error) {
-        console.error('[sfu]', error);
-        throw new ApiError(502, 'sfu_indisponivel', 'O servidor de transmissão não respondeu. Tente de novo em instantes.');
+        throw sfuError(error);
       }
     };
     const needInside = () => {

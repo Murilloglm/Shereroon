@@ -11,6 +11,8 @@ export interface Config {
   allowedOrigins: string[];
   tokenTtlSeconds: number;
   trustProxy: boolean;
+  /** Suspeitas sobre as credenciais do LiveKit, para o log de inicialização. Nunca contêm os valores. */
+  warnings: string[];
 }
 
 type Env = Record<string, string | undefined>;
@@ -67,12 +69,28 @@ export function normalizeOrigin(value: string): string | null {
   }
 }
 
+/**
+ * Limpa o que costuma vir junto quando o valor é colado no painel da hospedagem: o próprio "NOME=" na
+ * frente e aspas em volta. Chave e segredo não têm espaços, então quebras de linha coladas no meio também saem.
+ */
+function pasted(name: string, raw: string | undefined, compact = false): string {
+  let value = (raw ?? '').trim();
+  if (value.toUpperCase().startsWith(`${name}=`)) value = value.slice(name.length + 1).trim();
+  const quote = value[0];
+  if (value.length >= 2 && (quote === '"' || quote === "'" || quote === '`') && value.endsWith(quote)) value = value.slice(1, -1).trim();
+  return compact ? value.replace(/\s+/g, '') : value;
+}
+
+/** Formato das chaves do LiveKit Cloud: "API" seguido de letras e números. */
+const looksLikeCloudKey = (value: string): boolean => /^API[A-Za-z0-9]{6,24}$/.test(value);
+
 export function loadConfig(env: Env): Config {
   const production = env.NODE_ENV === 'production';
   const missing: string[] = [];
+  const warnings: string[] = [];
 
-  const read = (name: string, devDefault: string): string => {
-    const value = env[name]?.trim();
+  const read = (name: string, devDefault: string, compact = false): string => {
+    const value = pasted(name, env[name], compact);
     if (value) return value;
     if (production) missing.push(name);
     return devDefault;
@@ -80,10 +98,14 @@ export function loadConfig(env: Env): Config {
 
   // Padrões do `livekit-server --dev`. Em produção, tudo precisa vir do ambiente.
   const livekitUrl = read('LIVEKIT_URL', 'ws://localhost:7880');
-  const apiKey = read('LIVEKIT_API_KEY', 'devkey');
-  const apiSecret = read('LIVEKIT_API_SECRET', 'secret');
+  let apiKey = read('LIVEKIT_API_KEY', 'devkey', true);
+  let apiSecret = read('LIVEKIT_API_SECRET', 'secret', true);
   if (missing.length > 0) {
     throw new ConfigError(`Variáveis de ambiente obrigatórias ausentes: ${missing.join(', ')}`);
+  }
+  if (!looksLikeCloudKey(apiKey) && looksLikeCloudKey(apiSecret) && apiKey.length > apiSecret.length) {
+    [apiKey, apiSecret] = [apiSecret, apiKey];
+    warnings.push('LIVEKIT_API_KEY e LIVEKIT_API_SECRET estavam com os valores trocados entre si. O servidor usou na ordem certa; corrija no painel.');
   }
   if (!/^wss?:\/\//.test(livekitUrl)) {
     throw new ConfigError('LIVEKIT_URL deve começar com ws:// ou wss://');
@@ -91,9 +113,27 @@ export function loadConfig(env: Env): Config {
   if (production && !publicUrl(livekitUrl, 'wss:')) {
     throw new ConfigError('LIVEKIT_URL deve ser uma URL wss:// pública válida, sem credenciais nem fragmento, em produção.');
   }
-  const livekitApiUrl = env.LIVEKIT_API_URL?.trim() || livekitUrl.replace(/^ws/, 'http');
+  const livekitApiUrl = pasted('LIVEKIT_API_URL', env.LIVEKIT_API_URL) || livekitUrl.replace(/^ws/, 'http');
   if (production && !publicUrl(livekitApiUrl, 'https:')) {
     throw new ConfigError('LIVEKIT_API_URL deve ser uma URL https:// pública válida, sem credenciais nem fragmento, em produção.');
+  }
+  const hostOf = (value: string): string => {
+    try {
+      return new URL(value).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
+  };
+  if (hostOf(livekitUrl).endsWith('.livekit.cloud')) {
+    if (!looksLikeCloudKey(apiKey)) {
+      warnings.push('LIVEKIT_API_KEY não tem o formato das chaves do LiveKit Cloud (começam com "API"). Confira se o valor colado é a API Key.');
+    }
+    if (apiSecret.length < 32) {
+      warnings.push('LIVEKIT_API_SECRET é mais curto que os segredos do LiveKit Cloud. Confira se o valor foi colado inteiro.');
+    }
+  }
+  if (hostOf(livekitApiUrl) !== hostOf(livekitUrl)) {
+    warnings.push('LIVEKIT_API_URL aponta para um servidor diferente de LIVEKIT_URL. As chaves só valem no projeto delas; em geral basta remover LIVEKIT_API_URL.');
   }
   if (production && (apiKey === 'devkey' || apiSecret === 'secret')) {
     throw new ConfigError('Credenciais de desenvolvimento do LiveKit não são permitidas em produção.');
@@ -133,5 +173,6 @@ export function loadConfig(env: Env): Config {
     allowedOrigins: [...new Set([...(origins.length > 0 ? origins : production ? [] : DEV_ORIGINS), DESKTOP_ORIGIN])],
     tokenTtlSeconds: Math.round(ttl),
     trustProxy: env.TRUST_PROXY === '1' || env.TRUST_PROXY === 'true',
+    warnings,
   };
 }

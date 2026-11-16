@@ -20,6 +20,8 @@ export class ApiError extends Error {
 
   /** Falhas que valem uma nova tentativa (rede caiu, servidor acordando, SFU fora do ar). */
   get transient(): boolean {
+    // O LiveKit recusou as credenciais do servidor: insistir não resolve, só o administrador corrige.
+    if (this.code.startsWith('sfu_') && this.code !== 'sfu_indisponivel') return false;
     return this.status === 0 || this.status === 502 || this.status === 503 || this.status === 504 || this.status === 429;
   }
 }

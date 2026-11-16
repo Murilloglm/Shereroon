@@ -6,6 +6,8 @@
  * Hoje é o convite de sala; canais de voz de grupos podem entregar outro.
  */
 import {
+  ConnectionError,
+  ConnectionErrorReason,
   ConnectionQuality,
   DisconnectReason,
   Room,
@@ -250,6 +252,19 @@ function lockedFromMetadata(metadata: string | undefined): boolean {
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** Falha ao entrar, com mensagem em português. As do nosso backend já chegam prontas; as do LiveKit vêm em inglês. */
+function joinFailure(error: unknown): Error {
+  if (error instanceof ConnectionError) {
+    if (error.reason === ConnectionErrorReason.NotAllowed) {
+      return new Error('O servidor de transmissão recusou a entrada. Tente de novo; se continuar, o administrador precisa conferir as chaves do LiveKit.');
+    }
+    if (error.reason !== ConnectionErrorReason.Cancelled && error.reason !== ConnectionErrorReason.LeaveRequest) {
+      return new Error('Não foi possível alcançar o servidor de transmissão. Confira sua internet (ou o firewall) e tente de novo.');
+    }
+  }
+  return error instanceof Error ? error : new Error('Não foi possível entrar na sala.');
+}
+
 export class RoomSession {
   readonly store: Store<SessionState>;
   readonly mic: MicPipeline;
@@ -336,11 +351,9 @@ export class RoomSession {
     try {
       await this.#connect();
     } catch (error) {
-      this.store.set({
-        phase: 'idle',
-        error: error instanceof Error ? error.message : 'Não foi possível entrar na sala.',
-      });
-      throw error;
+      const failure = joinFailure(error);
+      this.store.set({ phase: 'idle', error: failure.message });
+      throw failure;
     }
   }
 

@@ -27,6 +27,7 @@ import {
 } from './invite.ts';
 import { RateLimiter } from './ratelimit.ts';
 import type { Sfu } from './sfu.ts';
+import { checkSfu, sfuError, sfuFailureError, type SfuFailure } from './sfu-errors.ts';
 import { Signer } from './signer.ts';
 
 export interface AppDeps {
@@ -101,15 +102,12 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
     try {
       return await action();
     } catch (error) {
-      console.error('[sfu]', error);
-      const upstream = error as { status?: number; code?: string } | null;
-      if (upstream?.status === 401 || upstream?.status === 403 ||
-          upstream?.code === 'unauthenticated' || upstream?.code === 'permission_denied') {
-        throw new ApiError(502, 'sfu_autenticacao_recusada', 'O servidor de transmissão recusou a autenticação. O administrador precisa conferir a configuração do LiveKit.');
-      }
-      throw new ApiError(502, 'sfu_indisponivel', 'O servidor de transmissão não respondeu. Tente de novo em instantes.');
+      throw sfuError(error);
     }
   };
+
+  /** Resultado da última conferência das credenciais no LiveKit, reaproveitado por 30 s. */
+  let sfuHealth: { at: number; result: Promise<SfuFailure | null> } | null = null;
 
   app.use(
     '/api/*',
@@ -129,6 +127,15 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
   });
 
   app.get('/api/health', (c) => c.json({ ok: true }));
+
+  // O LiveKit aceita as credenciais deste servidor? Serve para conferir a configuração depois de um deploy.
+  app.get('/api/health/livekit', async (c) => {
+    if (!sfuHealth || Date.now() - sfuHealth.at > 30_000) sfuHealth = { at: Date.now(), result: checkSfu(sfu) };
+    const failure = await sfuHealth.result;
+    if (!failure) return c.json({ ok: true });
+    const error = sfuFailureError(failure);
+    return c.json({ ok: false, error: { code: error.code, message: error.message } }, 502);
+  });
 
   app.post('/api/rooms', async (c) => {
     if (!limiter.take(`criar:${clientIp(c)}`, 20, 10 * 60_000)) {

@@ -16,6 +16,7 @@ import { connectPglite, connectPostgres, type Db } from './db/db.ts';
 import { migrate } from './db/schema.ts';
 import { ConfigError, loadConfig } from './config.ts';
 import { LiveKitSfu } from './sfu.ts';
+import { checkSfu, sfuFailureError } from './sfu-errors.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -115,6 +116,12 @@ const server = serve({ fetch: app.fetch, port, hostname: process.env.HOST ?? '0.
       ? `  Contas e grupos: ligados (${database?.kind === 'postgres' ? 'PostgreSQL' : 'banco local PGlite'})`
       : '  Contas e grupos: desligados (defina DATABASE_URL para ligar)',
   );
+  for (const warning of config.warnings) console.warn(`  ATENÇÃO: ${warning}`);
+  // Confere as credenciais já na subida: o motivo de uma recusa aparece no log do deploy, não só quando alguém tenta entrar.
+  void checkSfu(sfu).then((failure) => {
+    if (!failure) console.log('  LiveKit: credenciais aceitas.');
+    else console.error(`  ATENÇÃO: LiveKit ${failure === 'indisponivel' ? 'não respondeu' : 'recusou as credenciais'}. ${sfuFailureError(failure).message}`);
+  });
 });
 
 if (groups) attachGateway(server as Server, { ...groups, allowedOrigins: config.allowedOrigins });
