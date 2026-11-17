@@ -175,7 +175,7 @@ test('seletor próprio: lista janelas e telas reais com miniatura; cancelar não
 
   await page.getByTestId('picker-cancel').click();
   await sleep(600);
-  assert.equal(await page.getByTestId('dock-stop').isDisabled(), true, 'cancelar não inicia transmissão');
+  assert.equal(await page.getByTestId('dock-stop').count(), 0, 'cancelar não inicia transmissão ("Parar" só aparece transmitindo)');
   assert.equal(await guest.getByTestId('stage-owner').count(), 0);
 });
 
@@ -213,7 +213,7 @@ test('bandeja: mostra o estado da sala e para a transmissão; a tela não dorme 
   assert.ok(await trayItem('Ligar o microfone'), 'microfone desligado aparece como "Ligar"');
 
   await hook('clickTray', 'Parar de transmitir a tela');
-  await waitFor(async () => (await page.getByTestId('dock-stop').isDisabled()) === true, 'a transmissão parar pelo comando da bandeja');
+  await waitFor(async () => (await page.getByTestId('dock-stop').count()) === 0, 'a transmissão parar pelo comando da bandeja');
   await waitFor(async () => (await guest.getByTestId('stage-owner').count()) === 0, 'o convidado deixar de ver a tela');
   assert.equal((await trayItem('Parar de transmitir a tela')).enabled, false);
   assert.equal(await hook('sleepBlocked'), false);

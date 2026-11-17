@@ -14,8 +14,8 @@ import { QualityCard } from './QualityCard.tsx';
 import { SettingsModal } from './SettingsModal.tsx';
 import { ParticipantsCard, RoomCard } from './Sidebar.tsx';
 import { SourcePicker } from './SourcePicker.tsx';
+import type { PersonLookup } from './CallGrid.tsx';
 import { Stage, type StageHandle } from './Stage.tsx';
-import { StatsCard } from './StatsCard.tsx';
 
 const DESKTOP = '(min-width: 1024px)';
 
@@ -59,6 +59,7 @@ export function RoomView({
   invite,
   onLeave,
   embedded = false,
+  lookup,
 }: {
   session: RoomSession;
   /** Vazio nos canais de voz de grupos, que não têm link de convite próprio. */
@@ -66,8 +67,11 @@ export function RoomView({
   onLeave: () => void;
   /** Dentro da tela de um grupo: ocupa o espaço que recebe, sem logo, sem cartão da sala e sem lista de participantes. */
   embedded?: boolean;
+  /** Fotos de perfil de quem está na chamada (nos grupos). */
+  lookup?: PersonLookup;
 }) {
   const phase = useStore(session.store, (state) => state.phase);
+  const sharing = useStore(session.store, (state) => state.share.active);
   const notice = useStore(session.store, (state) => state.notice);
   const desktop = useIsDesktop();
   const [cinemaWanted, setCinema] = useState(false);
@@ -133,8 +137,11 @@ export function RoomView({
   const openSettings = () => setSettingsOpen(true);
 
   const player = (
-    <Stage ref={stage} session={session} cinema={cinema} onToggleCinema={() => setCinema((value) => !value)} canShare={canShare} allowCinema={desktop} />
+    <Stage ref={stage} session={session} cinema={cinema} onToggleCinema={() => setCinema((value) => !value)} canShare={canShare} allowCinema={desktop} lookup={lookup} />
   );
+  // Qualidade (resolução e FPS) num painel aberto pelo botão da barra: dá para ajustar antes de transmitir, e não
+  // ocupa espaço quando ninguém está transmitindo.
+  const qualityPanel = canShare ? <QualityCard session={session} className="border-0 bg-transparent shadow-none" /> : undefined;
 
   return (
     <div className={cx('flex flex-col', embedded ? 'h-full min-h-0 overflow-y-auto lg:overflow-hidden' : desktop ? 'h-(--app-h) overflow-hidden' : 'min-h-(--app-h)')} data-testid="room">
@@ -151,39 +158,33 @@ export function RoomView({
         <>
           <main
             className={cx(
-              'grid min-h-0 flex-1 gap-4 p-5',
+              'grid min-h-0 flex-1 gap-3',
+              cinema ? 'p-0' : 'p-3',
               cinema
                 ? 'grid-cols-1'
                 : embedded
                   ? mixerOpen
                     ? 'grid-cols-[minmax(0,1fr)_minmax(28rem,1.1fr)]'
-                    : 'grid-cols-[minmax(0,1fr)_20rem]'
+                    : 'grid-cols-1'
                   : mixerOpen
                     ? 'grid-cols-[19rem_minmax(0,1fr)_minmax(30rem,1.3fr)]'
-                    : 'grid-cols-[19rem_minmax(0,1fr)_21rem]',
+                    : 'grid-cols-[19rem_minmax(0,1fr)]',
             )}
           >
             {!cinema && !embedded && (
-              <aside className="flex min-h-0 flex-col gap-4">
+              <aside className="flex min-h-0 flex-col gap-3">
                 <RoomCard session={session} invite={invite} />
                 <ParticipantsCard session={session} invite={invite} className="flex-1" />
               </aside>
             )}
             <section className="flex min-h-0 flex-col">{player}</section>
-            {!cinema && (
-              <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-                {mixerOpen ? (
-                  <MixerPanel session={session} mixer={mixer} noise={noise} onClose={() => setMixerOpen(false)} />
-                ) : (
-                  <>
-                    <QualityCard session={session} />
-                    <StatsCard session={session} />
-                  </>
-                )}
+            {!cinema && mixerOpen && (
+              <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+                <MixerPanel session={session} mixer={mixer} noise={noise} onClose={() => setMixerOpen(false)} />
               </aside>
             )}
           </main>
-          <div className="shrink-0 px-4 pb-4">
+          <div className={cx('shrink-0 px-3 pb-3', cinema && 'pt-2')}>
             <Dock
               session={session}
               invite={invite}
@@ -197,7 +198,9 @@ export function RoomView({
               }}
               onOpenSettings={openSettings}
               onFullscreen={fullscreen}
+              onLeave={onLeave}
               systemAudio={systemAudio}
+              qualityPanel={qualityPanel}
             />
           </div>
         </>
@@ -207,8 +210,7 @@ export function RoomView({
           {!embedded && <MobilePeople session={session} />}
           <MobileActions session={session} invite={invite} canShare={canShare} onOpenSettings={openSettings} onFullscreen={fullscreen} />
           {!canShare && shareBlockedReason && <Notice>{shareBlockedReason}</Notice>}
-          {canShare && <QualityCard session={session} />}
-          <StatsCard session={session} />
+          {canShare && sharing && <QualityCard session={session} />}
           {!embedded && <RoomCard session={session} invite={invite} />}
         </main>
       )}

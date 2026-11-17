@@ -989,7 +989,16 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
         {voice && (
           <div className={cx('relative min-h-0 flex-1', inThisVoice ? 'flex' : 'hidden')}>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="voice-room">
-              <RoomView session={voice.session} invite="" embedded onLeave={() => void leave()} />
+              <RoomView
+                session={voice.session}
+                invite=""
+                embedded
+                onLeave={() => void leave()}
+                lookup={(identity) => {
+                  const member = view?.group.id === voice.groupId ? view.members.find((item) => item.userId === identity) : undefined;
+                  return member ? { image: member.avatar } : undefined;
+                }}
+              />
             </div>
             {inThisVoice && voiceChannel && voiceChatPanel(voiceChannel)}
             {inThisVoice && voiceChannel && voiceChatToggle(voiceChannel)}

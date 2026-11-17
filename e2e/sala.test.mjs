@@ -74,12 +74,25 @@ test('o convidado precisa da senha certa para entrar', async () => {
   const names = await host.getByTestId('participant-name').allTextContents();
   assert.deepEqual(names.sort(), ['Ana', 'Você']);
   assert.equal(await guest.getByTestId('kick').count(), 0, 'convidado não pode ver o botão de expulsar');
+
+  // Sem ninguém transmitindo, o palco mostra os cartões de quem está na chamada, sem mensagem vazia, sem
+  // estatísticas, sem painel de qualidade aberto e sem "Parar transmissão".
+  await waitFor(async () => (await host.getByTestId('call-card').count()) === 2, 'os dois cartões no palco');
+  assert.equal(await host.getByTestId('stage').getAttribute('data-view'), 'pessoas');
+  assert.doesNotMatch(await host.getByTestId('stage').textContent(), /Ninguém está compartilhando/);
+  assert.equal(await host.getByTestId('stats-card').count(), 0);
+  assert.equal(await host.getByTestId('quality-card').count(), 0);
+  assert.equal(await host.getByTestId('dock-stop').count(), 0);
+  assert.deepEqual((await host.getByTestId('call-card-name').allTextContents()).sort(), ['Ana', 'Murillo (você)']);
 });
 
 test('compartilhar a tela: o vídeo chega de verdade ao convidado', async () => {
+  // A qualidade fica num painel aberto pelo botão da barra, e dá para escolher antes de transmitir.
+  await host.getByTestId('dock-quality').click();
   await host.getByTestId('quality-mode-manual').click();
   await host.getByTestId('quality-res-720').click();
   await host.getByTestId('quality-fps-60').click();
+  await host.keyboard.press('Escape');
   await host.getByTestId('dock-share').click();
 
   await host.getByTestId('stage-owner').waitFor();
@@ -97,6 +110,18 @@ test('compartilhar a tela: o vídeo chega de verdade ao convidado', async () => 
   const second = await videoFacts(guest);
   assert.ok(second.frames - first.frames > 30, `quadros novos em 1,5 s: ${second.frames - first.frames}`);
   assert.ok(second.width > 0 && second.height > 0 && second.height <= 720, `tamanho recebido: ${second.width}×${second.height}`);
+
+  // Com vídeo, aparecem "Parar transmissão" (só para quem transmite) e as estatísticas, num painel sobre o vídeo.
+  assert.equal(await host.getByTestId('dock-stop').count(), 1);
+  assert.equal(await guest.getByTestId('dock-stop').count(), 0);
+  assert.equal(await guest.getByTestId('stats-card').count(), 1);
+  // Voltar para os participantes sem deixar de assistir, e voltar para a transmissão.
+  await guest.getByTestId('stage-people').click();
+  await waitFor(async () => (await guest.getByTestId('call-card').count()) === 2, 'o convidado ver os cartões');
+  assert.equal(await guest.getByTestId('call-card-live').count(), 1, 'quem transmite aparece "Ao vivo" no cartão');
+  await guest.getByTestId('stage-back').click();
+  await guest.getByTestId('stage-owner').waitFor();
+  await waitFor(async () => (await videoFacts(guest)).frames > 30, 'o vídeo voltar ao palco');
 });
 
 test('a resolução pedida se mantém: o WebRTC não derruba a imagem por conta própria', { skip: headless && 'sem placa de vídeo no modo sem janela' }, async () => {
@@ -145,8 +170,10 @@ test('mudar a qualidade com a transmissão no ar, sem reiniciar', async () => {
   const before = await videoFacts(guest);
   const sidBefore = await guest.evaluate(() => document.querySelector('[data-testid="stage-video"]').srcObject?.getVideoTracks()[0]?.id);
 
+  await host.getByTestId('dock-quality').click();
   await host.getByTestId('quality-res-480').click();
   await host.getByTestId('quality-fps-30').click();
+  await host.keyboard.press('Escape');
 
   await waitFor(async () => {
     const { height } = await videoFacts(guest);

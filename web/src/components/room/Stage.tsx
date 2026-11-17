@@ -1,4 +1,5 @@
 import {
+  ChartColumn,
   Eye,
   EyeOff,
   LayoutGrid,
@@ -12,6 +13,7 @@ import {
   RectangleHorizontal,
   Rows2,
   Tv,
+  Users,
   Volume2,
   VolumeX,
   X,
@@ -21,6 +23,8 @@ import { formatFps, formatHeight } from '../../lib/format.ts';
 import type { RoomSession, StreamView } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
 import { Button, cx, IconButton, Menu, SignalBars } from '../ui.tsx';
+import { CallGrid, type PersonLookup } from './CallGrid.tsx';
+import { StatsCard } from './StatsCard.tsx';
 import { PersonVolume } from './PersonVolume.tsx';
 import { toggleFullscreen, useAttachedTrack, useMeasuredVideo, type FrameVideo } from './video.ts';
 
@@ -90,8 +94,8 @@ function StreamTile({
       ref={tileRef}
       className={cx(
         'group relative min-h-0 overflow-hidden bg-black',
-        compact ? 'aspect-video h-full shrink-0 cursor-pointer rounded-xl border border-ink-600 hover:border-brand-400' : 'size-full',
-        !primary && !compact && 'rounded-xl border border-ink-700',
+        compact ? 'aspect-video h-full shrink-0 cursor-pointer rounded-lg opacity-80 transition-opacity hover:opacity-100' : 'size-full',
+        !primary && !compact && 'rounded-lg',
       )}
       onClick={compact ? onFocus : undefined}
       data-testid={primary ? 'stage-primary' : 'stage-tile'}
@@ -113,8 +117,8 @@ function StreamTile({
       >
         <span
           className={cx(
-            'flex max-w-[75%] min-w-0 items-center gap-2 rounded-xl border border-brand-400/60 bg-ink-900/85 backdrop-blur',
-            compact ? 'px-2 py-0.5 text-xs font-bold' : 'px-3 py-1.5 text-sm font-semibold',
+            'flex max-w-[75%] min-w-0 items-center gap-2 rounded-lg bg-black/55 backdrop-blur',
+            compact ? 'px-2 py-0.5 text-xs font-bold' : 'px-2.5 py-1 text-sm font-semibold',
           )}
           data-testid={primary ? 'stage-owner' : 'stage-tile-owner'}
         >
@@ -126,7 +130,7 @@ function StreamTile({
         </span>
         {!compact && shown.height !== null && (
           <span
-            className="flex items-center gap-2 rounded-lg bg-ink-900/85 px-2.5 py-1.5 text-sm font-bold backdrop-blur"
+            className="flex items-center gap-2 rounded-lg bg-black/55 px-2.5 py-1 text-sm font-bold backdrop-blur"
             title="Valores medidos na transmissão, não os pedidos"
             data-testid={primary ? 'stage-real' : 'stage-tile-real'}
           >
@@ -214,20 +218,31 @@ function StreamPicker({ session, streams }: { session: RoomSession; streams: Str
   );
 }
 
+const STATS_KEY = 'cosmic:estatisticas-abertas';
+const readStatsOpen = () => {
+  try {
+    return localStorage.getItem(STATS_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
 export function Stage({
   session,
   cinema,
   onToggleCinema,
-  canShare,
   allowCinema,
+  lookup,
   ref,
 }: {
   session: RoomSession;
   cinema: boolean;
   onToggleCinema: () => void;
-  canShare: boolean;
-  /** O modo cinema só existe no layout de computador. */
+  canShare?: boolean;
+  /** O modo foco (cinema) só existe no layout de computador. */
   allowCinema: boolean;
+  /** Fotos de perfil de quem está na chamada (nos grupos). */
+  lookup?: PersonLookup;
   ref?: Ref<StageHandle>;
 }) {
   const streams = useStore(session.store, (state) => state.streams);
@@ -237,7 +252,6 @@ export function Stage({
   const viewer = useStore(session.store, (state) => state.viewer);
   const volumes = useStore(session.store, (state) => state.volumes);
   const audioBlocked = useStore(session.store, (state) => state.audioBlocked);
-  const starting = useStore(session.store, (state) => state.share.starting);
   const watchingIds = useStore(session.store, (state) => state.watching);
 
   const visible = watchingIds.map((id) => streams.find((item) => item.id === id)).filter((item): item is StreamView => item !== undefined);
@@ -249,9 +263,17 @@ export function Stage({
   const [paused, setPaused] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [idle, setIdle] = useState(false);
+  // "pessoas": os cartões dos participantes, mesmo com transmissões abertas (elas continuam assinadas).
+  const [view, setView] = useState<'palco' | 'pessoas'>('palco');
+  const [statsOpen, setStatsOpen] = useState(readStatsOpen);
   const immersive = fullscreen || cinema;
+  const showGrid = stream === null || view === 'pessoas';
+  const playing = !showGrid;
 
-  useEffect(() => setPaused(false), [stream?.id]);
+  useEffect(() => {
+    setPaused(false);
+    setView('palco');
+  }, [stream?.id]);
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === containerRef.current);
@@ -259,10 +281,11 @@ export function Stage({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  // Em tela cheia ou modo cinema, os controles somem depois de alguns segundos parado.
+  // Com vídeo na tela, os controles ficam por cima da imagem e somem depois de alguns segundos com o mouse
+  // parado (ou logo depois que ele sai do palco). O teclado traz de volta (focus-within).
   useEffect(() => {
     const element = containerRef.current;
-    if (!immersive || !element) {
+    if (!playing || !element) {
       setIdle(false);
       return;
     }
@@ -272,15 +295,21 @@ export function Stage({
       clearTimeout(timer);
       timer = setTimeout(() => setIdle(true), 2800);
     };
+    const leave = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setIdle(true), 700);
+    };
     wake();
     element.addEventListener('pointermove', wake);
     element.addEventListener('pointerdown', wake);
+    element.addEventListener('pointerleave', leave);
     return () => {
       clearTimeout(timer);
       element.removeEventListener('pointermove', wake);
       element.removeEventListener('pointerdown', wake);
+      element.removeEventListener('pointerleave', leave);
     };
-  }, [immersive]);
+  }, [playing]);
 
   const primaryVideo = () => containerRef.current?.querySelector<FrameVideo>('[data-testid="stage-video"]') ?? null;
   const toggleStageFullscreen = () => toggleFullscreen(containerRef.current, primaryVideo());
@@ -290,6 +319,15 @@ export function Stage({
     if (document.pictureInPictureElement) void document.exitPictureInPicture();
     else void primaryVideo()?.requestPictureInPicture?.().catch(() => undefined);
   };
+  const toggleStats = () =>
+    setStatsOpen((open) => {
+      try {
+        localStorage.setItem(STATS_KEY, open ? '0' : '1');
+      } catch {
+        // sem armazenamento: vale só nesta sessão
+      }
+      return !open;
+    });
 
   const real = stream?.isLocal
     ? { height: publisher?.stats.height ?? null, fps: publisher?.stats.fps ?? null }
@@ -308,7 +346,7 @@ export function Stage({
 
   const volume = stream ? (volumes[stream.id] ?? 1) : 1;
   const showVideo = stream !== null && stream.track !== null && !paused;
-  const hidden = immersive && idle;
+  const hidden = playing && idle;
   const tile = (item: StreamView, primary: boolean, compact: boolean) => (
     <StreamTile
       key={item.id}
@@ -330,170 +368,164 @@ export function Stage({
       ref={containerRef}
       data-testid="stage"
       data-layout={mosaic ? 'mosaico' : 'foco'}
+      data-view={showGrid ? 'pessoas' : 'palco'}
       className={cx(
-        'sr-stage relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-ink-700 bg-black shadow-panel',
+        'sr-stage relative flex min-h-0 flex-1 flex-col overflow-hidden',
+        playing ? 'bg-black' : fullscreen ? 'bg-ink-950' : 'bg-transparent',
+        playing && !immersive && 'rounded-xl',
         hidden && 'cursor-none',
       )}
     >
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        {mosaic ? (
-          <div
-            className="grid min-h-0 flex-1 gap-1.5 p-1.5"
-            style={{ gridTemplateColumns: `repeat(${Math.ceil(Math.sqrt(visible.length))}, minmax(0, 1fr))` }}
-            data-testid="stage-mosaic"
-          >
-            {visible.map((item) => tile(item, item === stream, false))}
-          </div>
-        ) : (
-          <>
-            <div className="relative min-h-0 flex-1">
-              {stream ? (
-                tile(stream, true, false)
-              ) : (
-                <video data-testid="stage-video" className="invisible absolute inset-0" muted playsInline />
-              )}
-            </div>
-            {others.length > 0 && (
+      {showGrid ? (
+        <>
+          <CallGrid session={session} lookup={lookup} />
+          {!stream && <video data-testid="stage-video" className="invisible absolute inset-0 size-0" muted playsInline />}
+          {stream && (
+            <button
+              type="button"
+              onClick={() => setView('palco')}
+              className="absolute top-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl bg-ink-800/90 px-3 py-1.5 text-sm font-bold shadow-panel backdrop-blur transition-colors hover:bg-ink-700"
+              data-testid="stage-back"
+            >
+              <Monitor className="size-4 text-neon-300" aria-hidden="true" />
+              Voltar para {stream.isLocal ? 'a sua tela' : `a tela de ${stream.name}`}
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            {mosaic ? (
               <div
-                className={cx('flex h-24 shrink-0 gap-1.5 overflow-x-auto border-t border-ink-700 bg-ink-950 p-1.5 transition-opacity', hidden && 'opacity-0')}
-                data-testid="stage-strip"
+                className="grid min-h-0 flex-1 gap-1"
+                style={{ gridTemplateColumns: `repeat(${Math.ceil(Math.sqrt(visible.length))}, minmax(0, 1fr))` }}
+                data-testid="stage-mosaic"
               >
-                {others.map((item) => tile(item, false, true))}
-              </div>
-            )}
-          </>
-        )}
-
-        {!stream && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <span className="flex size-16 items-center justify-center rounded-2xl border border-ink-600 bg-ink-850">
-              <Monitor className="size-8 text-brand-300" aria-hidden="true" />
-            </span>
-            {streams.length > 0 ? (
-              <div>
-                <p className="text-xl font-extrabold">
-                  {streams.length === 1 ? 'Uma transmissão disponível' : `${streams.length} transmissões disponíveis`}
-                </p>
-                <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  {streams.map((item) => (
-                    <Button key={item.id} variant="primary" onClick={() => session.select(item.id)} data-testid="stage-watch">
-                      <Eye className="size-4" aria-hidden="true" />
-                      Assistir {item.isLocal ? 'minha tela' : item.name}
-                    </Button>
-                  ))}
-                </div>
+                {visible.map((item) => tile(item, item === stream, false))}
               </div>
             ) : (
-              <>
-                <div>
-                  <p className="text-xl font-extrabold">Ninguém está compartilhando a tela</p>
-                  <p className="mt-1.5 text-fog-400">Quando alguém começar, a transmissão aparece aqui.</p>
-                </div>
-                {canShare && (
-                  <Button variant="primary" disabled={starting} onClick={() => void session.startShare()} data-testid="stage-share">
-                    {starting ? <LoaderCircle className="size-5 animate-spin" aria-hidden="true" /> : <Monitor className="size-5" aria-hidden="true" />}
-                    Compartilhar minha tela
-                  </Button>
-                )}
-              </>
+              <div className="relative min-h-0 flex-1">{stream && tile(stream, true, false)}</div>
             )}
-          </div>
-        )}
 
-        {audioBlocked && (
-          <button
-            type="button"
-            onClick={() => void session.unlockAudio()}
-            className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-warn-400/60 bg-ink-900/90 px-4 py-2 text-sm font-bold text-warn-400 backdrop-blur"
-          >
-            <VolumeX className="size-4" aria-hidden="true" />
-            O navegador bloqueou o som. Toque para ativar.
-          </button>
-        )}
-      </div>
+            {stream && (
+              <div className={cx('absolute right-2 bottom-16 z-20 w-80 max-w-[calc(100%-1rem)]', !statsOpen && 'hidden')} data-testid="stage-stats-panel">
+                <StatsCard session={session} className="bg-ink-900/92 shadow-panel backdrop-blur" />
+              </div>
+            )}
 
-      <div
-        className={cx(
-          'flex h-12 shrink-0 items-center gap-1 border-t border-ink-700 bg-ink-900 px-2 transition-[height,opacity] duration-200',
-          hidden && 'h-0 overflow-hidden border-t-0 opacity-0',
-        )}
-      >
-        <IconButton label={paused ? 'Voltar ao vivo' : stream?.isLocal ? 'Pausar a prévia' : 'Pausar'} disabled={!stream} onClick={() => setPaused((value) => !value)}>
-          {paused ? <Play className="size-5" /> : <Pause className="size-5" />}
-        </IconButton>
+            <div
+              className={cx(
+                'absolute inset-x-0 bottom-0 z-10 flex items-end bg-linear-to-t from-black/80 via-black/40 to-transparent px-2 pt-10 pb-1.5 transition-opacity duration-200 focus-within:opacity-100',
+                hidden ? 'opacity-0' : 'opacity-100',
+              )}
+              data-testid="stage-controls"
+            >
+              <div className="flex w-full min-w-0 items-center gap-1">
+                <IconButton label={paused ? 'Voltar ao vivo' : stream?.isLocal ? 'Pausar a prévia' : 'Pausar'} disabled={!stream} onClick={() => setPaused((value) => !value)}>
+                  {paused ? <Play className="size-5" /> : <Pause className="size-5" />}
+                </IconButton>
 
-        {stream && !stream.isLocal && stream.hasAudio ? (
-          <VolumeMenu session={session} stream={stream} volume={volume} />
-        ) : (
-          <IconButton label={stream?.isLocal ? 'Você não ouve a própria transmissão' : 'Esta transmissão não tem áudio'} disabled>
-            <VolumeX className="size-5" />
-          </IconButton>
-        )}
-
-        {stream && (
-          <span className="ml-1 flex items-center gap-1.5 rounded-lg border border-brand-400/50 bg-brand-500/15 px-2.5 py-1 text-sm font-bold text-brand-200">
-            <span className="size-2 animate-pulse-dot rounded-full bg-brand-300" />
-            Ao vivo
-          </span>
-        )}
-
-        {streams.length > 1 && (
-          <div className="ml-2 flex min-w-0 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Transmissões na sala">
-            {streams.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={item.id === stream?.id}
-                onClick={() => session.select(item.id)}
-                title={item.source ?? undefined}
-                className={cx(
-                  'flex max-w-36 shrink-0 items-center gap-1 truncate rounded-lg border px-2.5 py-1 text-sm font-semibold transition-colors',
-                  item.id === stream?.id
-                    ? 'border-brand-400 bg-brand-500/25 text-white'
-                    : item.watching
-                      ? 'border-brand-400/50 text-fog-100'
-                      : 'border-ink-600 text-fog-400 hover:border-ink-500 hover:text-fog-100',
+                {stream && !stream.isLocal && stream.hasAudio ? (
+                  <VolumeMenu session={session} stream={stream} volume={volume} />
+                ) : (
+                  <IconButton label={stream?.isLocal ? 'Você não ouve a própria transmissão' : 'Esta transmissão não tem áudio'} disabled>
+                    <VolumeX className="size-5" />
+                  </IconButton>
                 )}
-              >
-                {!item.watching && <EyeOff className="size-3.5 shrink-0" aria-label="não assistindo" />}
-                <span className="truncate">{item.isLocal ? 'Minha tela' : item.name}</span>
-              </button>
-            ))}
+
+                {stream && (
+                  <span className="ml-1 flex shrink-0 items-center gap-1.5 rounded-md bg-live-500 px-2 py-0.5 text-xs font-extrabold tracking-wide text-white uppercase">
+                    <span className="size-1.5 animate-pulse-dot rounded-full bg-white" />
+                    Ao vivo
+                  </span>
+                )}
+
+                {streams.length > 1 && (
+                  <div className="ml-2 flex min-w-0 items-center gap-1 overflow-x-auto" role="tablist" aria-label="Transmissões na sala">
+                    {streams.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={item.id === stream?.id}
+                        onClick={() => session.select(item.id)}
+                        title={item.source ?? undefined}
+                        className={cx(
+                          'flex max-w-36 shrink-0 items-center gap-1 truncate rounded-lg px-2.5 py-1 text-sm font-semibold transition-colors',
+                          item.id === stream?.id ? 'bg-white/18 text-white' : item.watching ? 'text-fog-100 hover:bg-white/10' : 'text-fog-400 hover:bg-white/10 hover:text-fog-100',
+                        )}
+                      >
+                        {!item.watching && <EyeOff className="size-3.5 shrink-0" aria-label="não assistindo" />}
+                        <span className="truncate">{item.isLocal ? 'Minha tela' : item.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <span className="flex-1" />
+
+                <IconButton label="Ver participantes" onClick={() => setView('pessoas')} data-testid="stage-people">
+                  <Users className="size-5" />
+                </IconButton>
+                {visible.length > 1 && (
+                  <IconButton
+                    label={mosaic ? 'Modo foco (uma grande)' : 'Modo mosaico (todas do mesmo tamanho)'}
+                    onClick={() => session.setLayout(mosaic ? 'foco' : 'mosaico')}
+                    data-testid="stage-layout"
+                  >
+                    {mosaic ? <Rows2 className="size-5" /> : <LayoutGrid className="size-5" />}
+                  </IconButton>
+                )}
+                {streams.length > 0 && <StreamPicker session={session} streams={streams} />}
+                <IconButton
+                  label={statsOpen ? 'Esconder as estatísticas' : 'Estatísticas da transmissão'}
+                  onClick={toggleStats}
+                  className={cx(statsOpen && 'bg-white/15 text-white')}
+                  aria-pressed={statsOpen}
+                  data-testid="stage-stats"
+                >
+                  <ChartColumn className="size-5" />
+                </IconButton>
+                {allowCinema && (
+                  <IconButton
+                    label={cinema ? 'Sair do modo foco' : 'Modo foco (só a transmissão)'}
+                    onClick={onToggleCinema}
+                    className={cx(cinema && 'bg-white/15 text-white')}
+                    data-testid="stage-cinema"
+                  >
+                    <RectangleHorizontal className="size-5" />
+                  </IconButton>
+                )}
+                {document.pictureInPictureEnabled && (
+                  <IconButton label="Janela flutuante" disabled={!showVideo} onClick={togglePip}>
+                    <PictureInPicture2 className="size-5" />
+                  </IconButton>
+                )}
+                <IconButton label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} onClick={toggleStageFullscreen} data-testid="stage-fullscreen">
+                  {fullscreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />}
+                </IconButton>
+              </div>
+            </div>
           </div>
-        )}
 
-        <span className="flex-1" />
+          {!mosaic && others.length > 0 && (
+            <div className={cx('flex h-24 shrink-0 gap-1.5 overflow-x-auto bg-black p-1.5 transition-opacity', hidden && 'opacity-0')} data-testid="stage-strip">
+              {others.map((item) => tile(item, false, true))}
+            </div>
+          )}
+        </>
+      )}
 
-        {visible.length > 1 && (
-          <IconButton
-            label={mosaic ? 'Modo foco (uma grande)' : 'Modo mosaico (todas do mesmo tamanho)'}
-            onClick={() => session.setLayout(mosaic ? 'foco' : 'mosaico')}
-            data-testid="stage-layout"
-          >
-            {mosaic ? <Rows2 className="size-5" /> : <LayoutGrid className="size-5" />}
-          </IconButton>
-        )}
-        {streams.length > 0 && <StreamPicker session={session} streams={streams} />}
-        {allowCinema && (
-          <IconButton
-            label={cinema ? 'Sair do modo cinema' : 'Modo cinema'}
-            onClick={onToggleCinema}
-            className={cx(cinema && 'bg-brand-500/25 text-white')}
-            data-testid="stage-cinema"
-          >
-            <RectangleHorizontal className="size-5" />
-          </IconButton>
-        )}
-        {document.pictureInPictureEnabled && (
-          <IconButton label="Janela flutuante" disabled={!showVideo} onClick={togglePip}>
-            <PictureInPicture2 className="size-5" />
-          </IconButton>
-        )}
-        <IconButton label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} onClick={toggleStageFullscreen} data-testid="stage-fullscreen">
-          {fullscreen ? <Minimize className="size-5" /> : <Maximize className="size-5" />}
-        </IconButton>
-      </div>
+      {audioBlocked && (
+        <button
+          type="button"
+          onClick={() => void session.unlockAudio()}
+          className="absolute bottom-16 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-xl bg-ink-900/90 px-4 py-2 text-sm font-bold text-warn-400 shadow-panel backdrop-blur"
+        >
+          <VolumeX className="size-4" aria-hidden="true" />
+          O navegador bloqueou o som. Toque para ativar.
+        </button>
+      )}
     </div>
   );
 }
