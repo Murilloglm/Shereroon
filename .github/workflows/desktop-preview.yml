@@ -133,7 +133,7 @@ jobs:
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'desktop/release-preview'
           $resources = Join-Path $releaseDir 'win-unpacked/resources'
           foreach ($required in @('app-update.yml', 'update-keys.json', 'update-channel.json')) {
-            if (-not (Test-Path -LiteralPath (Join-Path $resources $required))) { throw "O pacote não contém $required: a atualização automática não funcionaria." }
+            if (-not (Test-Path -LiteralPath (Join-Path $resources $required))) { throw "O pacote não contém $($required): a atualização automática não funcionaria." }
           }
           if (Test-Path -LiteralPath (Join-Path $resources 'update-test.json')) {
             throw 'O gancho do teste de atualização nunca pode ir para uma versão publicada.'
