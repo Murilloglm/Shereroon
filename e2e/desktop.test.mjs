@@ -2,7 +2,7 @@
 // captura uma janela escolhida no seletor próprio, transmite o som do computador pelo componente de áudio
 // embutido (sem instalar nem autorizar nada) e responde aos comandos da bandeja.
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -227,6 +227,17 @@ test('a janela não navega para fora; links externos vão para o navegador padr�
   });
   assert.match(after.url, /^app:\/\/shareroom\//);
   assert.equal(after.working, true);
+});
+
+test('iniciar com o Windows: vem desligado, liga pelas configurações e a escolha fica guardada', { skip }, async () => {
+  const state = await page.evaluate(() => window.shareroomDesktop.autostart.get());
+  assert.deepEqual({ enabled: state.enabled, minimized: state.minimized }, { enabled: false, minimized: false }, 'nunca liga sozinho');
+  const after = await page.evaluate(() => window.shareroomDesktop.autostart.set({ enabled: true, minimized: true }));
+  assert.equal(after.enabled, true);
+  assert.equal(after.minimized, true);
+  const saved = JSON.parse(readFileSync(resolve(userData, 'inicializacao.json'), 'utf8'));
+  assert.deepEqual(saved, { enabled: true, minimized: true });
+  await page.evaluate(() => window.shareroomDesktop.autostart.set({ enabled: false, minimized: false }));
 });
 
 test('link cosmicnight://convite abre a tela do convite no aplicativo; o que não é convite é ignorado', { skip }, async () => {

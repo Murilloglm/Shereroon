@@ -10,6 +10,7 @@ import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runtimeConnection } from './connection-config.mjs';
 import { DEEP_SCHEME, linkFromArgv } from './deep-link.mjs';
+import { cleanAutostart, HIDDEN_FLAG, loginItemFor, readAutostart, writeAutostart } from './autostart.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SCHEME = 'app';
@@ -234,6 +235,30 @@ function showWindow() {
 // Link de convite que abriu o aplicativo (ou chegou à instância que já estava aberta). Fica guardado até a
 // interface pegar: assim nenhum se perde enquanto a janela ainda carrega.
 let pendingLink = linkFromArgv(process.argv);
+const startHidden = process.argv.includes(HIDDEN_FLAG) && !pendingLink;
+
+/** Iniciar com o Windows. No app instalado vai para a lista de inicialização do usuário; nos testes, só para o arquivo. */
+function autostartState() {
+  const saved = readAutostart(app.getPath('userData'));
+  const supported = process.platform === 'win32' && (app.isPackaged || E2E);
+  if (app.isPackaged) {
+    // A pessoa pode ter desligado pelo Gerenciador de Tarefas: vale o que o Windows diz.
+    saved.enabled = app.getLoginItemSettings({ path: process.execPath, args: saved.minimized ? [HIDDEN_FLAG] : [] }).openAtLogin;
+  }
+  return { ...saved, supported };
+}
+
+function setAutostart(input) {
+  const next = cleanAutostart(input, readAutostart(app.getPath('userData')));
+  if (app.isPackaged) {
+    // Tira a entrada antiga (com ou sem a marca de minimizado) antes de gravar a nova.
+    app.setLoginItemSettings({ openAtLogin: false, path: process.execPath, args: [HIDDEN_FLAG] });
+    app.setLoginItemSettings({ openAtLogin: false, path: process.execPath, args: [] });
+    app.setLoginItemSettings(loginItemFor(next, process.execPath));
+  }
+  writeAutostart(app.getPath('userData'), next);
+  return autostartState();
+}
 
 function deliverLink(link) {
   if (!link) return;
@@ -364,7 +389,10 @@ function createWindow() {
       backgroundThrottling: false,
     },
   });
-  win.once('ready-to-show', () => win.show());
+  // Aberto pelo Windows com "iniciar minimizado": fica só na bandeja até a pessoa abrir.
+  win.once('ready-to-show', () => {
+    if (!startHidden) win.show();
+  });
   win.on('close', (event) => {
     if (quitting || !roomState.inRoom) return;
     // Em uma sala, fechar a janela não derruba a transmissão: o aplicativo continua na bandeja.
@@ -422,6 +450,8 @@ function installIpc() {
   ipcMain.on('room:state', (event, state) => {
     if (trusted(event)) applyRoomState(state);
   });
+  ipcMain.handle('autostart:get', (event) => (trusted(event) ? autostartState() : null));
+  ipcMain.handle('autostart:set', (event, input) => (trusted(event) ? setAutostart(input) : null));
   ipcMain.handle('desktop:take-link', (event) => {
     if (!trusted(event)) return null;
     const link = pendingLink;

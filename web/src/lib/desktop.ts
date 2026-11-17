@@ -29,6 +29,13 @@ export interface DesktopRoomState {
   roomName: string | null;
 }
 
+export interface AutostartState {
+  enabled: boolean;
+  minimized: boolean;
+  /** Só no aplicativo instalado para Windows. */
+  supported: boolean;
+}
+
 export interface DesktopBridge {
   config: {
     apiUrl: string;
@@ -43,6 +50,11 @@ export interface DesktopBridge {
   chooseSource(id: string): Promise<boolean>;
   setState(state: DesktopRoomState): void;
   onCommand(listener: (command: DesktopCommand) => void): () => void;
+  /** Iniciar com o Windows (não existe em versões antigas do aplicativo). */
+  autostart?: {
+    get(): Promise<AutostartState | null>;
+    set(state: { enabled: boolean; minimized: boolean }): Promise<AutostartState | null>;
+  };
   /** Convites abertos por link cosmicnight:// (não existe em versões antigas do aplicativo). */
   links?: {
     take(): Promise<{ kind: 'convite'; code: string } | null>;

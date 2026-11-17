@@ -8,6 +8,8 @@ import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, IconButton, Modal, TextInput, Toggle } from '../ui.tsx';
 import { fieldLabel, useAction } from './common.tsx';
 import { ProfileEditor } from '../social/ProfileEditor.tsx';
+import { AutostartSettings } from '../AutostartSettings.tsx';
+import { desktop } from '../../lib/desktop.ts';
 
 /** Microfone e som recebido da chamada em que a pessoa está. */
 function VoiceToggles({ session }: { session: RoomSession }) {
@@ -57,6 +59,12 @@ function AccountSettings({ account, onClose }: { account: Account; onClose: () =
           <ProfileEditor userId={account.id} />
         </section>
 
+        {desktop?.autostart && (
+          <section className="grid gap-3 border-t border-ink-700 pt-5">
+            <h3 className="font-extrabold">Aplicativo para Windows</h3>
+            <AutostartSettings />
+          </section>
+        )}
         <section className="grid gap-3 border-t border-ink-700 pt-5">
           <h3 className="font-extrabold">Avisos neste aparelho</h3>
           <div className="flex items-center gap-4">

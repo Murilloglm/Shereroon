@@ -9,6 +9,7 @@ import { useStore } from '../../lib/store.ts';
 import { Button, cx, LevelMeter, Modal, Notice, Slider, Toggle } from '../ui.tsx';
 import { NoiseButton } from './NoiseModal.tsx';
 import { PersonVolume } from './PersonVolume.tsx';
+import { AutostartSettings } from '../AutostartSettings.tsx';
 
 const CODEC_INFO: Record<Codec, { name: string; about: string }> = {
   h264: { name: 'H.264', about: 'O mais compatível. Costuma usar a placa de vídeo para codificar e decodificar, inclusive em celulares.' },
@@ -102,6 +103,7 @@ function AppSection() {
           </Button>
         )}
       </div>
+      <AutostartSettings />
     </Section>
   );
 }

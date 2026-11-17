@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('shareroomDesktop', {
   /** Comandos vindos do menu da bandeja. */
   onCommand: (listener) => subscribe('desktop:command', listener),
 
+  /** Iniciar com o Windows (e minimizado na bandeja). */
+  autostart: {
+    get: () => ipcRenderer.invoke('autostart:get'),
+    set: (state) => ipcRenderer.invoke('autostart:set', { enabled: state?.enabled === true, minimized: state?.minimized === true }),
+  },
+
   /** Convites abertos por um link cosmicnight://. `take` devolve o pendente (uma vez só). */
   links: {
     take: () => ipcRenderer.invoke('desktop:take-link'),
