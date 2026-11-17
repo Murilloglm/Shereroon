@@ -556,6 +556,73 @@ describe('Boas-vindas e Cargos', () => {
     expect((await w.texts(dono, geral)).at(-1)).toBe('Esse cargo não está no menu. Veja a lista em /cargos.');
     expect(await rolesOf(membro)).not.toContain('Administrador');
   });
+
+  // Canais de boas-vindas e de saída costumam ser só de leitura (@everyone sem "Enviar mensagens"). Escolher o
+  // canal na Central de Bots libera o cargo do bot nele, em nome de quem configurou e com registro na auditoria.
+  describe('canais só de leitura', () => {
+    let bemVindos: string, saida: string, everyone: string;
+    const readOnly = async (name: string) => {
+      const channelId = (await w.ok('POST', `/api/groups/${groupId}/channels`, dono.token, { kind: 'texto', name })).id as string;
+      await w.ok('PUT', `/api/channels/${channelId}/overrides/cargo/${everyone}`, dono.token, { allow: '0', deny: P.SEND_MESSAGES.toString() });
+      return channelId;
+    };
+
+    beforeAll(async () => {
+      everyone = ((await w.view(dono, groupId)).roles as any[]).find((role) => role.isEveryone).id;
+      bemVindos = await readOnly('bem-vindos');
+      saida = await readOnly('saida');
+      await configure(dono, groupId, 'boas-vindas', { config: { cargosAutomaticos: [], cargosDoMenu: [], verificacao: false } });
+    });
+
+    it('ao salvar, o bot ganha permissão para escrever nos canais escolhidos; entrada e saída chegam', async () => {
+      const saved = await configure(dono, groupId, 'boas-vindas', { config: { canalEntrada: bemVindos, canalSaida: saida, avisarSaida: true } });
+      expect(saved.permissoes).toEqual({ liberados: ['#bem-vindos', '#saida'], falhas: [] });
+
+      const chegou = await person('chegou');
+      await w.join(dono, groupId, chegou);
+      await w.bots.idle();
+      expect((await w.texts(dono, bemVindos)).at(-1)).toMatch(/^Boas-vindas, Chegou\d+! /);
+      await w.ok('POST', `/api/groups/${groupId}/leave`, chegou.token, {});
+      await w.bots.idle();
+      expect((await w.texts(dono, saida)).at(-1)).toMatch(/^Chegou\d+ saiu de Clube\.$/);
+
+      // Só o cargo do bot foi liberado: os outros membros continuam sem escrever ali.
+      const outro = await person('outro');
+      await w.join(dono, groupId, outro);
+      expect((await w.api('POST', `/api/channels/${bemVindos}/messages`, outro.token, { content: 'oi' })).status).toBe(403);
+      const audit = (await w.ok('GET', `/api/groups/${groupId}/audit`, dono.token)).entries as any[];
+      const grant = audit.find((entry) => entry.action === 'canal.permissoes' && entry.detail.alvo === 'cargo Boas-vindas e Cargos');
+      expect(grant).toMatchObject({ actorId: dono.id });
+      expect((await installed(dono, groupId, 'boas-vindas')).status.state).toBe('ativo');
+      // Salvar de novo não mexe em nada: o bot já pode escrever.
+      expect((await configure(dono, groupId, 'boas-vindas', { config: { canalEntrada: bemVindos } })).permissoes).toEqual({ liberados: [], falhas: [] });
+    });
+
+    it('quem configura sem poder mexer nas permissões do canal não libera nada, e o painel avisa', async () => {
+      const fechado = await readOnly('fechado');
+      const configurador = await person('configurador');
+      await w.join(dono, groupId, configurador);
+      const cargo = await w.role(dono, groupId, 'Configurador', DEFAULT_EVERYONE | P.CONFIGURE_BOTS);
+      await w.give(dono, groupId, configurador, [cargo]);
+
+      const saved = await configure(configurador, groupId, 'boas-vindas', { config: { canalEntrada: fechado } });
+      expect(saved.permissoes.liberados).toEqual([]);
+      expect(saved.permissoes.falhas).toEqual([{ canal: '#fechado', motivo: expect.any(String) }]);
+      const status = (await installed(dono, groupId, 'boas-vindas')).status;
+      expect(status.state).toBe('aviso');
+      expect(status.text).toMatch(/Não consigo escrever em #fechado/);
+      await configure(dono, groupId, 'boas-vindas', { config: { canalEntrada: bemVindos } });
+    });
+
+    it('canal de saída escolhido com o aviso desligado: o painel avisa', async () => {
+      await configure(dono, groupId, 'boas-vindas', { config: { canalSaida: saida, avisarSaida: false } });
+      const status = (await installed(dono, groupId, 'boas-vindas')).status;
+      expect(status.state).toBe('aviso');
+      expect(status.text).toMatch(/“Avisar quando alguém sai” está desligado/);
+      await configure(dono, groupId, 'boas-vindas', { config: { avisarSaida: true } });
+      expect((await installed(dono, groupId, 'boas-vindas')).status.state).toBe('ativo');
+    });
+  });
 });
 
 describe('Lembretes e a fila de tarefas', () => {

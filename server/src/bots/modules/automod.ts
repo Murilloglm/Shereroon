@@ -191,7 +191,7 @@ export function createAutomod(): BotModule {
       { key: 'cargosIsentos', type: 'roles', label: 'Cargos que o AutoMod ignora', section: 'Exceções' },
       { key: 'membrosIsentos', type: 'members', label: 'Pessoas que o AutoMod ignora', section: 'Exceções' },
       { key: 'canaisIsentos', type: 'channels', label: 'Canais que o AutoMod ignora', section: 'Exceções', channelKind: 'texto' },
-      { key: 'canalDeRegistro', type: 'channel', label: 'Canal para avisar a moderação', section: 'Exceções', channelKind: 'texto' },
+      { key: 'canalDeRegistro', type: 'channel', label: 'Canal para avisar a moderação', section: 'Exceções', channelKind: 'texto', posts: true, about: 'Ao salvar, o bot ganha permissão para escrever neste canal.' },
     ],
 
     async onEvent(ctx, event) {

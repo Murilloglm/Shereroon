@@ -18,6 +18,13 @@ export interface ConfigField {
   placeholder?: string;
   /** Para campos de canal: que tipo de canal pode ser escolhido. */
   channelKind?: 'texto' | 'voz' | 'categoria';
+  /**
+   * Para campos de canal: o bot escreve neste canal. Ao salvar, quem configura libera para o cargo do bot
+   * "Ver canais" e "Enviar mensagens" nele (se puder mexer nas permissões do canal), com registro na auditoria.
+   */
+  posts?: boolean;
+  /** Escolher algo neste campo também liga este interruptor na tela (a pessoa vê antes de salvar). */
+  turnsOn?: string;
 }
 
 export interface Install {

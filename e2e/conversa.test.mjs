@@ -333,6 +333,39 @@ test('bots: a dona instala um bot da biblioteca, ele entra como membro, e ela de
   await ana.getByTestId('dialog-confirm').click();
   await waitFor(async () => (await ana.getByTestId('installed-bot').count()) === 0, 'o bot sair da lista de instalados');
   await waitFor(async () => (await beto.getByTestId('member').count()) === 2, 'o bot sair da lista de membros');
+  // Boas-vindas num canal só de leitura (@everyone sem "Enviar mensagens"): escolher o canal de saída liga o
+  // aviso na tela, e salvar libera o cargo do bot nos dois canais, com o aviso do que foi liberado.
+  const api = (method, path, body) =>
+    ana.evaluate(
+      async ([method, path, body]) => {
+        const response = await fetch(path, { method, headers: { authorization: `Bearer ${localStorage.getItem('shareroom:conta')}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+        return response.json();
+      },
+      [method, path, body],
+    );
+  const groupId = (await api('GET', '/api/groups')).groups[0].id;
+  const everyone = (await api('GET', `/api/groups/${groupId}`)).roles.find((role) => role.isEveryone).id;
+  for (const name of ['bem-vindos', 'saida']) {
+    const { id } = await api('POST', `/api/groups/${groupId}/channels`, { kind: 'texto', name });
+    await api('PUT', `/api/channels/${id}/overrides/cargo/${everyone}`, { allow: '0', deny: String(1n << 9n) });
+  }
+  await ana.getByTestId('library-bot').and(ana.locator('[data-bot="boas-vindas"]')).getByTestId('bot-install').click();
+  const welcome = ana.getByTestId('installed-bot').and(ana.locator('[data-bot="boas-vindas"]'));
+  await welcome.waitFor();
+  await welcome.getByTestId('bot-configure').click();
+  await welcome.locator('[data-field="canalEntrada"] select').selectOption({ label: '#bem-vindos' });
+  const leaveToggle = welcome.locator('[data-field="avisarSaida"]').getByRole('switch');
+  assert.equal(await leaveToggle.getAttribute('aria-checked'), 'false');
+  await welcome.locator('[data-field="canalSaida"] select').selectOption({ label: '#saida' });
+  assert.equal(await leaveToggle.getAttribute('aria-checked'), 'true', 'escolher o canal de saída liga o aviso');
+  await welcome.getByTestId('bot-save').click();
+  await ana.getByText('Configuração salva. O bot agora pode escrever em #bem-vindos e #saida.').waitFor();
+  await waitFor(async () => (await welcome.getByTestId('bot-status').getAttribute('data-state')) === 'ativo', 'o bot ficar ativo, sem aviso de canal');
+  await welcome.getByTestId('bot-configure').click();
+  await welcome.getByTestId('bot-remove').click();
+  await ana.getByTestId('dialog-confirm').click();
+  await waitFor(async () => (await ana.getByTestId('installed-bot').count()) === 0, 'o bot de boas-vindas sair');
+
   // O Beto não tem permissão de bots: a aba nem aparece para ele.
   await ana.getByRole('dialog').getByRole('button', { name: 'Fechar' }).first().click();
   await beto.getByTestId('group-menu').click();

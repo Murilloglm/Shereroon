@@ -54,13 +54,30 @@ export const welcome: BotModule = {
     mensagemVerificacao: '{usuario}, leia as regras e toque em Verificar para liberar o grupo.',
   },
   fields: [
-    { key: 'canalEntrada', type: 'channel', label: 'Canal das boas-vindas', section: 'Entrada', channelKind: 'texto', about: 'Vazio: não manda mensagem de entrada.' },
+    {
+      key: 'canalEntrada',
+      type: 'channel',
+      label: 'Canal das boas-vindas',
+      section: 'Entrada',
+      channelKind: 'texto',
+      posts: true,
+      about: 'Vazio: não manda mensagem de entrada. Ao salvar, o bot ganha permissão para escrever neste canal.',
+    },
     { key: 'mensagemEntrada', type: 'longtext', label: 'Mensagem de entrada', section: 'Entrada', about: 'Variáveis: {usuario}, {grupo}, {membros}.' },
     { key: 'cargosAutomaticos', type: 'roles', label: 'Cargos entregues a quem entra', section: 'Entrada' },
     { key: 'verificacao', type: 'toggle', label: 'Exigir verificação', section: 'Verificação', about: 'Com isto ligado, os cargos automáticos só são entregues depois que a pessoa toca em Verificar (ou digita /verificar).' },
     { key: 'mensagemVerificacao', type: 'longtext', label: 'Mensagem pedindo a verificação', section: 'Verificação', about: 'Variáveis: {usuario}, {grupo}.' },
     { key: 'avisarSaida', type: 'toggle', label: 'Avisar quando alguém sai', section: 'Saída' },
-    { key: 'canalSaida', type: 'channel', label: 'Canal do aviso de saída', section: 'Saída', channelKind: 'texto', about: 'Vazio: usa o canal das boas-vindas.' },
+    {
+      key: 'canalSaida',
+      type: 'channel',
+      label: 'Canal do aviso de saída',
+      section: 'Saída',
+      channelKind: 'texto',
+      posts: true,
+      turnsOn: 'avisarSaida',
+      about: 'Vazio: usa o canal das boas-vindas. Escolher um canal liga o aviso de saída; ao salvar, o bot ganha permissão para escrever nele.',
+    },
     { key: 'mensagemSaida', type: 'longtext', label: 'Mensagem de saída', section: 'Saída', about: 'Variáveis: {usuario}, {grupo}.' },
     { key: 'cargosDoMenu', type: 'roles', label: 'Cargos que os membros podem pegar sozinhos', section: 'Menu de cargos', about: 'Aparecem em /cargos como botões.' },
   ],
@@ -154,6 +171,10 @@ export const welcome: BotModule = {
     }
     for (const key of ['canalEntrada', 'canalSaida']) {
       if (config[key] && !snap.channels.has(String(config[key]))) warnings.push('Um dos canais configurados foi excluído.');
+    }
+    const leaveChannel = config.canalSaida ? snap.channels.get(String(config.canalSaida)) : undefined;
+    if (leaveChannel && config.avisarSaida !== true) {
+      warnings.push(`O canal #${leaveChannel.name} está escolhido para o aviso de saída, mas “Avisar quando alguém sai” está desligado.`);
     }
     return warnings;
   },

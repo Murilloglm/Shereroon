@@ -383,8 +383,8 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
   );
 
   app.patch('/api/groups/:groupId/bots/:botId', async (c) => {
-    await bots.update(await who(c), id(c, 'groupId'), id(c, 'botId'), await body(c, 64_000));
-    return c.json({ ok: true });
+    const result = await bots.update(await who(c), id(c, 'groupId'), id(c, 'botId'), await body(c, 64_000));
+    return c.json({ ok: true, ...result });
   });
 
   app.delete('/api/groups/:groupId/bots/:botId', async (c) => {

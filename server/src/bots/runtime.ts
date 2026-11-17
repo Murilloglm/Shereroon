@@ -224,7 +224,54 @@ export class BotRuntime {
     this.#community.touch(groupId);
   }
 
-  async update(user: User, groupId: string, botId: string, input: Record<string, unknown>): Promise<void> {
+  /** Canais em que o bot escreve (campos `posts`), com o que falta para ele conseguir escrever em cada um. */
+  #postingChannels(snap: Snapshot, module: BotModule, install: Install, config: Record<string, unknown>) {
+    const bot = snap.members.get(install.userId);
+    const out: { channelId: string; name: string; missing: bigint }[] = [];
+    const seen = new Set<string>();
+    for (const field of module.fields) {
+      if (field.type !== 'channel' || !field.posts) continue;
+      const channelId = String(config[field.key] ?? '');
+      const channel = channelId ? snap.channels.get(channelId) : undefined;
+      if (!channel || seen.has(channelId)) continue;
+      seen.add(channelId);
+      const perms = bot ? this.#community.permissionsIn(snap, this.#community.subjectOf(snap, bot), channel) : 0n;
+      out.push({ channelId, name: `#${channel.name}`, missing: (P.VIEW_CHANNEL | P.SEND_MESSAGES) & ~perms });
+    }
+    return out;
+  }
+
+  /**
+   * Libera o cargo do bot nos canais em que ele escreve, em nome de quem salvou a configuração. Passa pelo mesmo
+   * método das regras de canal feitas à mão: exige "Gerenciar cargos" no canal, só libera o que a pessoa tem e
+   * fica na auditoria. Se ela não puder, nada muda e o motivo volta para a tela.
+   */
+  async #letBotWrite(user: User, groupId: string, module: BotModule, install: Install, config: Record<string, unknown>) {
+    const liberados: string[] = [];
+    const falhas: { canal: string; motivo: string }[] = [];
+    const snap = await this.#community.snapshot(groupId);
+    for (const { channelId, name, missing } of this.#postingChannels(snap, module, install, config)) {
+      if (missing === 0n) continue;
+      const rule = (snap.overrides.get(channelId) ?? []).find((item) => item.targetKind === 'cargo' && item.targetId === install.roleId);
+      const need = P.VIEW_CHANNEL | P.SEND_MESSAGES;
+      try {
+        await this.#community.setOverride(user, channelId, 'cargo', install.roleId, { allow: str((rule?.allow ?? 0n) | need), deny: str((rule?.deny ?? 0n) & ~need) });
+      } catch (error) {
+        falhas.push({ canal: name, motivo: error instanceof Error ? error.message : String(error) });
+        continue;
+      }
+      // Uma regra só para a conta do bot nesse canal ainda pode vetar: confere de novo.
+      const after = this.#postingChannels(await this.#community.snapshot(groupId), module, install, config).find((item) => item.channelId === channelId);
+      if (after && after.missing !== 0n) falhas.push({ canal: name, motivo: 'uma regra deste canal feita só para a conta do bot ainda impede.' });
+      else liberados.push(name);
+    }
+    if (liberados.length > 0) {
+      await this.#db.query(`INSERT INTO bot_logs (group_id, bot_id, action, detail) VALUES ($1, $2, 'canais liberados', $3::jsonb)`, [groupId, module.id, JSON.stringify({ por: user.displayName, canais: liberados })]);
+    }
+    return { liberados, falhas };
+  }
+
+  async update(user: User, groupId: string, botId: string, input: Record<string, unknown>): Promise<{ permissoes: { liberados: string[]; falhas: { canal: string; motivo: string }[] } }> {
     const module = this.#module(botId);
     const { snap, base } = await this.#community.access(user, groupId);
     this.#need(base, P.CONFIGURE_BOTS);
@@ -268,7 +315,8 @@ export class BotRuntime {
       next.memberList = input.memberList;
       changes.lista_de_membros = [install.memberList, input.memberList];
     }
-    if (Object.keys(changes).length === 0) return;
+    const none = { permissoes: { liberados: [], falhas: [] } };
+    if (Object.keys(changes).length === 0) return none;
     await this.#db.query(
       `UPDATE bot_installs SET enabled = $3, config = $4::jsonb, channels = $5::jsonb, command_roles = $6::jsonb, display_name = $7, prefix = $8, member_list = $9, last_error = CASE WHEN $3 THEN last_error ELSE NULL END
         WHERE group_id = $1 AND bot_id = $2`,
@@ -280,6 +328,8 @@ export class BotRuntime {
     this.#installs.delete(groupId);
     this.#community.touch(groupId);
     await this.#db.query(`INSERT INTO bot_logs (group_id, bot_id, action, detail) VALUES ($1, $2, 'configurado', $3::jsonb)`, [groupId, botId, JSON.stringify({ por: user.displayName, ...changes })]);
+    if (input.config === undefined) return none;
+    return { permissoes: await this.#letBotWrite(user, groupId, module, next, next.config) };
   }
 
   /** Bots instalados e o estado de cada um. */
@@ -291,6 +341,12 @@ export class BotRuntime {
       const module = this.#modules.get(install.botId);
       if (!module) continue;
       const warnings: string[] = [];
+      if (install.enabled) {
+        for (const { name, missing } of this.#postingChannels(await this.#community.snapshot(groupId), module, install, install.config)) {
+          if (missing === 0n) continue;
+          warnings.push(`Não consigo escrever em ${name}: falta ${names(missing)} para o cargo do bot nesse canal. Salve a configuração do bot para liberar (precisa de “Gerenciar cargos”).`);
+        }
+      }
       if (install.enabled && module.status) {
         const ctx = await this.#context(install, module);
         warnings.push(...((await this.#guard(ctx, 'verificação de estado', () => module.status!(ctx))) ?? []));

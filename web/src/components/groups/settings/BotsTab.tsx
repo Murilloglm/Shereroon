@@ -19,7 +19,17 @@ interface Field {
   max?: number;
   placeholder?: string;
   channelKind?: 'texto' | 'voz' | 'categoria';
+  /** O bot escreve neste canal: ao salvar, o servidor libera o cargo dele ali (se quem salva puder). */
+  posts?: boolean;
+  /** Escolher algo neste campo também liga este interruptor. */
+  turnsOn?: string;
 }
+
+interface SaveResult {
+  permissoes?: { liberados: string[]; falhas: { canal: string; motivo: string }[] };
+}
+
+const joinNames = (items: string[]) => (items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} e ${items.at(-1)}`);
 
 interface CatalogBot {
   id: string;
@@ -125,6 +135,26 @@ function InstalledBot({ view, bot, install, onChanged }: { view: GroupView; bot:
   const path = `/api/groups/${view.group.id}/bots/${bot.id}`;
   const change = (body: Record<string, unknown>) => run(async () => (await groups.change('PATCH', path, body), onChanged()));
   const sections = [...new Set(bot.fields.map((field) => field.section ?? 'Opções'))];
+  const setField = (field: Field, value: unknown) =>
+    setConfig((current) => ({ ...current, [field.key]: value, ...(field.turnsOn && typeof value === 'string' && value ? { [field.turnsOn]: true } : {}) }));
+  const save = () => {
+    let result: SaveResult = {};
+    void run(async () => {
+      result = await groups.change<SaveResult>('PATCH', path, { config, ...(prefix !== install.prefix ? { prefix } : {}) });
+      await onChanged();
+    }).then(async (done) => {
+      if (!done) return;
+      const { liberados = [], falhas = [] } = result.permissoes ?? {};
+      groups.notify(liberados.length > 0 ? `Configuração salva. O bot agora pode escrever em ${joinNames(liberados)}.` : 'Configuração do bot salva.');
+      if (falhas.length > 0) {
+        await dialogs.alert({
+          kind: 'aviso',
+          title: 'O bot ainda não consegue escrever',
+          message: `${falhas.map((item) => `${item.canal}: ${item.motivo}`).join('\n')}\n\nQuem tem “Gerenciar cargos” nesse canal pode salvar a configuração de novo para liberar, ou liberar “Enviar mensagens” para o cargo do bot nas permissões do canal.`,
+        });
+      }
+    });
+  };
 
   return (
     <Card className="p-3" data-testid="installed-bot" data-bot={bot.id}>
@@ -152,17 +182,17 @@ function InstalledBot({ view, bot, install, onChanged }: { view: GroupView; bot:
                 .filter((field) => (field.section ?? 'Opções') === section)
                 .map((field) =>
                   field.type === 'toggle' ? (
-                    <div key={field.key} className="flex items-center gap-4">
+                    <div key={field.key} className="flex items-center gap-4" data-field={field.key}>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold">{field.label}</p>
                         {field.about && <p className="text-[13px] leading-snug text-fog-400">{field.about}</p>}
                       </div>
-                      <FieldInput field={field} value={config[field.key]} view={view} disabled={!configure} onChange={(value) => setConfig({ ...config, [field.key]: value })} />
+                      <FieldInput field={field} value={config[field.key]} view={view} disabled={!configure} onChange={(value) => setField(field, value)} />
                     </div>
                   ) : (
-                    <div key={field.key} className={fieldLabel}>
+                    <div key={field.key} className={fieldLabel} data-field={field.key}>
                       <span>{field.label}</span>
-                      <FieldInput field={field} value={config[field.key]} view={view} disabled={!configure} onChange={(value) => setConfig({ ...config, [field.key]: value })} />
+                      <FieldInput field={field} value={config[field.key]} view={view} disabled={!configure} onChange={(value) => setField(field, value)} />
                       {field.about && <span className="text-[13px] leading-snug font-normal text-fog-400">{field.about}</span>}
                     </div>
                   ),
@@ -211,7 +241,7 @@ function InstalledBot({ view, bot, install, onChanged }: { view: GroupView; bot:
           )}
           <div className="flex flex-wrap gap-2">
             {configure && (
-              <Button variant="primary" size="sm" disabled={busy} onClick={() => void change({ config, ...(prefix !== install.prefix ? { prefix } : {}) }).then((done) => done && groups.notify('Configuração do bot salva.'))} data-testid="bot-save">
+              <Button variant="primary" size="sm" disabled={busy} onClick={save} data-testid="bot-save">
                 Salvar
               </Button>
             )}
