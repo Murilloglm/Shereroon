@@ -56,7 +56,7 @@ e link SHA-256. O código está em `download-site/` e o deploy em `download-page
 hospeda salas e não deve ser usada como `SHAREROOM_SITE_URL`; para convites, use o serviço do aplicativo.
 Releases imutáveis estão habilitados e o token padrão do Actions usa permissões de leitura; o job de
 publicação solicita a escrita necessária. A distribuição gratuita atual usa **pré-versões sem assinatura**,
-com tags `preview-*`; elas não são versões oficiais assinadas e podem ser bloqueadas pelo Windows.
+com tags `vX.Y.Z` (as primeiras usavam `preview-vX.Y.Z`); elas não são versões oficiais assinadas e podem ser bloqueadas pelo Windows.
 O workflow separado de GitHub Pages está desabilitado no repositório enquanto a hospedagem do app não
 estiver configurada; o código dele foi preservado para uma implantação futura.
 Para o canal de versões assinadas, configure Settings, variables e secrets no GitHub conforme as tabelas abaixo.
@@ -66,9 +66,10 @@ Não armazene chaves ou senhas no Git, no frontend ou nos artefatos.
 
 O usuário escolheu este canal sem criar conta na Store ou contratar assinatura. O workflow manual
 `.github/workflows/desktop-preview.yml` gera e publica uma **prerelease** com EXE, relatório de assinaturas,
-`SHA256SUMS.txt` e `.exe.sha256`. Ele usa `preview-*`, sem acionar o workflow oficial `v*`, não sobrescreve
-releases existentes e não marca o preview como `latest` estável. O build mantém os fuses de segurança,
-sem habilitar ganchos de teste, e não recebe canal de atualização automática.
+`SHA256SUMS.txt` e `.exe.sha256`. A tag é `vX.Y.Z`, tirada da versão do aplicativo (veja a convenção em `docs/atualizacoes.md`); como é criada pelo
+`GITHUB_TOKEN`, não aciona o workflow oficial `v*`. Não sobrescreve releases existentes, recusa versão já publicada
+e não marca o preview como `latest` estável. O build mantém os fuses de segurança, sem habilitar ganchos de teste,
+e recebe o canal de atualização automática das pré-versões.
 
 `npm run desktop:dist:preview` gera `desktop/release-preview/ShareRoom-Setup-0.1.0.exe` depois de validar
 `SHAREROOM_API_URL` e `SHAREROOM_SITE_URL` públicos. O relatório

@@ -1,5 +1,8 @@
 # Canal de TESTE sem certificado de assinatura de código. Não substitui a release oficial assinada.
 # Só executa manualmente e publica uma pré-versão que não vira "Latest".
+# Versão e tag: a tag é vX.Y.Z, tirada de desktop/package.json (suba com "npm --prefix desktop run
+# release:prepare" antes de publicar). Versão já publicada ou menor que a última é recusada. A tag é criada
+# pelo GITHUB_TOKEN, que não dispara o workflow da release assinada (desktop-release.yml, tags v*).
 # Atualização automática: o latest.yml é assinado aqui com a chave Ed25519 do secret
 # COSMIC_UPDATE_SIGNING_KEY; os aplicativos instalados a partir deste canal só aceitam instaladores com essa
 # assinatura e com o SHA-512 publicado. A chave privada nunca sai dos Secrets.
@@ -8,10 +11,6 @@ name: Pré-versão Windows sem assinatura
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag opcional começando com preview- (padrão: preview-NÚMERO-DA-EXECUÇÃO)'
-        required: false
-        type: string
       notes:
         description: 'Novidades e correções desta versão (aparecem no aplicativo, em Configurações → Atualizações)'
         required: false
@@ -28,8 +27,9 @@ on:
 permissions:
   contents: read
 
+# Uma publicação por vez: duas execuções nunca disputam a mesma versão.
 concurrency:
-  group: desktop-preview-${{ inputs.tag || github.run_id }}
+  group: desktop-preview
   cancel-in-progress: false
 
 jobs:
@@ -65,24 +65,19 @@ jobs:
       - name: Validar a pré-versão e os endereços públicos
         id: preview
         env:
-          PREVIEW_TAG_INPUT: ${{ inputs.tag }}
           HAS_UPDATE_KEY: ${{ secrets.COSMIC_UPDATE_SIGNING_KEY != '' }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:HAS_UPDATE_KEY -ne 'true') {
             throw 'Defina o secret COSMIC_UPDATE_SIGNING_KEY (chave privada Ed25519 das atualizações). Sem ele, a versão publicada não seria aceita pela atualização automática.'
           }
-          $tag = ([string]$env:PREVIEW_TAG_INPUT).Trim()
-          if (-not $tag) { $tag = "preview-$env:GITHUB_RUN_NUMBER" }
-          if ($tag -notmatch '^preview-[A-Za-z0-9][A-Za-z0-9._-]{0,90}$') {
-            throw 'Use uma tag começando com preview-, sem espaços ou barras; tags v* são exclusivas de releases assinadas.'
-          }
-          git check-ref-format "refs/tags/$tag"
-          if ($LASTEXITCODE -ne 0) { throw 'A tag informada não é uma referência Git válida.' }
+          # A tag sai da versão do aplicativo (vX.Y.Z): instalador, latest.yml, release e atualização ficam
+          # sempre na mesma versão. Versão já publicada ou menor que a última não passa daqui.
           $version = (Get-Content -Raw desktop/package.json | ConvertFrom-Json).version
-          if ($version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
-            throw 'A versão do desktop deve ter o formato X.Y.Z para este workflow.'
-          }
+          $tag = node desktop/scripts/versioning.mjs conferir $version
+          if ($LASTEXITCODE -ne 0) { throw "A versão $version não pode ser publicada (veja a mensagem acima)." }
+          $tag = ([string]$tag).Trim()
+          if ($tag -ne "v$version") { throw "Tag inesperada: $tag" }
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
           foreach ($entry in @(@('SHAREROOM_API_URL', 'api_url'), @('SHAREROOM_SITE_URL', 'site_url'))) {

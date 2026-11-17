@@ -21,6 +21,8 @@
     "checksums:preview": "node scripts/write-preview-checksums.mjs",
     "test": "node --test scripts/*.test.mjs",
     "test:update": "node scripts/update-real.mjs",
+    "version:next": "node scripts/versioning.mjs proxima",
+    "release:prepare": "node scripts/versioning.mjs preparar",
     "update:sign": "node scripts/update-signing.mjs assinar"
   },
   "dependencies": {

@@ -3,7 +3,7 @@
 ## Como funciona
 
 - O aplicativo instalado usa o `electron-updater` com o instalador NSIS e procura versões na página de releases do GitHub (`Murilloglm/Shereroon`).
-- As pré-versões (`preview-*`) são marcadas como *prerelease*. As cópias instaladas a partir delas olham para as pré-versões; as cópias oficiais, assinadas com certificado, olham só para a release marcada como *Latest*.
+- As pré-versões (tags `vX.Y.Z`; as primeiras usavam `preview-vX.Y.Z`) são marcadas como *prerelease*. As cópias instaladas a partir delas olham para as pré-versões; as cópias oficiais, assinadas com certificado, olham só para a release marcada como *Latest*.
 - Nada é baixado nem instalado sem a pessoa pedir. Ela vê a versão nova e as novidades e escolhe entre **Baixar atualização** e depois **Reiniciar e atualizar** ou **Instalar depois** (instala quando o aplicativo fecha).
 - Durante uma chamada ou uma transmissão, reiniciar pede confirmação num diálogo do próprio app.
 - **Procurar atualizações automaticamente** vem ligado: o app procura ao abrir e a cada 6 horas. A pessoa pode desligar, e a escolha fica em `atualizacoes.json`, na pasta de dados.
@@ -35,10 +35,22 @@ Se uma das verificações falhar, o arquivo é apagado, a pessoa vê o motivo e 
   4. Numa versão seguinte, remova a chave pública antiga.
 - Os workflows falham se o secret estiver ausente ou se ele não corresponder a nenhuma chave pública de `update-keys.json`. Assim, uma release que nenhum aplicativo aceitaria nunca chega a ser publicada.
 
+## Versões: convenção do Cosmic Night
+
+As versões continuam no formato SemVer (`X.Y.Z`), que é o que o instalador e o `electron-updater` entendem. A sequência é uma convenção própria de publicação: cada número de baixo vai de 0 a 9 e transporta para o de cima.
+
+`0.3.0 → 0.3.1 → … → 0.3.9 → 0.4.0 → … → 0.4.9 → 0.5.0 → … → 0.9.9 → 1.0.0`
+
+- A conta fica num lugar só: `desktop/scripts/versioning.mjs` (`nextVersion`, `compareVersions`, `nextReleaseVersion`, `checkPublishable`). As versões são comparadas número a número, nunca como texto ou decimal (`0.4.0 > 0.3.9`, `0.3.10 > 0.3.9`).
+- A versão só sobe quando uma publicação começa, nunca a cada commit: `npm --prefix desktop run release:prepare` grava a próxima versão no `desktop/package.json` e no `package-lock.json`. Se a versão atual ainda não foi publicada, ela fica como está.
+- Nenhuma versão publicada é reutilizada. O workflow confere as tags do GitHub (`vX.Y.Z` e as antigas `preview-vX.Y.Z`) e recusa versão já publicada ou menor que a última.
+- A tag é sempre `v` + a versão do aplicativo. Instalador, `latest.yml`, release e atualização automática ficam na mesma versão.
+- As cópias instaladas desde a 0.3.0 reconhecem as próximas versões: o `electron-updater` compara pelo SemVer, e cada passo da sequência é maior que o anterior (há teste para isso em `versioning.test.mjs`).
+
 ## Publicar uma versão com atualização
 
-1. Suba a versão em `desktop/package.json` (formato X.Y.Z, sempre maior que a anterior; o app recusa versões mais antigas).
-2. Rode o workflow **Pré-versão Windows sem assinatura** com a tag `preview-vX.Y.Z` e as novidades no campo *notes*.
+1. Rode `npm --prefix desktop run release:prepare` e faça o commit da versão nova.
+2. Rode o workflow **Pré-versão Windows sem assinatura** com as novidades no campo *notes*. A tag `vX.Y.Z` sai da versão do aplicativo.
 3. O workflow:
    - compila o instalador;
    - assina o `latest.yml`;
