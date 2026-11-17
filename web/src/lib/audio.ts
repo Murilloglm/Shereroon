@@ -8,6 +8,28 @@ export function audioContext(): AudioContext {
   return context;
 }
 
+let boostModule: Promise<void> | null = null;
+
+/** Carrega (uma vez) o AudioWorklet do volume acima de 100%. */
+export function loadBoostWorklet(): Promise<void> {
+  boostModule ??= audioContext()
+    .audioWorklet.addModule(new URL('worklets/boost-processor.js', document.baseURI))
+    .catch((error: unknown) => {
+      boostModule = null;
+      throw error;
+    });
+  return boostModule;
+}
+
+/** Estado da permissão do microfone sem abrir o aparelho (null quando o navegador não informa). */
+export async function micPermission(): Promise<PermissionState | null> {
+  try {
+    return (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state;
+  } catch {
+    return null;
+  }
+}
+
 /** Navegadores só liberam áudio depois de um gesto; chame isto dentro de um clique. */
 export async function resumeAudio(): Promise<void> {
   const ctx = audioContext();

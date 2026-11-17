@@ -20,7 +20,8 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref
 import { formatFps, formatHeight } from '../../lib/format.ts';
 import type { RoomSession, StreamView } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
-import { Button, cx, IconButton, Menu, SignalBars, Slider } from '../ui.tsx';
+import { Button, cx, IconButton, Menu, SignalBars } from '../ui.tsx';
+import { PersonVolume } from './PersonVolume.tsx';
 import { toggleFullscreen, useAttachedTrack, useMeasuredVideo, type FrameVideo } from './video.ts';
 
 export interface StageHandle {
@@ -37,10 +38,7 @@ function VolumeMenu({ session, stream, volume, side = 'top' }: { session: RoomSe
         </IconButton>
       )}
     >
-      <div className="flex items-center gap-3 px-2 py-1.5">
-        <Slider label={`Volume da transmissão de ${stream.name}`} value={Math.round(volume * 100)} onChange={(value) => session.setVolume(stream.id, value / 100)} />
-        <span className="w-10 text-right text-sm font-bold">{Math.round(volume * 100)}%</span>
-      </div>
+      <PersonVolume session={session} volumeKey={stream.id} name={`Som da tela de ${stream.name}`} className="w-64 px-2 py-1.5" />
     </Menu>
   );
 }

@@ -21,10 +21,11 @@ import {
   type RemoteTrack,
   type RemoteTrackPublication,
   type RemoteVideoTrack,
+  type TrackPublication,
   type TrackPublishOptions,
 } from 'livekit-client';
 import { ApiError } from './api.ts';
-import { audioContext, listAudioDevices, PeakMeter, resumeAudio, type AudioDevices } from './audio.ts';
+import { audioContext, listAudioDevices, loadBoostWorklet, micPermission, PeakMeter, resumeAudio, type AudioDevices } from './audio.ts';
 import {
   CaptureError,
   captureFacts,
@@ -105,6 +106,11 @@ const BASIC_QUALITY = { height: 720, fps: 30 } as const;
 export interface SessionAccess {
   /** Pede um token novo (na entrada e a cada reconexão completa). */
   grant(): Promise<AccessGrant>;
+  /**
+   * As identidades da sala são contas (canais de voz dos grupos): o volume de cada pessoa fica guardado e
+   * volta nas próximas chamadas. Nas salas por link a identidade muda a cada entrada e nada é guardado.
+   */
+  persistentIdentities?: boolean;
   kick?(identity: string): Promise<void>;
   setLocked?(locked: boolean): Promise<void>;
   closeRoom?(): Promise<void>;
@@ -210,7 +216,10 @@ export interface SessionState {
   outputVolume: number;
   /** Som recebido desligado (vozes e transmissões), sem mexer nos volumes escolhidos. */
   deafened: boolean;
+  /** Volume de 0 a 2 (2 = 200%) por voz (`voz:<id>`) e por transmissão (`<id>`), só para quem ouve. */
   volumes: Record<string, number>;
+  /** Pessoas silenciadas só para esta conta (a voz delas não toca aqui; o volume escolhido fica guardado). */
+  localMutes: Record<string, boolean>;
   publisher: PublisherView | null;
   viewer: ViewerView | null;
 }
@@ -229,6 +238,13 @@ const IDLE_SHARE: ShareView = {
 };
 
 const SCREEN_STREAM = 'tela';
+/** Preferências deste aparelho, separadas do que vai para o servidor. */
+const MIC_WANTED_KEY = 'shareroom:microfone-ligado';
+const DEAFENED_KEY = 'shareroom:ensurdecido';
+const VOLUMES_KEY = 'shareroom:volumes-pessoas';
+const LOCAL_MUTES_KEY = 'shareroom:mudos-para-mim';
+/** Volume máximo por pessoa: 200%. */
+export const MAX_PERSON_VOLUME = 2;
 const SPEECH_TICK_MS = 40;
 /** Depois de tirar o mouse, a prévia fica assinada mais um pouco: voltar logo não reconecta. */
 const PREVIEW_RELEASE_MS = 2500;
@@ -329,6 +345,8 @@ export class RoomSession {
   readonly #speech = new Map<string, SpeechDetector>();
   /** Medidor do som decodificado de cada voz recebida (por faixa), para o indicador de fala. */
   readonly #voiceMeters = new Map<string, PeakMeter & { source: MediaStreamAudioSourceNode }>();
+  /** Reforço com limitador de cada som recebido (por faixa), para volumes acima de 100%. */
+  readonly #boosts = new Map<string, AudioWorkletNode>();
   #muteTimer: ReturnType<typeof setTimeout> | null = null;
   /** Quando cada indicador acendeu pela última vez (diagnóstico e testes de latência). */
   readonly speechOnsets = new Map<string, number>();
@@ -365,13 +383,17 @@ export class RoomSession {
       devices: { inputs: [], outputs: [] },
       outputDeviceId: null,
       outputVolume: storage.get<number>('shareroom:volume-saida', 1),
-      deafened: false,
+      deafened: storage.get<boolean>(DEAFENED_KEY, false) === true,
       volumes: {},
+      localMutes: {},
       publisher: null,
       viewer: null,
     });
 
     this.#room = new Room({
+      // O som recebido passa pelo contexto de áudio do app: permite volume acima de 100% (com limitador) e
+      // mudanças de volume com rampa, sem estalo.
+      webAudioMix: { audioContext: audioContext() },
       adaptiveStream: { pixelDensity: 'screen' },
       dynacast: false,
       // A captura de tela é nossa: uma queda de conexão não pode encerrá-la.
@@ -388,6 +410,12 @@ export class RoomSession {
   async join(access: SessionAccess): Promise<void> {
     this.#access = access;
     this.#leaving = false;
+    if (access.persistentIdentities) {
+      this.store.set({
+        volumes: cleanVolumes(storage.get<unknown>(VOLUMES_KEY, {})),
+        localMutes: cleanFlags(storage.get<unknown>(LOCAL_MUTES_KEY, {})),
+      });
+    }
     this.store.set({ phase: 'connecting', endReason: null, error: null });
     void resumeAudio();
     try {
@@ -396,6 +424,22 @@ export class RoomSession {
       const failure = joinFailure(error);
       this.store.set({ phase: 'idle', error: failure.message });
       throw failure;
+    }
+    // Só na entrada: reconexões nunca mexem no microfone.
+    await this.#restoreMic();
+  }
+
+  /**
+   * Volta o microfone ao estado da última chamada. Só abre sozinho se o navegador já tem a permissão do
+   * microfone (nunca pede permissão sem um clique) e se a pessoa pode falar neste canal.
+   */
+  async #restoreMic(): Promise<void> {
+    if (storage.get<boolean>(MIC_WANTED_KEY, false) !== true || !this.store.get().rights.speak) return;
+    const permission = await micPermission();
+    if (permission === 'granted') {
+      await this.setMic(true, { remember: false });
+    } else if (permission !== 'denied') {
+      this.#notify('Seu microfone estava ligado na última chamada. Toque no microfone para ligar de novo.');
     }
   }
 
@@ -519,7 +563,13 @@ export class RoomSession {
       })
       .on(RoomEvent.TrackPublished, refresh)
       .on(RoomEvent.TrackUnpublished, refresh)
-      .on(RoomEvent.TrackMuted, refresh)
+      .on(RoomEvent.TrackMuted, (publication: TrackPublication, participant: Participant) => {
+        if (participant.isLocal && publication === this.#micPub && this.store.get().micOn && this.#muteTimer === null) {
+          void this.mic.setOpen(false);
+          this.store.set({ micOn: false });
+        }
+        refresh();
+      })
       .on(RoomEvent.TrackUnmuted, refresh)
       .on(RoomEvent.LocalTrackPublished, refresh)
       .on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
@@ -649,12 +699,29 @@ export class RoomSession {
     const sinkId = this.store.get().outputDeviceId;
     if (sinkId) void track.setSinkId(sinkId).catch(() => undefined);
     this.#applyAudioRouting();
+    void this.#addBoost(track, sid);
+  }
+
+  /** Encaixa o reforço com limitador no caminho do som desta faixa (antes do ganho do LiveKit). */
+  async #addBoost(track: RemoteAudioTrack, sid: string): Promise<void> {
+    try {
+      await loadBoostWorklet();
+    } catch {
+      return; // sem AudioWorklet: o volume fica limitado a 100%
+    }
+    if (!this.#audioElements.has(sid) || this.#boosts.has(sid)) return;
+    const node = new AudioWorkletNode(audioContext(), 'sr-boost', { numberOfInputs: 1, numberOfOutputs: 1 });
+    this.#boosts.set(sid, node);
+    track.setWebAudioPlugins([node]);
+    this.#applyAudioRouting();
   }
 
   #detachAudio(track: RemoteAudioTrack, sid: string): void {
     for (const element of track.detach()) element.remove();
     this.#voiceMeters.get(sid)?.source.disconnect();
     this.#voiceMeters.delete(sid);
+    this.#boosts.get(sid)?.disconnect();
+    this.#boosts.delete(sid);
     // Quando a faixa é despublicada o LiveKit já a soltou do elemento: remove pelo nosso registro.
     this.#audioElements.get(sid)?.remove();
     this.#audioElements.delete(sid);
@@ -663,6 +730,8 @@ export class RoomSession {
   #clearAudioElements(): void {
     for (const meter of this.#voiceMeters.values()) meter.source.disconnect();
     this.#voiceMeters.clear();
+    for (const node of this.#boosts.values()) node.disconnect();
+    this.#boosts.clear();
     for (const element of this.#audioElements.values()) element.remove();
     this.#audioElements.clear();
   }
@@ -670,7 +739,7 @@ export class RoomSession {
   /** Toca o som das telas que a pessoa assiste (cada uma com o seu volume); as vozes tocam sempre. */
   #applyAudioRouting(): void {
     const state = this.store.get();
-    const { volumes } = state;
+    const { volumes, localMutes } = state;
     const watching = new Set(state.watching);
     const outputVolume = state.deafened ? 0 : state.outputVolume;
     for (const participant of this.#room.remoteParticipants.values()) {
@@ -678,10 +747,25 @@ export class RoomSession {
       if (screenAudio) {
         const wanted = watching.has(participant.identity);
         if (screenAudio.isEnabled !== wanted) screenAudio.setEnabled(wanted);
-        (screenAudio.track as RemoteAudioTrack | undefined)?.setVolume(outputVolume * (volumes[participant.identity] ?? 1));
+        this.#setTrackVolume(screenAudio, outputVolume, volumes[participant.identity] ?? 1);
       }
       const voice = participant.getTrackPublication(Track.Source.Microphone) as RemoteTrackPublication | undefined;
-      (voice?.track as RemoteAudioTrack | undefined)?.setVolume(outputVolume * (volumes[`voz:${participant.identity}`] ?? 1));
+      if (voice) this.#setTrackVolume(voice, localMutes[participant.identity] ? 0 : outputVolume, volumes[`voz:${participant.identity}`] ?? 1);
+    }
+  }
+
+  /**
+   * Até 100% quem atenua é o ganho do LiveKit (com rampa); de 100% a 200% quem reforça é o nó com limitador,
+   * que segura os picos abaixo de -1 dBFS em vez de cortar a onda. Só muda o que esta pessoa ouve.
+   */
+  #setTrackVolume(publication: RemoteTrackPublication, master: number, level: number): void {
+    const track = publication.track as RemoteAudioTrack | undefined;
+    if (!track) return;
+    track.setVolume(Math.min(1, level) * master);
+    const boost = this.#boosts.get(publication.trackSid)?.parameters.get('boost');
+    if (boost) {
+      const target = Math.max(1, Math.min(MAX_PERSON_VOLUME, level));
+      if (Math.abs(boost.value - target) > 0.001) boost.setTargetAtTime(target, audioContext().currentTime, 0.02);
     }
   }
 
@@ -765,14 +849,29 @@ export class RoomSession {
     };
   }
 
-  /** Volume (0 a 1) do áudio de uma transmissão, só para quem está ouvindo. Use `voz:<id>` para o microfone. */
+  /** Volume (0 a 2, ou seja até 200%) de uma voz (`voz:<id>`) ou transmissão (`<id>`), só para quem está ouvindo. */
   setVolume(key: string, volume: number): void {
-    this.store.set((state) => ({ volumes: { ...state.volumes, [key]: Math.min(1, Math.max(0, volume)) } }));
+    const value = Math.round(Math.min(MAX_PERSON_VOLUME, Math.max(0, Number.isFinite(volume) ? volume : 1)) * 100) / 100;
+    this.store.set((state) => ({ volumes: { ...state.volumes, [key]: value } }));
+    if (this.#access?.persistentIdentities) storage.set(VOLUMES_KEY, this.store.get().volumes);
+    this.#applyAudioRouting();
+  }
+
+  /** Silencia (ou volta a ouvir) uma pessoa só para esta conta. */
+  setLocalMute(identity: string, muted: boolean): void {
+    this.store.set((state) => {
+      const localMutes = { ...state.localMutes };
+      if (muted) localMutes[identity] = true;
+      else delete localMutes[identity];
+      return { localMutes };
+    });
+    if (this.#access?.persistentIdentities) storage.set(LOCAL_MUTES_KEY, this.store.get().localMutes);
     this.#applyAudioRouting();
   }
 
   /** Liga ou desliga tudo o que a pessoa ouve da sala. */
   setDeafened(deafened: boolean): void {
+    storage.set(DEAFENED_KEY, deafened);
     this.store.set({ deafened });
     this.#applyAudioRouting();
   }
@@ -860,7 +959,7 @@ export class RoomSession {
       void this.setAudioSource('nenhum');
     }
     if (!rights.speak && this.store.get().micOn) {
-      void this.setMic(false);
+      void this.setMic(false, { remember: false });
       this.#notify('Seu microfone foi desligado: você não pode falar neste canal agora.');
     }
   }
@@ -1142,8 +1241,9 @@ export class RoomSession {
 
   // --- Microfone --------------------------------------------------------------------
 
-  async setMic(on: boolean): Promise<void> {
+  async setMic(on: boolean, { remember = true }: { remember?: boolean } = {}): Promise<void> {
     const state = this.store.get();
+    if (remember) storage.set(MIC_WANTED_KEY, on);
     if (state.micBusy || state.micOn === on) return;
     if (on && !state.rights.speak) {
       this.#notify('Você não tem permissão para falar neste canal.');
@@ -1557,4 +1657,25 @@ export function describeSource(trackName: string | undefined): string | null {
   if (surface === 'window') return label ? `Janela: ${label}` : 'Uma janela';
   if (surface === 'browser') return 'Aba do navegador';
   return null;
+}
+
+/** Volumes guardados: só números de 0 a 2, no máximo 500 pessoas. */
+function cleanVolumes(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>).slice(0, 500)) {
+    if (typeof key === 'string' && key.length <= 80 && typeof value === 'number' && Number.isFinite(value)) {
+      out[key] = Math.min(MAX_PERSON_VOLUME, Math.max(0, value));
+    }
+  }
+  return out;
+}
+
+function cleanFlags(raw: unknown): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>).slice(0, 500)) {
+    if (typeof key === 'string' && key.length <= 80 && value === true) out[key] = true;
+  }
+  return out;
 }

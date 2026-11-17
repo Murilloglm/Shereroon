@@ -8,6 +8,7 @@ import type { RoomSession } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
 import { Button, cx, LevelMeter, Modal, Notice, Slider, Toggle } from '../ui.tsx';
 import { NoiseButton } from './NoiseModal.tsx';
+import { PersonVolume } from './PersonVolume.tsx';
 
 const CODEC_INFO: Record<Codec, { name: string; about: string }> = {
   h264: { name: 'H.264', about: 'O mais compatível. Costuma usar a placa de vídeo para codificar e decodificar, inclusive em celulares.' },
@@ -316,9 +317,26 @@ export function SettingsModal({ session, noise, onClose }: { session: RoomSessio
           <Slider label="Volume geral da sala" value={Math.round(outputVolume * 100)} onChange={(value) => session.setOutputVolume(value / 100)} />
           <span className="w-12 text-right text-sm font-bold">{Math.round(outputVolume * 100)}%</span>
         </div>
+        <PeopleVolumes session={session} />
       </Section>
 
       <AppSection />
     </Modal>
+  );
+}
+
+/** Volume de cada pessoa da chamada (0% a 200%), só para quem ouve. Fica guardado por conta nos canais de voz. */
+function PeopleVolumes({ session }: { session: RoomSession }) {
+  // A lista do estado é estável; filtrar aqui (e não no seletor) evita uma lista nova a cada leitura.
+  const participants = useStore(session.store, (state) => state.participants);
+  const people = participants.filter((person) => !person.isLocal);
+  if (people.length === 0) return null;
+  return (
+    <div className="grid gap-3 rounded-xl border border-ink-700 bg-ink-800/40 p-3" data-testid="people-volumes">
+      <p className="text-sm font-extrabold">Volume das pessoas</p>
+      {people.map((person) => (
+        <PersonVolume key={person.identity} session={session} volumeKey={`voz:${person.identity}`} name={person.name} />
+      ))}
+    </div>
   );
 }

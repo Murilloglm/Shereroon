@@ -4,6 +4,7 @@ import { has, P } from '../../../../shared/permissions.ts';
 import { groups, type ChannelView, type GroupView } from '../../lib/groups/client.ts';
 import { RoomSession, type ParticipantView, type SessionAccess } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
+import { PersonVolume } from '../room/PersonVolume.tsx';
 import { ParticipantsCard } from '../room/Sidebar.tsx';
 import { Avatar, Button, Card, IconButton, Menu, MenuItem, MenuLabel, Notice, Slider } from '../ui.tsx';
 import { errorText, memberName, useAction } from './common.tsx';
@@ -17,6 +18,7 @@ export interface VoiceState {
 /** Acesso a um canal de voz: o backend confere as permissões e devolve um token já limitado ao que a pessoa pode fazer. */
 function voiceAccess(channelId: string): SessionAccess {
   return {
+    persistentIdentities: true,
     async grant() {
       const grant = await groups.call('POST', `/api/channels/${channelId}/voice`);
       return {
@@ -147,7 +149,7 @@ export function VoiceLobby({ view, channel, joining, onJoin }: { view: GroupView
         <Button variant="primary" size="lg" className="mt-5 w-full" disabled={!canConnect || full || joining} onClick={onJoin} data-testid="voice-join">
           {joining ? 'Entrando…' : 'Entrar no canal de voz'}
         </Button>
-        <p className="mt-3 text-xs leading-snug text-fog-500">O microfone entra desligado. Você liga, transmite a tela e ajusta o áudio depois de entrar.</p>
+        <p className="mt-3 text-xs leading-snug text-fog-500">O microfone volta como estava na sua última chamada. Você transmite a tela e ajusta o áudio depois de entrar.</p>
       </Card>
     </section>
   );
@@ -156,7 +158,6 @@ export function VoiceLobby({ view, channel, joining, onJoin }: { view: GroupView
 /** Participantes do canal de voz em que a pessoa está, com volume individual e as ações de moderação que ela pode usar. */
 export function VoicePeople({ view, voice, className }: { view: GroupView; voice: VoiceState; className?: string }) {
   const channel = view.channels.find((item) => item.id === voice.channelId);
-  const volumes = useStore(voice.session.store, (state) => state.volumes);
   const { run } = useAction();
   if (!channel) return null;
   const perms = channel.permissions;
@@ -185,13 +186,10 @@ export function VoicePeople({ view, voice, className }: { view: GroupView; voice
                 close();
                 void moderate(person, action, extra);
               };
-              const volume = Math.round((volumes[`voz:${person.identity}`] ?? 1) * 100);
               return (
-                <div className="w-60">
-                  <MenuLabel>Volume da voz para você: {volume}%</MenuLabel>
-                  <div className="px-2.5 pb-2">
-                    <Slider label={`Volume da voz de ${person.name}`} value={volume} onChange={(value) => voice.session.setVolume(`voz:${person.identity}`, value / 100)} />
-                  </div>
+                <div className="w-64">
+                  <MenuLabel>Volume da voz para você</MenuLabel>
+                  <PersonVolume session={voice.session} volumeKey={`voz:${person.identity}`} name={person.name} className="px-2.5 pb-2" />
                   {has(perms, P.MUTE_MEMBERS) && (
                     <MenuItem icon={<MicOff className="size-4" />} onClick={() => act('mute')}>
                       Desligar o microfone
