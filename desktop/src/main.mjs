@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { runtimeConnection } from './connection-config.mjs';
 import { DEEP_SCHEME, linkFromArgv } from './deep-link.mjs';
 import { cleanAutostart, HIDDEN_FLAG, loginItemFor, readAutostart, writeAutostart } from './autostart.mjs';
+import { contentSecurityPolicy } from './csp.mjs';
 import { readPublicKeys } from './update-trust.mjs';
 import { createUpdates } from './updates.mjs';
 
@@ -98,22 +99,9 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-// A página só carrega código de dentro do aplicativo. Para fora, só conexões de dados: o backend e o SFU
-// (HTTPS/WSS) e, nesta máquina, o backend local e o componente de áudio.
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "media-src 'self' blob: mediastream:",
-  "font-src 'self' data:",
-  "worker-src 'self' blob:",
-  "connect-src 'self' https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'none'",
-  "frame-ancestors 'none'",
-].join('; ');
+// A página só carrega código de dentro do aplicativo; imagens também do backend configurado (fotos de perfil,
+// banners e emojis). Detalhes em csp.mjs.
+const CSP = contentSecurityPolicy(config?.apiUrl);
 
 async function serveApp(request) {
   const url = new URL(request.url);

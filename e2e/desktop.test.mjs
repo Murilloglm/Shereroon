@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, test } from 'node:test';
 import { _electron as electron } from 'playwright-core';
-import { BASE_URL, launchChrome, root, sleep, sourcePageHtml, startStack, startToneApp, toneLevels, videoFacts, waitFor } from './harness.mjs';
+import { BASE_URL, launchChrome, root, sleep, sourcePageHtml, startStack, startToneApp, toneLevels, useLocalDesktopConfig, videoFacts, waitFor } from './harness.mjs';
 
 const windows = process.platform === 'win32';
 const APP_EXE = process.env.SHAREROOM_APP_EXE || null;
@@ -28,6 +28,7 @@ let guestBrowser;
 let guest;
 let tone;
 let userData;
+let restoreConfig;
 
 const main = (fn, arg) => app.evaluate(fn, arg);
 const hook = (name, arg) => main(({}, [name, arg]) => globalThis.__shareroom[name](arg), [name, arg]);
@@ -36,6 +37,7 @@ const trayItem = async (label) => (await hook('tray')).find((item) => item.label
 before(async () => {
   if (skip) return;
   stack = await startStack();
+  if (!APP_EXE) restoreConfig = useLocalDesktopConfig();
   userData = mkdtempSync(join(tmpdir(), 'shareroom-app-'));
   tone = await startToneApp('tom-desktop', TONE_HZ);
   // Uma janela comum de outro programa, com imagem em movimento, para ser a fonte da captura.
@@ -62,6 +64,7 @@ before(async () => {
 
 after(async () => {
   await app?.close().catch(() => undefined);
+  restoreConfig?.();
   await guestBrowser?.close();
   await sourceBrowser?.close();
   await tone?.stop();
@@ -79,7 +82,7 @@ test('a interface roda de dentro do aplicativo, isolada do sistema', { skip }, a
     secure: window.isSecureContext,
   }));
   assert.equal(facts.node, false, 'a página não tem acesso ao Node');
-  assert.deepEqual(facts.bridge, ['chooseSource', 'config', 'listSources', 'onCommand', 'setState', 'update']);
+  assert.deepEqual(facts.bridge, ['autostart', 'chooseSource', 'config', 'links', 'listSources', 'onCommand', 'setState', 'update']);
   assert.equal(facts.config.apiUrl, BASE_URL);
   assert.equal(facts.config.siteUrl, SITE);
   assert.ok(facts.config.helperPort > 1023, `componente de áudio numa porta local: ${facts.config.helperPort}`);
@@ -190,8 +193,9 @@ test('configurações mostram a versão e o estado real da atualização', { ski
   const update = page.getByTestId('app-update');
   await update.waitFor();
   await waitFor(async () => (await update.getAttribute('data-state')) === 'indisponivel', 'o estado da atualização aparecer');
-  assert.match(await update.textContent(), /Cosmic Night para Windows 0\.1\.0/);
-  assert.match(await update.textContent(), APP_EXE ? /não veio de uma versão publicada/ : /só existe no aplicativo instalado/);
+  const version = JSON.parse(readFileSync(resolve(root, 'desktop/package.json'), 'utf8')).version;
+  assert.equal(await page.getByTestId('update-current').textContent(), version);
+  assert.match(await page.getByTestId('update-reason').textContent(), APP_EXE ? /sem canal de atualização|não tem a chave/ : /só existe no aplicativo instalado/);
   await page.getByRole('dialog', { name: 'Configurações' }).getByRole('button', { name: 'Fechar' }).click();
 });
 

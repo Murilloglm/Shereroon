@@ -1,11 +1,9 @@
 // Perfis, menu de botão direito, amizades, apelidos e notas pessoais, mensagens privadas (com anexo, resposta,
 // reação, edição e convite para grupo), bloqueio e o painel de moderação, com três contas de verdade.
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { crc32, deflateSync } from 'node:zlib';
 import { after, before, test } from 'node:test';
-import { BASE_URL, launchChrome, root, startStack, waitFor } from './harness.mjs';
+import { BASE_URL, launchChrome, startStack, waitFor } from './harness.mjs';
+import { bmpFile, imageShows, pngFile } from './images.mjs';
 
 const headless = process.env.E2E_HEADLESS === '1';
 let stack;
@@ -13,29 +11,6 @@ const browsers = [];
 let ana;
 let beto;
 let caio;
-
-function pngFile(name, width, height) {
-  const chunk = (type, data) => {
-    const out = Buffer.alloc(12 + data.length);
-    out.writeUInt32BE(data.length, 0);
-    out.write(type, 4, 'ascii');
-    data.copy(out, 8);
-    out.writeUInt32BE(crc32(Buffer.concat([Buffer.from(type, 'ascii'), data])), 8 + data.length);
-    return out;
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 6;
-  const raw = Buffer.alloc((width * 4 + 1) * height);
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) raw.set([108, 77, 255, 255], y * (width * 4 + 1) + 1 + x * 4);
-  const folder = resolve(root, 'e2e/.artifacts');
-  mkdirSync(folder, { recursive: true });
-  const file = resolve(folder, name);
-  writeFileSync(file, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
-  return file;
-}
 
 async function open() {
   const browser = await launchChrome({ headless });
@@ -98,6 +73,18 @@ test('perfil: bio, status e foto enviada com prévia; os outros veem no cartão 
   await ana.getByTestId('profile-upload-preview').waitFor();
   await ana.getByTestId('profile-upload-confirm').click();
   await waitFor(async () => (await editor.getByTestId('profile-preview').locator('[data-avatar="foto"]').count()) === 1, 'a foto aparecer na prévia');
+  await waitFor(() => imageShows(editor.getByTestId('profile-preview').locator('[data-avatar="foto"] img').first()), 'a foto carregar de verdade');
+
+  // Qualquer imagem: um BMP (que o servidor não guarda) é convertido no app e aparece; uma imagem enorme é reduzida.
+  for (const file of [bmpFile('avatar.bmp', 96, 80), pngFile('enorme.png', 3000, 2400)]) {
+    const before = await editor.getByTestId('profile-preview').locator('[data-avatar="foto"] img').first().getAttribute('src');
+    await editor.getByTestId('profile-avatar-file').setInputFiles(file);
+    await ana.getByTestId('profile-upload-preview').waitFor();
+    await ana.getByTestId('profile-upload-confirm').click();
+    const photo = editor.getByTestId('profile-preview').locator('[data-avatar="foto"] img').first();
+    await waitFor(async () => (await photo.getAttribute('src')) !== before && (await imageShows(photo)), `a foto nova (${file.split(/[\\/]/).pop()}) aparecer`);
+  }
+  assert.equal(await ana.getByTestId('dialog').count(), 0, 'nenhuma imagem foi recusada');
   await ana.getByRole('dialog', { name: 'Sua conta' }).getByRole('button', { name: 'Fechar' }).first().click();
 
   await waitFor(async () => (await member(beto, 'ana').locator('[data-avatar="foto"]').count()) === 1, 'o Beto ver a foto da Ana na lista');

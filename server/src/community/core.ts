@@ -30,7 +30,7 @@ import { describeSfuError, sfuError } from '../sfu-errors.ts';
 import { cleanText, newId, type User } from './auth.ts';
 import type { Hub } from './hub.ts';
 import { Social } from './social.ts';
-import { imageInfo } from '../image-info.ts';
+import { imageInfo } from '../../../shared/image-info.ts';
 
 export type ChannelKind = 'categoria' | 'texto' | 'voz';
 

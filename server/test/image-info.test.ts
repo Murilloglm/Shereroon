@@ -1,6 +1,6 @@
 import { deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { imageInfo } from '../src/image-info.ts';
+import { imageInfo } from '../../shared/image-info.ts';
 
 function png(width: number, height: number, animated = false): Uint8Array {
   const chunk = (type: string, data: Buffer) => {

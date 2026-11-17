@@ -2,7 +2,7 @@
 // build do frontend) e abre o Chrome instalado na máquina. Nada aqui usa vídeo ou áudio falso
 // como se fosse real: a captura é feita pelo getDisplayMedia de verdade.
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +57,18 @@ async function stopChild(child) {
 }
 
 /** Sobe LiveKit + backend. Reaproveita um LiveKit que já esteja rodando (por exemplo, do `npm run dev`). */
+/**
+ * O aplicativo de desenvolvimento lê desktop/src/config.json, que os builds geram (às vezes apontando para o
+ * servidor online, que só aceita HTTPS público). Os testes do aplicativo usam o modo local, com o backend do
+ * teste, e devolvem o arquivo como estava. Retorna a função que devolve.
+ */
+export function useLocalDesktopConfig() {
+  const file = resolve(root, 'desktop/src/config.json');
+  const previous = existsSync(file) ? readFileSync(file) : null;
+  writeFileSync(file, `${JSON.stringify({ connectionMode: 'local', apiUrl: BASE_URL, siteUrl: '' }, null, 2)}\n`);
+  return () => (previous ? writeFileSync(file, previous) : rmSync(file, { force: true }));
+}
+
 export async function startStack(env = {}) {
   if (!existsSync(resolve(root, 'web/dist/index.html'))) {
     throw new Error('Falta o build do frontend. Rode "npm run build" antes dos testes de ponta a ponta.');

@@ -5,7 +5,7 @@
  */
 import { iso, isoOrNull, num, type Db, type Row } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
-import { imageInfo } from '../image-info.ts';
+import { imageInfo } from '../../../shared/image-info.ts';
 import { cleanText, newId, type User } from './auth.ts';
 import type { Community } from './core.ts';
 import type { Hub } from './hub.ts';

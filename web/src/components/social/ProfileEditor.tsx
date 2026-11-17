@@ -2,34 +2,19 @@ import { ImagePlus, LoaderCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { dialogs } from '../../lib/dialogs.ts';
 import { groups } from '../../lib/groups/client.ts';
+import { prepareProfileImage } from '../../lib/images.ts';
 import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, DEFAULT_AVATARS, TextInput } from '../ui.tsx';
 import { errorText, fieldLabel, selectClass } from '../groups/common.tsx';
 
 const BANNER_COLORS = ['#6c4dff', '#4b348e', '#74d7ff', '#14c2f0', '#1d2142', '#e23a66', '#45e283', '#ffc65c'];
-const ACCEPT = 'image/png,image/jpeg,image/gif,image/webp';
-
-/** Lê as dimensões no navegador para avisar antes de enviar (o servidor confere de novo, pelo arquivo). */
-function imageSize(file: File): Promise<{ width: number; height: number } | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      resolve({ width: image.naturalWidth, height: image.naturalHeight });
-      URL.revokeObjectURL(url);
-    };
-    image.onerror = () => {
-      resolve(null);
-      URL.revokeObjectURL(url);
-    };
-    image.src = url;
-  });
-}
+// Qualquer imagem; as extensões entram porque o Windows nem sempre diz que HEIC, AVIF ou JFIF são imagens.
+const ACCEPT = 'image/*,.avif,.bmp,.gif,.heic,.heif,.ico,.jfif,.jpeg,.jpg,.png,.svg,.tif,.tiff,.webp';
 
 /**
- * Perfil da conta, com prévia antes de salvar. Imagens: PNG, JPEG, GIF (animado também) ou WebP; foto de 32 a
- * 2048 px (até 2 MB, ou 4 MB animada), banner a partir de 300 × 100 px (até 6 MB).
+ * Perfil da conta, com prévia antes de salvar. Aceita qualquer imagem que o app consiga abrir: o que o servidor
+ * não guarda como está é convertido antes (veja lib/images.ts). GIF, WebP e PNG animados continuam animados.
  */
 export function ProfileEditor({ userId }: { userId: string }) {
   const saved = useStore(social.store, (state) => state.profiles[userId]);
@@ -57,24 +42,14 @@ export function ProfileEditor({ userId }: { userId: string }) {
 
   const pick = async (kind: 'avatar' | 'banner', file: File | undefined) => {
     if (!file) return;
-    const size = await imageSize(file);
-    const max = kind === 'banner' ? 6 : file.type === 'image/gif' ? 4 : 2;
-    const problem = !ACCEPT.split(',').includes(file.type)
-      ? 'Use uma imagem PNG, JPEG, GIF ou WebP.'
-      : file.size > max * 1024 * 1024
-        ? `A imagem passa de ${max} MB.`
-        : !size
-          ? 'Não foi possível ler esta imagem.'
-          : kind === 'avatar' && (size.width < 32 || size.height < 32 || size.width > 2048 || size.height > 2048)
-            ? 'A foto de perfil deve ter de 32 a 2048 pixels de lado.'
-            : kind === 'banner' && (size.width < 300 || size.height < 100)
-              ? 'O banner deve ter pelo menos 300 × 100 pixels.'
-              : null;
-    if (problem) {
-      await dialogs.alert({ kind: 'aviso', title: 'Imagem não aceita', message: problem });
+    let ready: File;
+    try {
+      ready = await prepareProfileImage(file, kind);
+    } catch (error) {
+      await dialogs.alert({ kind: 'aviso', title: 'Imagem não aceita', message: error instanceof Error ? error.message : 'Não foi possível ler esta imagem.' });
       return;
     }
-    setPreview({ kind, url: URL.createObjectURL(file), file });
+    setPreview({ kind, url: URL.createObjectURL(ready), file: ready });
   };
 
   const upload = async () => {
