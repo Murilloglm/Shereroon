@@ -9,6 +9,7 @@ import { Avatar, Button, cx, IconButton, Modal, TextInput, Toggle } from '../ui.
 import { fieldLabel, useAction } from './common.tsx';
 import { ProfileEditor } from '../social/ProfileEditor.tsx';
 import { AutostartSettings } from '../AutostartSettings.tsx';
+import { UpdateSettings } from '../UpdateSettings.tsx';
 import { desktop } from '../../lib/desktop.ts';
 
 /** Microfone e som recebido da chamada em que a pessoa está. */
@@ -59,6 +60,12 @@ function AccountSettings({ account, onClose }: { account: Account; onClose: () =
           <ProfileEditor userId={account.id} />
         </section>
 
+        {desktop && (
+          <section className="grid gap-3 border-t border-ink-700 pt-5">
+            <h3 className="font-extrabold">Atualizações</h3>
+            <UpdateSettings />
+          </section>
+        )}
         {desktop?.autostart && (
           <section className="grid gap-3 border-t border-ink-700 pt-5">
             <h3 className="font-extrabold">Aplicativo para Windows</h3>

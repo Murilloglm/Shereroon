@@ -31,6 +31,13 @@ if (result.status !== 0) {
   if (audit.status !== 0) {
     process.exitCode = audit.status ?? 1;
   } else {
+    // O aplicativo só instala atualizações com a assinatura Ed25519 do projeto, além do certificado.
+    const signUpdate = spawnSync(process.execPath, [fileURLToPath(new URL('./update-signing.mjs', import.meta.url)), 'assinar', releaseDir], { stdio: 'inherit', env: process.env });
+    if (signUpdate.error) throw signUpdate.error;
+    if (signUpdate.status !== 0) {
+      process.exitCode = signUpdate.status ?? 1;
+      throw new Error('Não foi possível assinar o latest.yml (defina COSMIC_UPDATE_SIGNING_KEY).');
+    }
     await writeChecksums(releaseDir);
     console.log('Instalador assinado, auditoria aprovada e SHA-256 gerado. Nenhum arquivo foi publicado.');
   }

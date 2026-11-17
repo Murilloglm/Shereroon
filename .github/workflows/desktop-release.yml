@@ -116,6 +116,8 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # Chave Ed25519 das atualizações: assina o latest.yml depois da auditoria e antes dos hashes.
+          COSMIC_UPDATE_SIGNING_KEY: ${{ secrets.COSMIC_UPDATE_SIGNING_KEY }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:SHAREROOM_SIGNING_PROVIDER -eq 'azure') {

@@ -13,15 +13,20 @@ const { createSigningConfig } = require('./windows-signing.cjs');
 const preserveUninstaller = require('./preserve-uninstaller.cjs');
 const base = { SHAREROOM_REQUIRE_SIGNING: '1', SHAREROOM_PUBLISHER_NAME: 'Editor validado' };
 
-test('preview público mantém fuses, recusa assinatura/test hooks e não habilita updater', () => {
+test('preview público mantém fuses, recusa assinatura/test hooks e só tem updater com o repositório definido', () => {
   const run = extra => spawnSync(process.execPath, ['-e', `const c=require(${JSON.stringify(require.resolve('../electron-builder.preview.config.cjs'))});process.stdout.write(JSON.stringify(c));`], {
-    encoding: 'utf8', env: { ...process.env, SHAREROOM_REQUIRE_SIGNING: '0', SHAREROOM_SIGNING_PROVIDER: '', SHAREROOM_TEST_BUILD: '0', ...extra },
+    encoding: 'utf8', env: { ...process.env, SHAREROOM_REQUIRE_SIGNING: '0', SHAREROOM_SIGNING_PROVIDER: '', SHAREROOM_TEST_BUILD: '0', SHAREROOM_REPO: '', GITHUB_REPOSITORY: '', ...extra },
   });
   const result = run({});
   assert.equal(result.status, 0, result.stderr);
   const config = JSON.parse(result.stdout);
   assert.equal(config.publish, null);
   assert.equal(config.win.signExecutable, false);
+  assert.ok(config.extraResources.some((entry) => entry.to === 'update-keys.json'), 'leva as chaves públicas de atualização');
+  assert.ok(config.extraResources.some((entry) => entry.to === 'update-channel.json'), 'olha para as pré-versões');
+  assert.ok(!config.extraResources.some((entry) => entry.to === 'update-test.json'), 'nunca leva o gancho de teste');
+  const withRepo = run({ GITHUB_REPOSITORY: 'dono/projeto' });
+  assert.deepEqual(JSON.parse(withRepo.stdout).publish, [{ provider: 'github', owner: 'dono', repo: 'projeto' }]);
   assert.equal(config.electronFuses.onlyLoadAppFromAsar, true);
   assert.equal(config.directories.output, 'release-preview');
   assert.notEqual(run({ SHAREROOM_REQUIRE_SIGNING: '1' }).status, 0);
@@ -44,6 +49,19 @@ test('preview só publica hashes quando a auditoria unsigned corresponde aos byt
   report.requireValid = true;
   await writeFile(join(dir, 'signature-report.json'), JSON.stringify(report));
   await assert.rejects(writePreviewChecksums(dir), /somente/);
+
+  // Com canal de atualização: o latest.yml precisa estar assinado e entra nos hashes.
+  report.requireValid = false;
+  await writeFile(join(dir, installer), 'preview');
+  await writeFile(join(dir, 'signature-report.json'), JSON.stringify(report));
+  await writeFile(join(dir, 'latest.yml'), 'version: 0.1.0\n');
+  await assert.rejects(writePreviewChecksums(dir), /assinado/);
+  await writeFile(join(dir, 'latest.yml'), 'version: 0.1.0\ncosmicSignature: abc\n');
+  await writeFile(join(dir, `${installer}.blockmap`), 'mapa');
+  await writePreviewChecksums(dir);
+  const sums = await readFile(join(dir, 'SHA256SUMS.txt'), 'utf8');
+  assert.match(sums, /latest\.yml/);
+  assert.match(sums, /\.blockmap/);
 });
 
 test('release exige um provedor e a identidade real; preview não assina automaticamente', () => {

@@ -37,7 +37,11 @@ contextBridge.exposeInMainWorld('shareroomDesktop', {
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     check: () => ipcRenderer.invoke('update:check'),
-    restart: () => ipcRenderer.send('update:restart'),
+    download: () => ipcRenderer.invoke('update:download'),
+    restart: (confirmed) => ipcRenderer.invoke('update:restart', { confirmed: confirmed === true }),
+    later: () => ipcRenderer.invoke('update:later'),
+    setAutoCheck: (on) => ipcRenderer.invoke('update:auto-check', on === true),
+    dismiss: () => ipcRenderer.invoke('update:dismiss'),
     onStatus: (listener) => subscribe('update:status', listener),
   },
 });

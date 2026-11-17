@@ -15,11 +15,47 @@ export interface DesktopSource {
 
 export type DesktopCommand = 'toggle-mic' | 'stop-share' | 'leave';
 
+export type UpdateState =
+  | 'indisponivel'
+  | 'ocioso'
+  | 'verificando'
+  | 'atualizado'
+  | 'disponivel'
+  | 'baixando'
+  | 'conferindo'
+  | 'pronta'
+  | 'instalando'
+  | 'recusada'
+  | 'erro';
+
 export interface UpdateStatus {
-  state: 'indisponivel' | 'verificando' | 'atualizado' | 'baixando' | 'pronta' | 'erro';
-  version: string | null;
-  percent: number | null;
-  message: string | null;
+  state: UpdateState;
+  /** Versões antigas do aplicativo não mandam os campos abaixo de `message`. */
+  version?: string | null;
+  percent?: number | null;
+  message?: string | null;
+  supported?: boolean;
+  /** Por que esta cópia não se atualiza sozinha. */
+  reason?: string | null;
+  currentVersion?: string;
+  autoCheck?: boolean;
+  releaseName?: string | null;
+  releaseDate?: string | null;
+  /** Novidades em texto simples. */
+  notes?: string;
+  size?: number | null;
+  transferred?: number | null;
+  total?: number | null;
+  bytesPerSecond?: number | null;
+  installOnQuit?: boolean;
+  lastCheck?: number | null;
+  messageKind?: 'info' | 'erro' | 'offline' | null;
+}
+
+export interface RestartResult {
+  ok: boolean;
+  /** Em chamada ou transmitindo: a interface pergunta antes. */
+  needsConfirm?: 'chamada' | 'transmissao';
 }
 
 export interface DesktopRoomState {
@@ -63,7 +99,12 @@ export interface DesktopBridge {
   update: {
     status(): Promise<UpdateStatus | null>;
     check(): Promise<UpdateStatus>;
-    restart(): void;
+    /** Versões antigas do aplicativo: restart sem resposta e sem os métodos opcionais. */
+    restart(confirmed?: boolean): Promise<RestartResult> | void;
+    download?(): Promise<UpdateStatus>;
+    later?(): Promise<UpdateStatus>;
+    setAutoCheck?(on: boolean): Promise<UpdateStatus>;
+    dismiss?(): Promise<UpdateStatus>;
     onStatus(listener: (status: UpdateStatus) => void): () => void;
   };
 }

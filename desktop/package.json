@@ -1,7 +1,7 @@
 {
   "name": "shareroom-desktop",
   "productName": "Cosmic Night",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Cosmic Night para Windows: grupos, voz e compartilhamento de tela",
   "author": "Cosmic Night",
@@ -19,7 +19,9 @@
     "audit:signatures": "powershell -NoProfile -File scripts/audit-signatures.ps1",
     "checksums": "node scripts/write-checksums.mjs",
     "checksums:preview": "node scripts/write-preview-checksums.mjs",
-    "test": "node --test scripts/*.test.mjs"
+    "test": "node --test scripts/*.test.mjs",
+    "test:update": "node scripts/update-real.mjs",
+    "update:sign": "node scripts/update-signing.mjs assinar"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"

@@ -3,7 +3,7 @@
 // aplicativo sem instalar nada à parte, bandeja do sistema, funcionamento em segundo plano e atualização.
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerSaveBlocker, protocol, session, shell, Tray } from 'electron';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, extname, join, resolve, sep } from 'node:path';
@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { runtimeConnection } from './connection-config.mjs';
 import { DEEP_SCHEME, linkFromArgv } from './deep-link.mjs';
 import { cleanAutostart, HIDDEN_FLAG, loginItemFor, readAutostart, writeAutostart } from './autostart.mjs';
+import { readPublicKeys } from './update-trust.mjs';
+import { createUpdates } from './updates.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SCHEME = 'app';
@@ -22,9 +24,22 @@ const resource = (packagedPath, devPath) => (app.isPackaged ? join(process.resou
 const WEB_ROOT = resource('web', '../../web/dist');
 const HELPER_EXE = resource('helper/ShareRoomAudio.exe', '../../helper/bin/ShareRoomAudio.exe');
 const ICON = resource('icon.png', '../build/icon.png');
+/** Chaves públicas que podem assinar atualizações (não são segredo). */
+const UPDATE_KEYS = resource('update-keys.json', '../update-keys.json');
+/** Cópia gerada só para o teste automatizado da atualização (nunca vai para uma versão publicada). */
+const UPDATE_TEST = app.isPackaged && existsSync(join(process.resourcesPath, 'update-test.json'));
+/** Canal: as pré-versões sem certificado vêm marcadas como prerelease no GitHub. */
+const UPDATE_CHANNEL = (() => {
+  try {
+    return JSON.parse(readFileSync(resource('update-channel.json', '../build/update-channel-preview.json'), 'utf8'));
+  } catch {
+    return {};
+  }
+})();
 
 // Pasta de dados própria para testes automatizados: não mistura com a do aplicativo instalado.
 if (process.env.SHAREROOM_USER_DATA) app.setPath('userData', process.env.SHAREROOM_USER_DATA);
+else if (UPDATE_TEST) app.setPath('userData', join(app.getPath('appData'), 'CosmicNightUpdateTest'));
 // O aplicativo mudou de nome (era ShareRoom), mas continua na mesma pasta de dados: quem já usava não perde
 // a conta conectada, as salas recentes nem as preferências.
 else app.setPath('userData', join(app.getPath('appData'), 'ShareRoom'));
@@ -319,36 +334,67 @@ function quit() {
 
 // ---------------------------------------------------------------------------------------------
 // Atualização automática (só existe no aplicativo instalado a partir de uma versão publicada)
+//
+// O instalador novo vem por HTTPS da página de versões do GitHub. Antes de rodar, precisa bater com o SHA-512
+// publicado E com a assinatura Ed25519 feita no GitHub Actions (chave privada nos Secrets; a pública vai
+// embutida aqui). Nas versões assinadas com certificado, o Windows também confere o autor. Nada é baixado nem
+// instalado sem a pessoa pedir, e reiniciar no meio de uma chamada pede confirmação.
 
-let updater = null;
-let updateStatus = { state: 'indisponivel', version: null, percent: null, message: null };
+let updates = null;
+let updateStatus = { supported: false, currentVersion: app.getVersion(), state: 'indisponivel', reason: null, message: null };
 
-function setUpdate(patch) {
-  updateStatus = { ...updateStatus, ...patch };
+function sendUpdate(status) {
+  updateStatus = { ...status, supported: true, reason: null };
   win?.webContents.send('update:status', updateStatus);
+}
+
+/** Só nas cópias de teste da atualização: registra cada passo num arquivo para o teste ler. */
+function updateTestLog(entry) {
+  try {
+    appendFileSync(join(app.getPath('userData'), 'atualizacao-teste.jsonl'), `${JSON.stringify({ ...entry, running: app.getVersion() })}\n`);
+  } catch {
+    // só diagnóstico
+  }
 }
 
 async function setupUpdater() {
   if (!app.isPackaged || !existsSync(join(process.resourcesPath, 'app-update.yml'))) {
-    setUpdate({ message: app.isPackaged ? 'Esta cópia não veio de uma versão publicada, então não se atualiza sozinha.' : 'A atualização automática só existe no aplicativo instalado.' });
+    updateStatus.reason = app.isPackaged
+      ? 'Esta cópia veio de um instalador sem canal de atualização. Instale a versão nova uma vez pela página de downloads; a partir dela, o Cosmic Night se atualiza sozinho.'
+      : 'A atualização automática só existe no aplicativo instalado.';
+    return;
+  }
+  const publicKeys = readPublicKeys(UPDATE_KEYS);
+  if (publicKeys.length === 0) {
+    updateStatus.reason = 'Esta cópia não tem a chave para conferir atualizações, então não instala nenhuma sozinha. Baixe a versão nova pela página de downloads.';
     return;
   }
   const { default: module } = await import('electron-updater');
-  updater = module.autoUpdater;
-  // O instalador novo vem por HTTPS da página de versões do projeto e só é aceito se o SHA-512 bater com o
-  // publicado; em versões assinadas, o Windows também confere se o autor é o mesmo.
-  updater.autoDownload = true;
-  updater.autoInstallOnAppQuit = true;
+  const updater = module.autoUpdater;
+  updater.autoDownload = false;
+  // A instalação ao fechar é feita por nós (em before-quit), depois de conferir o arquivo de novo.
+  updater.autoInstallOnAppQuit = false;
   updater.allowDowngrade = false;
-  updater.on('checking-for-update', () => setUpdate({ state: 'verificando', message: null }));
-  updater.on('update-not-available', () => setUpdate({ state: 'atualizado', version: null, percent: null, message: null }));
-  updater.on('update-available', (info) => setUpdate({ state: 'baixando', version: info.version, percent: 0, message: null }));
-  updater.on('download-progress', (progress) => setUpdate({ state: 'baixando', percent: Math.round(progress.percent) }));
-  updater.on('update-downloaded', (info) => setUpdate({ state: 'pronta', version: info.version, percent: 100, message: null }));
-  updater.on('error', (error) => setUpdate({ state: 'erro', message: String(error?.message ?? error).slice(0, 200) }));
-  const check = () => updater.checkForUpdates().catch(() => undefined);
-  check();
-  setInterval(check, 6 * 60 * 60 * 1000).unref();
+  updater.allowPrerelease = UPDATE_CHANNEL.prerelease === true;
+  updater.disableWebInstaller = true;
+  if (UPDATE_TEST) updater.logger = { info: () => {}, warn: (m) => updateTestLog({ warn: String(m).slice(0, 300) }), error: (m) => updateTestLog({ fail: String(m).slice(0, 300) }), debug: () => {} };
+  updates = createUpdates({
+    updater,
+    currentVersion: app.getVersion(),
+    publicKeys,
+    prefsDir: app.getPath('userData'),
+    activity: () => roomState,
+    send: sendUpdate,
+    // Instalação silenciosa por usuário (sem administrador), no mesmo lugar da atual e com os dados intactos.
+    install: (mode) => {
+      quitting = true;
+      updater.quitAndInstall(true, mode === 'agora');
+    },
+    selfTest: UPDATE_TEST,
+    log: UPDATE_TEST ? updateTestLog : undefined,
+  });
+  sendUpdate(updates.status());
+  updates.start();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -460,13 +506,28 @@ function installIpc() {
   });
   ipcMain.handle('update:status', (event) => (trusted(event) ? updateStatus : null));
   ipcMain.handle('update:check', async (event) => {
-    if (trusted(event) && updater) await updater.checkForUpdates().catch(() => undefined);
+    if (trusted(event) && updates) await updates.check({ manual: true });
     return updateStatus;
   });
-  ipcMain.on('update:restart', (event) => {
-    if (!trusted(event) || !updater || updateStatus.state !== 'pronta') return;
-    quitting = true;
-    updater.quitAndInstall();
+  ipcMain.handle('update:download', async (event) => {
+    if (trusted(event) && updates) await updates.download();
+    return updateStatus;
+  });
+  ipcMain.handle('update:restart', async (event, input) => {
+    if (!trusted(event) || !updates) return { ok: false };
+    return updates.restart({ confirmed: input?.confirmed === true });
+  });
+  ipcMain.handle('update:later', (event) => {
+    if (trusted(event) && updates) updates.later();
+    return updateStatus;
+  });
+  ipcMain.handle('update:auto-check', (event, on) => {
+    if (trusted(event) && updates && typeof on === 'boolean') updates.setAutoCheck(on);
+    return updateStatus;
+  });
+  ipcMain.handle('update:dismiss', (event) => {
+    if (trusted(event) && updates) updates.dismiss();
+    return updateStatus;
   });
 }
 
@@ -478,8 +539,16 @@ if (!app.requestSingleInstanceLock()) {
     showWindow();
     deliverLink(linkFromArgv(argv));
   });
-  app.on('before-quit', () => {
+  let quitReviewed = false;
+  app.on('before-quit', (event) => {
     quitting = true;
+    // "Instalar depois": ao fechar de vez, confere o arquivo de novo e só então roda o instalador.
+    if (quitReviewed || !updates?.status().installOnQuit) return;
+    event.preventDefault();
+    quitReviewed = true;
+    void updates.installOnQuit().then((started) => {
+      if (!started) app.quit();
+    });
   });
   app.on('will-quit', stopHelper);
   // Com a janela fechada fora de uma sala, o aplicativo encerra (não fica escondido à toa).
@@ -497,7 +566,7 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle(SCHEME, serveApp);
     // Links cosmicnight:// abrem este aplicativo. O instalador já registra (só para este usuário, sem
     // administrador); registrar de novo aqui conserta o registro se outra cópia o tiver trocado.
-    if (app.isPackaged) app.setAsDefaultProtocolClient(DEEP_SCHEME);
+    if (app.isPackaged && !UPDATE_TEST) app.setAsDefaultProtocolClient(DEEP_SCHEME);
     installPermissions(session.defaultSession);
     installCapture(session.defaultSession);
     installIpc();

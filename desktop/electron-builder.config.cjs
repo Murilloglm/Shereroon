@@ -19,6 +19,8 @@ module.exports = {
     { from: '../web/dist', to: 'web' },
     { from: '../helper/bin/ShareRoomAudio.exe', to: 'helper/ShareRoomAudio.exe' },
     { from: 'build/icon.png', to: 'icon.png' },
+    // Chaves públicas que podem assinar atualizações (Ed25519). A privada fica só nos Secrets do GitHub.
+    { from: process.env.SHAREROOM_UPDATE_KEYS || 'update-keys.json', to: 'update-keys.json' },
   ],
   win: {
     // Nome do arquivo executável sem espaço: scripts de auditoria e atalhos dependem dele.

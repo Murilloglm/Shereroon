@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { desktop, type UpdateStatus } from '../../lib/desktop.ts';
+import { desktop } from '../../lib/desktop.ts';
 import { codecHint, type CodecHint } from '../../lib/capture.ts';
 import { formatBitrate } from '../../lib/format.ts';
 import { presetBitrateKbps, TOP_TARGET, type Codec, type CodecChoice, type ContentKind, type Target } from '../../lib/quality.ts';
@@ -10,6 +10,7 @@ import { Button, cx, LevelMeter, Modal, Notice, Slider, Toggle } from '../ui.tsx
 import { NoiseButton } from './NoiseModal.tsx';
 import { PersonVolume } from './PersonVolume.tsx';
 import { AutostartSettings } from '../AutostartSettings.tsx';
+import { UpdateSettings } from '../UpdateSettings.tsx';
 
 const CODEC_INFO: Record<Codec, { name: string; about: string }> = {
   h264: { name: 'H.264', about: 'O mais compatível. Costuma usar a placa de vídeo para codificar e decodificar, inclusive em celulares.' },
@@ -53,58 +54,20 @@ function Option({ title, about, children }: { title: string; about?: string; chi
   );
 }
 
-function updateText(status: UpdateStatus | null): string {
-  if (!status) return 'Consultando…';
-  switch (status.state) {
-    case 'verificando':
-      return 'Procurando uma versão nova…';
-    case 'atualizado':
-      return 'Você está na versão mais recente.';
-    case 'baixando':
-      return `Baixando a versão ${status.version ?? 'nova'}${status.percent != null ? ` (${status.percent}%)` : ''}…`;
-    case 'pronta':
-      return `A versão ${status.version ?? 'nova'} está pronta. Ela é instalada quando você fechar o aplicativo, ou agora, se preferir.`;
-    case 'erro':
-      return `Não foi possível verificar agora (${status.message ?? 'sem detalhes'}).`;
-    default:
-      return status.message ?? 'A atualização automática não está disponível nesta cópia.';
-  }
-}
-
-/** Versão instalada e atualização do aplicativo de Windows. */
+/** Atualizações e inicialização do aplicativo de Windows. */
 function AppSection() {
-  const [status, setStatus] = useState<UpdateStatus | null>(null);
-  useEffect(() => {
-    if (!desktop) return;
-    void desktop.update.status().then(setStatus);
-    return desktop.update.onStatus(setStatus);
-  }, []);
   if (!desktop) return null;
-  const app = desktop;
   return (
-    <Section title="Aplicativo">
-      <div className="flex items-center gap-4" data-testid="app-update" data-state={status?.state ?? ''}>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Cosmic Night para Windows {app.config.version}</p>
-          <p className="text-[13px] leading-snug text-fog-400">{updateText(status)}</p>
-        </div>
-        {status?.state === 'pronta' ? (
-          <Button variant="primary" size="sm" onClick={() => app.update.restart()}>
-            Reiniciar e atualizar
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!status || status.state === 'indisponivel' || status.state === 'verificando' || status.state === 'baixando'}
-            onClick={() => void app.update.check().then(setStatus)}
-          >
-            Procurar atualização
-          </Button>
-        )}
-      </div>
-      <AutostartSettings />
-    </Section>
+    <>
+      <Section title="Atualizações">
+        <UpdateSettings />
+      </Section>
+      {desktop.autostart && (
+        <Section title="Inicialização">
+          <AutostartSettings />
+        </Section>
+      )}
+    </>
   );
 }
 

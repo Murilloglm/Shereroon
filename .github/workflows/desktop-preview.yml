@@ -1,5 +1,8 @@
-# Canal de TESTE sem assinatura. Não substitui a release oficial assinada.
+# Canal de TESTE sem certificado de assinatura de código. Não substitui a release oficial assinada.
 # Só executa manualmente e publica uma pré-versão que não vira "Latest".
+# Atualização automática: o latest.yml é assinado aqui com a chave Ed25519 do secret
+# COSMIC_UPDATE_SIGNING_KEY; os aplicativos instalados a partir deste canal só aceitam instaladores com essa
+# assinatura e com o SHA-512 publicado. A chave privada nunca sai dos Secrets.
 name: Pré-versão Windows sem assinatura
 
 on:
@@ -7,6 +10,10 @@ on:
     inputs:
       tag:
         description: 'Tag opcional começando com preview- (padrão: preview-NÚMERO-DA-EXECUÇÃO)'
+        required: false
+        type: string
+      notes:
+        description: 'Novidades e correções desta versão (aparecem no aplicativo, em Configurações → Atualizações)'
         required: false
         type: string
       api_url:
@@ -59,8 +66,12 @@ jobs:
         id: preview
         env:
           PREVIEW_TAG_INPUT: ${{ inputs.tag }}
+          HAS_UPDATE_KEY: ${{ secrets.COSMIC_UPDATE_SIGNING_KEY != '' }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if ($env:HAS_UPDATE_KEY -ne 'true') {
+            throw 'Defina o secret COSMIC_UPDATE_SIGNING_KEY (chave privada Ed25519 das atualizações). Sem ele, a versão publicada não seria aceita pela atualização automática.'
+          }
           $tag = ([string]$env:PREVIEW_TAG_INPUT).Trim()
           if (-not $tag) { $tag = "preview-$env:GITHUB_RUN_NUMBER" }
           if ($tag -notmatch '^preview-[A-Za-z0-9][A-Za-z0-9._-]{0,90}$') {
@@ -105,15 +116,29 @@ jobs:
           npm --prefix desktop run dist:preview
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Assinar o manifesto de atualização (Ed25519)
+        env:
+          COSMIC_UPDATE_SIGNING_KEY: ${{ secrets.COSMIC_UPDATE_SIGNING_KEY }}
+        run: |
+          # A chave fica só na memória deste passo; o script confere a assinatura com a chave pública embutida
+          # no aplicativo antes de gravar e nunca imprime a chave.
+          node desktop/scripts/update-signing.mjs assinar desktop/release-preview
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Registrar assinaturas e calcular os hashes do teste
         env:
           PREVIEW_VERSION: ${{ steps.preview.outputs.version }}
         run: |
           $ErrorActionPreference = 'Stop'
           $releaseDir = Join-Path $env:GITHUB_WORKSPACE 'desktop/release-preview'
-          if (Test-Path -LiteralPath (Join-Path $releaseDir 'win-unpacked/resources/app-update.yml')) {
-            throw 'Uma pré-versão sem assinatura não pode conter canal de atualização automática.'
+          $resources = Join-Path $releaseDir 'win-unpacked/resources'
+          foreach ($required in @('app-update.yml', 'update-keys.json', 'update-channel.json')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $resources $required))) { throw "O pacote não contém $required: a atualização automática não funcionaria." }
           }
+          if (Test-Path -LiteralPath (Join-Path $resources 'update-test.json')) {
+            throw 'O gancho do teste de atualização nunca pode ir para uma versão publicada.'
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $releaseDir 'latest.yml'))) { throw 'latest.yml ausente.' }
           # Apenas registra o estado real. Não exige assinatura nem declara confiança pública.
           ./desktop/scripts/audit-signatures.ps1 -ReleaseDir $releaseDir -ReportPath (Join-Path $releaseDir 'signature-report.json')
           $installer = "CosmicNight-Setup-${env:PREVIEW_VERSION}.exe"
@@ -133,6 +158,8 @@ jobs:
           path: |
             desktop/release-preview/CosmicNight-Setup-${{ steps.preview.outputs.version }}.exe
             desktop/release-preview/CosmicNight-Setup-${{ steps.preview.outputs.version }}.exe.sha256
+            desktop/release-preview/CosmicNight-Setup-${{ steps.preview.outputs.version }}.exe.blockmap
+            desktop/release-preview/latest.yml
             desktop/release-preview/SHA256SUMS.txt
             desktop/release-preview/signature-report.json
 
@@ -157,9 +184,13 @@ jobs:
           PREVIEW_SITE_URL: ${{ needs.build.outputs.site_url }}
           PREVIEW_COMMIT: ${{ github.sha }}
           PREVIEW_REPOSITORY: ${{ github.repository }}
+          PREVIEW_NOTES: ${{ inputs.notes }}
         run: |
           set -euo pipefail
           (cd release && sha256sum --check --strict SHA256SUMS.txt)
+          # O manifesto de atualização tem de descrever esta versão e estar assinado.
+          grep -qx "version: $PREVIEW_VERSION" release/latest.yml
+          grep -qE '^cosmicSignature: [A-Za-z0-9+/]{86}==$' release/latest.yml
           # Uma tag existente nunca é reaproveitada, mesmo que não tenha Release.
           tag_count="$(gh api "repos/$PREVIEW_REPOSITORY/git/matching-refs/tags/$PREVIEW_TAG" --jq 'length')"
           if [[ "$tag_count" != '0' ]]; then
@@ -174,6 +205,10 @@ jobs:
           asset_url="https://github.com/$PREVIEW_REPOSITORY/releases/download/$PREVIEW_TAG"
           notes_file="$RUNNER_TEMP/shareroom-preview-notes.md"
           {
+            # As novidades vêm primeiro: é o que o aplicativo mostra em Configurações → Atualizações.
+            if [[ -n "${PREVIEW_NOTES// /}" ]]; then
+              printf '## Novidades e correções\n\n%s\n\n---\n\n' "$PREVIEW_NOTES"
+            fi
             printf '**VERSÃO DE TESTE SEM ASSINATURA DIGITAL.**\n\n'
             printf 'O Windows 11 pode bloquear este instalador ou seus componentes por Smart App Control, App Control for Business ou SmartScreen. Não há garantia de instalação ou execução.\n\n'
             printf 'SHA-256 confere a integridade dos bytes baixados; não prova a identidade do editor e não torna o aplicativo confiável para outros computadores.\n\n'
@@ -181,10 +216,10 @@ jobs:
             printf 'Site público para os convites: %s.\n\n' "$PREVIEW_SITE_URL"
             printf '[Baixar instalador de teste %s](%s/%s) · [SHA-256](%s/SHA256SUMS.txt) · [Relatório das assinaturas](%s/signature-report.json).\n\n' "$installer" "$asset_url" "$installer" "$asset_url" "$asset_url"
             printf 'Não desative as proteções de segurança. Em caso de bloqueio, consulte [o diagnóstico pelos logs do Windows](https://github.com/%s/blob/%s/docs/windows-signing-options.md).\n\n' "$PREVIEW_REPOSITORY" "$PREVIEW_COMMIT"
-            printf 'Esta pré-versão não usa atualização automática e não é uma release oficial assinada.\n'
+            printf 'Quem já tem uma versão com atualização automática recebe esta pelo próprio aplicativo: o instalador só é aceito com o SHA-512 publicado e a assinatura Ed25519 do projeto. Esta pré-versão não é uma release oficial assinada com certificado.\n'
           } > "$notes_file"
           gh release create "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" --target "$PREVIEW_COMMIT" --draft --prerelease --latest=false --title "Cosmic Night $PREVIEW_VERSION — TESTE SEM ASSINATURA" --notes-file "$notes_file"
           gh release upload "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" \
-            "release/$installer" "release/$installer.sha256" \
-            release/SHA256SUMS.txt release/signature-report.json
+            "release/$installer" "release/$installer.sha256" "release/$installer.blockmap" \
+            release/latest.yml release/SHA256SUMS.txt release/signature-report.json
           gh release edit "$PREVIEW_TAG" --repo "$PREVIEW_REPOSITORY" --draft=false --prerelease --latest=false
