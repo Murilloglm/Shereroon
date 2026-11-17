@@ -43,6 +43,7 @@ npm-debug.log*
 # aplicativo de Windows
 desktop/release/
 desktop/release-preview/
+desktop/release-update-test/
 desktop/src/config.json
 
 # Site legado: tem seu próprio repositório e hospedagem. Downloads oficiais usam GitHub Releases.
@@ -50,3 +51,4 @@ sites/shareroom-download/
 
 # banco local de desenvolvimento
 server/.data/
+.neon
