@@ -3,7 +3,13 @@
  * digitando. Nada aqui produz HTML: a interface recebe pedaços de texto e decide o que desenhar.
  */
 
-export type Piece = { type: 'texto'; text: string } | { type: 'link'; text: string } | { type: 'mencao'; text: string; userId: string | null };
+export type Piece =
+  | { type: 'texto'; text: string }
+  | { type: 'link'; text: string }
+  | { type: 'mencao'; text: string; userId: string | null }
+  | { type: 'emoji'; name: string; id: string; animated: boolean };
+
+const CUSTOM_EMOJI = /:([a-z0-9_]{2,32}):/g;
 
 const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/g;
 const MENTION = /@([A-Za-z0-9_.]{3,24})/g;
@@ -15,6 +21,30 @@ export interface MentionContext {
   mentions: readonly string[];
   /** Nome de usuário (em minúsculas) → conta e nome a mostrar. */
   lookup: (username: string) => { userId: string; label: string } | undefined;
+  /** Emojis próprios do grupo: `:nome:` vira o emoji quando o nome existe. */
+  emoji?: (name: string) => { id: string; animated: boolean } | undefined;
+}
+
+/** Troca `:nome:` pelos emojis do grupo nos pedaços de texto (o resto fica como estava). */
+function splitEmojis(pieces: Piece[], context: MentionContext): Piece[] {
+  if (!context.emoji) return pieces;
+  const out: Piece[] = [];
+  for (const piece of pieces) {
+    if (piece.type !== 'texto') {
+      out.push(piece);
+      continue;
+    }
+    let last = 0;
+    for (const match of piece.text.matchAll(CUSTOM_EMOJI)) {
+      const found = context.emoji(match[1]!);
+      if (!found) continue;
+      if (match.index > last) out.push({ type: 'texto', text: piece.text.slice(last, match.index) });
+      out.push({ type: 'emoji', name: match[1]!, id: found.id, animated: found.animated });
+      last = match.index + match[0].length;
+    }
+    if (last < piece.text.length) out.push({ type: 'texto', text: piece.text.slice(last) });
+  }
+  return out;
 }
 
 function splitMentions(text: string, context: MentionContext, out: Piece[]): void {
@@ -47,7 +77,7 @@ export function splitMessage(content: string, context: MentionContext): Piece[] 
     if (index % 2 === 1) out.push({ type: 'link', text: part });
     else if (part) splitMentions(part, context, out);
   }
-  return out;
+  return splitEmojis(out, context);
 }
 
 /** A menção em digitação logo antes do cursor ("@an"), ou null. */

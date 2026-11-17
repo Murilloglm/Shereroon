@@ -239,3 +239,23 @@ test('painel de moderação: só a dona abre; mostra entrada, atividade e regist
   assert.equal(await beto.getByTestId('menu-moderate').count(), 0, 'membro comum não tem a opção');
   await beto.keyboard.press('Escape');
 });
+
+test('emojis do grupo: a dona envia, usa na mensagem e outra pessoa reage com ele', async () => {
+  await ana.getByTestId('group-menu').click();
+  await ana.getByTestId('group-settings-open').click();
+  await ana.getByTestId('settings-tab-emojis').click();
+  await ana.getByTestId('emoji-name').fill('festa');
+  await ana.getByTestId('emoji-file').setInputFiles(pngFile('festa.png', 64, 64));
+  await ana.getByTestId('emoji-add').click();
+  await ana.getByTestId('emoji-row').and(ana.locator('[data-name="festa"]')).waitFor();
+  await ana.getByRole('dialog', { name: /Configurações de/ }).getByRole('button', { name: 'Fechar' }).first().click();
+
+  await ana.getByTestId('chat-input').fill('bora :festa:');
+  await ana.getByTestId('chat-input').press('Enter');
+  const message = beto.getByTestId('chat-message').filter({ hasText: 'bora' }).last();
+  await message.locator('img[alt=":festa:"]').waitFor();
+  await message.hover();
+  await message.getByTestId('chat-react').click();
+  await beto.getByTestId('emoji-picker').locator('[data-emoji=":festa:"]').click();
+  await ana.getByTestId('chat-message').filter({ hasText: 'bora' }).last().locator('[data-emoji=":festa:"]').waitFor();
+});

@@ -57,3 +57,28 @@ describe('menção em digitação', () => {
     expect(insertAt('bom dia', 0, 3, '🌙')).toEqual({ text: '🌙 dia', caret: 2 });
   });
 });
+
+describe('emojis do grupo no texto', () => {
+  const context = {
+    mentionEveryone: false,
+    mentions: [],
+    lookup: () => undefined,
+    emoji: (name: string) => (name === 'festa' ? { id: 'e1', animated: true } : undefined),
+  };
+
+  it(':nome: vira o emoji só quando o grupo tem esse emoji', () => {
+    expect(splitMessage('bora :festa: hoje :naoexiste:', context)).toEqual([
+      { type: 'texto', text: 'bora ' },
+      { type: 'emoji', name: 'festa', id: 'e1', animated: true },
+      { type: 'texto', text: ' hoje :naoexiste:' },
+    ]);
+  });
+
+  it('links continuam inteiros mesmo com dois-pontos', () => {
+    expect(splitMessage('veja https://x.com/:festa: ok', context).map((piece) => piece.type)).toEqual(['texto', 'link', 'texto']);
+  });
+
+  it('sem emojis do grupo, o texto não muda', () => {
+    expect(splitMessage(':festa:', { ...context, emoji: undefined })).toEqual([{ type: 'texto', text: ':festa:' }]);
+  });
+});

@@ -12,8 +12,9 @@ import { BotsTab } from './BotsTab.tsx';
 import { ChannelsTab } from './ChannelsTab.tsx';
 import { MembersTab } from './MembersTab.tsx';
 import { RolesTab } from './RolesTab.tsx';
+import { EmojisTab } from './EmojisTab.tsx';
 
-export type SettingsTab = 'geral' | 'cargos' | 'canais' | 'membros' | 'bots' | 'convites' | 'banimentos' | 'auditoria';
+export type SettingsTab = 'geral' | 'cargos' | 'canais' | 'membros' | 'bots' | 'emojis' | 'convites' | 'banimentos' | 'auditoria';
 
 /** Link de convite de grupo. No aplicativo de Windows aponta para o site, para abrir em qualquer navegador. */
 export function groupInviteLink(code: string): string {
@@ -313,6 +314,8 @@ const ACTIONS: Record<string, string> = {
   'canal.excluido': 'excluiu o canal',
   'canal.reordenado': 'reorganizou os canais',
   'canal.permissoes': 'mudou as permissões do canal',
+  'emoji.criado': 'adicionou o emoji',
+  'emoji.excluido': 'excluiu o emoji',
   'canal.acesso_concedido': 'liberou o acesso a um canal para',
   'convite.criado': 'criou o convite',
   'convite.revogado': 'revogou o convite',
@@ -399,6 +402,7 @@ export function GroupSettings({ view, tab, onTab, onClose }: { view: GroupView; 
     ['canais', 'Canais', can(view, P.MANAGE_CHANNELS)],
     ['membros', 'Membros', true],
     ['bots', 'Bots', can(view, P.INSTALL_BOTS) || can(view, P.CONFIGURE_BOTS) || can(view, P.VIEW_BOT_LOGS)],
+    ['emojis', 'Emojis', can(view, P.MANAGE_EMOJIS)],
     ['convites', 'Convites', can(view, P.CREATE_INVITE)],
     ['banimentos', 'Banimentos', can(view, P.BAN_MEMBERS)],
     ['auditoria', 'Auditoria', can(view, P.VIEW_AUDIT_LOG)],
@@ -431,6 +435,7 @@ export function GroupSettings({ view, tab, onTab, onClose }: { view: GroupView; 
         {current === 'canais' && <ChannelsTab view={view} />}
         {current === 'membros' && <MembersTab view={view} />}
         {current === 'bots' && <BotsTab view={view} />}
+        {current === 'emojis' && <EmojisTab view={view} />}
         {current === 'convites' && <Invites view={view} />}
         {current === 'banimentos' && <Bans view={view} />}
         {current === 'auditoria' && <Audit view={view} />}

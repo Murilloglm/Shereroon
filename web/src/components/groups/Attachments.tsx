@@ -1,7 +1,7 @@
 import { Download, File as FileIcon, FileArchive, FileAudio, FileText, FileVideo, Play, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useState } from 'react';
 import { groups, type Attachment } from '../../lib/groups/client.ts';
-import { cx, IconButton } from '../ui.tsx';
+import { cx, IconButton, MotionSafeImage } from '../ui.tsx';
 import { errorText } from './common.tsx';
 
 export type FileKind = 'imagem' | 'video' | 'audio' | 'arquivo';
@@ -89,14 +89,15 @@ function ImageAttachment({ file, onOpen }: { file: Attachment; onOpen: (url: str
   return (
     <button
       type="button"
-      className="block max-w-full overflow-hidden rounded-xl border border-ink-600/80 bg-ink-800 transition-shadow hover:shadow-glow"
+      className="relative block max-w-full overflow-hidden rounded-xl border border-ink-600/80 bg-ink-800 transition-shadow hover:shadow-glow"
       style={{ width, aspectRatio: String(ratio) }}
       onClick={() => url && onOpen(url)}
       aria-label={`Abrir a imagem ${file.name}`}
       data-testid="attachment-image"
       data-loaded={url !== null}
     >
-      {url ? <img src={url} alt={file.name} className="size-full object-cover" draggable={false} /> : <span className="block size-full animate-pulse bg-ink-750" />}
+      {url ? <MotionSafeImage src={url} alt={file.name} className="size-full object-cover" /> : <span className="block size-full animate-pulse bg-ink-750" />}
+      {url && file.mime === 'image/gif' && <span className="absolute right-1.5 bottom-1.5 rounded bg-ink-950/80 px-1.5 text-[10px] font-extrabold text-white">GIF</span>}
     </button>
   );
 }

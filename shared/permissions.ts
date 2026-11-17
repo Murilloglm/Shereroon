@@ -45,6 +45,7 @@ const LIST = [
   ['MENTION_EVERYONE', 14, 'texto', 'Mencionar @everyone', 'Usar @everyone para chamar a atenção de todos os membros do canal.', 'servidor'],
   ['MANAGE_MESSAGES', 15, 'texto', 'Gerenciar mensagens', 'Inclui excluir mensagens de outros e fixar.', 'servidor'],
   ['ADD_REACTIONS', 36, 'texto', 'Adicionar reações', 'Reagir às mensagens com emojis.', 'servidor'],
+  ['MANAGE_EMOJIS', 37, 'texto', 'Gerenciar emojis', 'Enviar e excluir os emojis próprios do grupo (estáticos ou animados).', 'servidor'],
   // Voz
   ['CONNECT', 16, 'voz', 'Conectar', 'Entrar nos canais de voz.', 'servidor'],
   ['SPEAK', 17, 'voz', 'Falar', 'Ligar o microfone no canal de voz.', 'servidor'],
@@ -125,7 +126,8 @@ export const ROLE_TEMPLATES: { name: string; color: string; permissions: bigint 
       P.VIEW_AUDIT_LOG |
       P.MANAGE_TICKETS |
       P.USE_ADMIN_TOOLS |
-      P.VIEW_BOT_LOGS,
+      P.VIEW_BOT_LOGS |
+      P.MANAGE_EMOJIS,
   },
   { name: 'VIP', color: '#fbbf24', permissions: DEFAULT_EVERYONE | P.MENTION_EVERYONE | P.PRIORITY_SPEAKER },
   { name: 'Membro', color: '#a78bfa', permissions: DEFAULT_EVERYONE },
@@ -211,7 +213,7 @@ export function channelPermissions(subject: Subject, roles: readonly RoleLike[],
 
 /** Permissões que só fazem sentido para o grupo todo; uma regra de canal não as concede nem as tira. */
 export const GROUP_WIDE: bigint =
-  P.ADMINISTRATOR | P.MANAGE_ROLES | P.MANAGE_GROUP | P.CREATE_INVITE | P.KICK_MEMBERS | P.BAN_MEMBERS | P.VIEW_AUDIT_LOG | P.INSTALL_BOTS | P.CONFIGURE_BOTS | P.MANAGE_AUTOMATIONS | P.VIEW_BOT_LOGS;
+  P.ADMINISTRATOR | P.MANAGE_ROLES | P.MANAGE_GROUP | P.CREATE_INVITE | P.KICK_MEMBERS | P.BAN_MEMBERS | P.VIEW_AUDIT_LOG | P.INSTALL_BOTS | P.CONFIGURE_BOTS | P.MANAGE_AUTOMATIONS | P.VIEW_BOT_LOGS | P.MANAGE_EMOJIS;
 
 /** Posição do cargo mais alto da pessoa. O dono fica acima de qualquer cargo. */
 export function topPosition(subject: Subject, roles: readonly RoleLike[]): number {

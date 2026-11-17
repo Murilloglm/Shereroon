@@ -211,3 +211,27 @@ describe('bots na lista de membros', () => {
     expect((await w.view(caio, groupId)).members.some((item: { bot?: boolean }) => item.bot)).toBe(true);
   });
 });
+
+describe('emojis do grupo', () => {
+  it('quem gerencia emojis envia e exclui; formato, tamanho e nome são conferidos', async () => {
+    const send = (who: Person, name: string, data: Uint8Array) => upload(`/api/groups/${groupId}/emojis?name=${name}`, who, data);
+    expect((await send(beto, 'festa', png(64, 64))).json.error.code).toBe('sem_permissao');
+    const created = (await send(dono, 'Festa', png(64, 64))).json.emoji;
+    expect(created).toMatchObject({ name: 'festa', animated: false });
+    expect((await w.view(beto, groupId)).emojis).toEqual([created]);
+    const image = await w.app.request(`/api/emojis/${created.id}`);
+    expect(image.status).toBe(200);
+    expect(image.headers.get('content-type')).toBe('image/png');
+    expect((await send(dono, 'festa', png(64, 64))).json.error.code).toBe('emoji_existente');
+    expect((await send(dono, 'x', png(64, 64))).json.error.code).toBe('nome_invalido');
+    expect((await send(dono, 'grande', png(300, 300))).json.error.code).toBe('dimensoes_invalidas');
+    expect((await send(dono, 'texto', new Uint8Array(Buffer.from('não é imagem nenhuma, só texto')))).json.error.code).toBe('imagem_invalida');
+    // Reação com o emoji do grupo vale; com um nome que o grupo não tem, não.
+    const message = (await w.ok('POST', `/api/channels/${geral}/messages`, dono.token, { content: 'olha :festa:' })).message;
+    expect((await w.ok('PUT', `/api/messages/${message.id}/reactions/${encodeURIComponent(':festa:')}`, beto.token)).message.reactions[0].emoji).toBe(':festa:');
+    expect(await code('PUT', `/api/messages/${message.id}/reactions/${encodeURIComponent(':inventado:')}`, beto)).toBe('emoji_invalido');
+    expect(await code('DELETE', `/api/emojis/${created.id}`, beto)).toBe('sem_permissao');
+    await w.ok('DELETE', `/api/emojis/${created.id}`, dono.token);
+    expect((await w.view(beto, groupId)).emojis).toEqual([]);
+  });
+});

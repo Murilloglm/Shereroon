@@ -6,10 +6,10 @@ import { UserTrigger } from '../social/UserInteractions.tsx';
 import { dialogs } from '../../lib/dialogs.ts';
 import { applyMention, insertAt, mentionQuery, splitMessage } from '../../lib/groups/text.ts';
 import { useStore } from '../../lib/store.ts';
-import { Avatar, Button, cx, IconButton, Menu, MenuItem, MenuLabel, Notice } from '../ui.tsx';
+import { Avatar, Button, cx, emojiUrl, IconButton, Menu, MenuItem, MenuLabel, MotionSafeImage, Notice } from '../ui.tsx';
 import { Attachments, formatBytes, kindOf } from './Attachments.tsx';
 import { errorText, memberName, nameColor, useAction } from './common.tsx';
-import { EmojiPicker, QUICK_EMOJIS } from './EmojiPicker.tsx';
+import { EmojiGlyph, EmojiPicker, QUICK_EMOJIS, type CustomEmoji } from './EmojiPicker.tsx';
 
 const MAX_ATTACHMENTS = 10;
 
@@ -42,7 +42,7 @@ interface Upload {
 }
 
 /** Texto da mensagem: links abrem fora, menções viram destaque e todo o resto é texto puro (nada de HTML). */
-function Content({ message, members, me }: { message: ChatMessage; members: Map<string, MemberView>; me: string }) {
+function Content({ message, members, me, emojis }: { message: ChatMessage; members: Map<string, MemberView>; me: string; emojis: readonly CustomEmoji[] }) {
   const pieces = useMemo(
     () =>
       splitMessage(message.content, {
@@ -52,9 +52,12 @@ function Content({ message, members, me }: { message: ChatMessage; members: Map<
           const member = members.get(username);
           return member ? { userId: member.userId, label: memberName(member) } : undefined;
         },
+        emoji: (name) => emojis.find((item) => item.name === name),
       }),
-    [message.content, message.mentionEveryone, message.mentions, members],
+    [message.content, message.mentionEveryone, message.mentions, members, emojis],
   );
+  // Mensagem só de emojis do grupo: eles aparecem maiores.
+  const onlyEmojis = pieces.length > 0 && pieces.every((piece) => piece.type === 'emoji' || (piece.type === 'texto' && !piece.text.trim()));
   if (!message.content) return null;
   return (
     <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap text-fog-100">
@@ -63,6 +66,8 @@ function Content({ message, members, me }: { message: ChatMessage; members: Map<
           <a key={index} href={piece.text} target="_blank" rel="noreferrer noopener" className="text-neon-300 underline decoration-neon-400/50 underline-offset-2 hover:text-neon-200">
             {piece.text}
           </a>
+        ) : piece.type === 'emoji' ? (
+          <MotionSafeImage key={index} src={emojiUrl(piece.id)} alt={`:${piece.name}:`} className={cx('inline-block object-contain align-[-0.3em]', onlyEmojis ? 'size-12' : 'size-6')} />
         ) : piece.type === 'mencao' ? (
           <mark key={index} className={cx('rounded px-1 font-semibold', piece.userId === me || piece.userId === null ? 'bg-brand-500/45 text-white' : 'bg-brand-500/20 text-brand-200')} data-testid="mention">
             {piece.text}
@@ -570,7 +575,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                       </form>
                     ) : (
                       <>
-                        <Content message={message} members={byUsername} me={me} />
+                        <Content message={message} members={byUsername} me={me} emojis={view.emojis ?? []} />
                         <Attachments files={message.attachments} />
                         {message.meta?.buttons && message.meta.buttons.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-2" data-testid="bot-buttons">
@@ -610,7 +615,9 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                                   data-testid="reaction"
                                   data-emoji={reaction.emoji}
                                 >
-                                  <span className="text-base leading-none">{reaction.emoji}</span>
+                                  <span className="flex size-5 items-center justify-center text-base leading-none">
+                                    <EmojiGlyph emoji={reaction.emoji} custom={view.emojis} size={16} />
+                                  </span>
                                   <span data-testid="reaction-count">{reaction.users.length}</span>
                                 </button>
                               );
@@ -677,7 +684,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                       )}
                     </div>
                   )}
-                  {picker?.id === message.id && <EmojiPicker className={cx('right-2', picker.up ? 'bottom-full mb-1' : 'top-full mt-1')} onPick={(emoji) => toggleReaction(message, emoji)} onClose={() => setPicker(null)} />}
+                  {picker?.id === message.id && <EmojiPicker className={cx('right-2', picker.up ? 'bottom-full mb-1' : 'top-full mt-1')} custom={view.emojis} onPick={(emoji) => toggleReaction(message, emoji)} onClose={() => setPicker(null)} />}
                 </li>
               </Fragment>
             );
@@ -789,6 +796,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                   {picker?.id === 'compositor' && (
                     <EmojiPicker
                       className="right-0 bottom-full mb-2"
+                      custom={view.emojis}
                       onClose={() => setPicker(null)}
                       onPick={(emoji) => {
                         const element = input.current;

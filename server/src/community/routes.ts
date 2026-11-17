@@ -394,6 +394,27 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
 
   app.get('/api/groups/:groupId/commands', async (c) => c.json({ commands: await bots.commandsFor(await who(c), id(c, 'groupId')) }));
 
+  // --- Emojis do grupo -------------------------------------------------------------------------------
+  app.post('/api/groups/:groupId/emojis', async (c) => {
+    const user = await who(c);
+    if (!limiter.take(`emoji:${user.id}`, 30, 60 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Muitos emojis enviados. Espere um pouco.');
+    return c.json({ emoji: await community.createEmoji(user, id(c, 'groupId'), c.req.query('name'), await bytes(c, 256 * 1024)) });
+  });
+  app.delete('/api/emojis/:emojiId', async (c) => {
+    await community.deleteEmoji(await who(c), id(c, 'emojiId'));
+    return c.json({ ok: true });
+  });
+  // Abre sem login, como as fotos de perfil: o id é aleatório.
+  app.get('/api/emojis/:emojiId', async (c) => {
+    const emoji = await community.readEmoji(id(c, 'emojiId'));
+    return c.body(emoji.data as Uint8Array<ArrayBuffer>, 200, {
+      'content-type': emoji.mime,
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+      'cache-control': 'public, max-age=31536000, immutable',
+    });
+  });
+
   // --- Moderação: painel de um membro ---------------------------------------------------------------
   app.get('/api/groups/:groupId/members/:userId/details', async (c) => c.json(await community.memberDetails(await who(c), id(c, 'groupId'), id(c, 'userId'))));
 

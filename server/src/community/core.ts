@@ -30,6 +30,7 @@ import { describeSfuError, sfuError } from '../sfu-errors.ts';
 import { cleanText, newId, type User } from './auth.ts';
 import type { Hub } from './hub.ts';
 import { Social } from './social.ts';
+import { imageInfo } from '../image-info.ts';
 
 export type ChannelKind = 'categoria' | 'texto' | 'voz';
 
@@ -751,10 +752,11 @@ export class Community {
       }));
 
     const top = topPosition(subject, snap.roles);
-    const [unread, notify, botRows] = await Promise.all([
+    const [unread, notify, botRows, emojis] = await Promise.all([
       this.#unread(user.id, [groupId]),
       this.#notify(user.id, groupId),
       this.#db.query('SELECT user_id, member_list FROM bot_installs WHERE group_id = $1', [groupId]),
+      this.#emojis(groupId),
     ]);
     // Como cada bot aparece na lista de membros (aparência escolhida pelos administradores).
     const botList = Object.fromEntries(botRows.map((row) => [String(row.user_id), String(row.member_list)]));
@@ -797,6 +799,7 @@ export class Community {
         ...(member.bot ? { botList: botList[member.userId] ?? 'categoria' } : {}),
       })),
       voice: Object.fromEntries(Object.entries(voice).filter(([channelId]) => visible.has(channelId))),
+      emojis,
     };
   }
 
@@ -1667,7 +1670,10 @@ export class Community {
 
   async react(user: User, messageId: string, emoji: string, on: boolean): Promise<Message> {
     const { message, ctx, perms } = await this.#messageCtx(user, messageId);
-    if (emoji.length > 40 || !EMOJI.test(emoji)) throw new ApiError(400, 'emoji_invalido', 'Escolha um emoji para reagir.');
+    // Emoji do sistema, ou :nome: de um emoji próprio deste grupo.
+    const custom = /^:([a-z0-9_]{2,32}):$/.exec(emoji);
+    const known = custom ? (await this.#db.query('SELECT 1 FROM group_emojis WHERE group_id = $1 AND name = $2', [ctx.snap.group.id, custom[1]])).length > 0 : false;
+    if (emoji.length > 40 || (!EMOJI.test(emoji) && !known)) throw new ApiError(400, 'emoji_invalido', 'Escolha um emoji para reagir.');
     if (on) {
       if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo.');
       this.#need(ctx, P.ADD_REACTIONS, perms);
@@ -1845,6 +1851,55 @@ export class Community {
       history,
       voice: this.hub.voiceOf(targetId)?.groupId === groupId ? this.hub.voiceOf(targetId)!.channelId : null,
     };
+  }
+
+  // --- Emojis do grupo --------------------------------------------------------------------
+
+  async #emojis(groupId: string) {
+    return (await this.#db.query('SELECT id, name, animated FROM group_emojis WHERE group_id = $1 ORDER BY name', [groupId])).map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      animated: row.animated === true,
+    }));
+  }
+
+  /** Emoji próprio do grupo. O formato real vem do arquivo: PNG, GIF ou WebP de até 256 KB e 256 px. */
+  async createEmoji(user: User, groupId: string, name: unknown, bytes: Uint8Array) {
+    const ctx = await this.#ctx(user, groupId);
+    this.#need(ctx, P.MANAGE_EMOJIS);
+    const clean = typeof name === 'string' ? name.trim().toLowerCase() : '';
+    if (!/^[a-z0-9_]{2,32}$/.test(clean)) throw new ApiError(400, 'nome_invalido', 'Use de 2 a 32 letras sem acento, números ou _ no nome do emoji.');
+    const info = imageInfo(bytes);
+    if (!info || info.mime === 'image/jpeg') throw new ApiError(400, 'imagem_invalida', 'Use uma imagem PNG, GIF ou WebP.');
+    if (bytes.length > 256 * 1024) throw new ApiError(413, 'imagem_grande', 'O emoji passa de 256 KB.');
+    if (info.width > 256 || info.height > 256 || info.width < 16 || info.height < 16) throw new ApiError(400, 'dimensoes_invalidas', 'O emoji deve ter de 16 a 256 pixels de lado.');
+    const [count] = await this.#db.query('SELECT count(*) AS total FROM group_emojis WHERE group_id = $1', [groupId]);
+    if (num(count?.total) >= 50) throw new ApiError(409, 'emojis_demais', 'Cada grupo tem no máximo 50 emojis próprios.');
+    const id = newId(12);
+    try {
+      await this.#db.query('INSERT INTO group_emojis (id, group_id, name, mime, animated, size, data, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [id, groupId, clean, info.mime, info.animated, bytes.length, bytes, user.id]);
+    } catch {
+      throw new ApiError(409, 'emoji_existente', `Já existe um emoji chamado :${clean}:.`);
+    }
+    await this.#audit(this.#db, ctx, 'emoji.criado', { kind: 'emoji', id, name: clean }, { animado: info.animated });
+    this.#changed(groupId);
+    return { id, name: clean, animated: info.animated };
+  }
+
+  async deleteEmoji(user: User, emojiId: string): Promise<void> {
+    const [row] = await this.#db.query('SELECT group_id, name FROM group_emojis WHERE id = $1', [emojiId]);
+    if (!row) throw new ApiError(404, 'emoji_inexistente', 'Emoji não encontrado.');
+    const ctx = await this.#ctx(user, String(row.group_id));
+    this.#need(ctx, P.MANAGE_EMOJIS);
+    await this.#db.query('DELETE FROM group_emojis WHERE id = $1', [emojiId]);
+    await this.#audit(this.#db, ctx, 'emoji.excluido', { kind: 'emoji', id: emojiId, name: String(row.name) });
+    this.#changed(String(row.group_id));
+  }
+
+  async readEmoji(emojiId: string): Promise<{ mime: string; data: Uint8Array }> {
+    const [row] = /^[A-Za-z0-9_-]{8,40}$/.test(emojiId) ? await this.#db.query('SELECT mime, data FROM group_emojis WHERE id = $1', [emojiId]) : [];
+    if (!row) throw new ApiError(404, 'emoji_inexistente', 'Emoji não encontrado.');
+    return { mime: String(row.mime), data: row.data as Uint8Array };
   }
 
   /** O perfil de alguém mudou (nome, foto): os grupos dessa pessoa recarregam a lista de membros. */

@@ -104,6 +104,8 @@ export interface GroupView {
   /** Por canal de texto: última mensagem, até onde esta conta leu e menções pendentes. */
   unread: Record<string, UnreadState>;
   notify: NotifySettings;
+  /** Emojis próprios do grupo. */
+  emojis?: { id: string; name: string; animated: boolean }[];
 }
 
 export interface ChatMessage {
@@ -177,6 +179,7 @@ function toView(raw: any): GroupView {
     voice: raw.voice ?? {},
     unread: raw.unread ?? {},
     notify: raw.notify ?? { level: 'tudo', channels: {} },
+    emojis: raw.emojis ?? [],
   };
 }
 

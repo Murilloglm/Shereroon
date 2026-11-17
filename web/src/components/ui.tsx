@@ -328,6 +328,47 @@ export const DEFAULT_AVATARS: [string, string][] = [
 
 const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
+/** Endereço público de um emoji do grupo. */
+export const emojiUrl = (id: string): string => `${API_BASE}/api/emojis/${id}`;
+
+export function reducedMotion(): boolean {
+  return prefersReducedMotion();
+}
+
+/**
+ * Imagem que pode ser animada (GIF, WebP animado). Com "reduzir movimento" ligado no sistema, aparece parada
+ * no primeiro quadro (desenhada numa tela), a não ser que `play` peça para tocar.
+ */
+export function MotionSafeImage({ src, alt, className, play = false }: { src: string; alt: string; className?: string; play?: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [still, setStill] = useState(false);
+  const reduce = prefersReducedMotion() && !play;
+  return (
+    <>
+      <img
+        src={src}
+        alt={alt}
+        className={cx(className, still && reduce && 'hidden')}
+        draggable={false}
+        crossOrigin={reduce ? 'anonymous' : undefined}
+        onLoad={(event) => {
+          if (!reduce || !canvasRef.current) return;
+          const image = event.currentTarget;
+          canvasRef.current.width = image.naturalWidth;
+          canvasRef.current.height = image.naturalHeight;
+          try {
+            canvasRef.current.getContext('2d')?.drawImage(image, 0, 0);
+            setStill(true);
+          } catch {
+            // sem permissão para desenhar: fica a imagem normal
+          }
+        }}
+      />
+      {reduce && <canvas ref={canvasRef} className={cx(className, !still && 'hidden')} role="img" aria-label={alt} />}
+    </>
+  );
+}
+
 /** Foto enviada. Com "reduzir movimento" ligado, um GIF animado aparece parado no primeiro quadro. */
 function AvatarImage({ src, alt }: { src: string; alt: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
