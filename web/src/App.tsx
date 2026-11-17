@@ -3,6 +3,7 @@ import { DialogHost } from './components/DialogHost.tsx';
 import { desktop } from './lib/desktop.ts';
 import { HomePage } from './components/HomePage.tsx';
 import { RoomGate } from './components/RoomGate.tsx';
+import { TitleBar } from './components/TitleBar.tsx';
 import { Backdrop } from './components/ui.tsx';
 
 // Os grupos só são baixados por quem abre os grupos: a página inicial e as salas por link ficam leves.
@@ -56,11 +57,12 @@ export function App() {
 
   return (
     <>
+      <TitleBar />
       <Backdrop />
       {route.page === 'sala' ? (
         <RoomGate key={route.invite} invite={route.invite} />
       ) : route.page === 'grupos' ? (
-        <Suspense fallback={<div className="flex min-h-dvh items-center justify-center text-fog-400">Carregando…</div>}>
+        <Suspense fallback={<div className="flex min-h-(--app-h) items-center justify-center text-fog-400">Carregando…</div>}>
           <GroupsPage groupId={route.groupId} channelId={route.channelId} invite={route.invite} dm={route.dm} />
         </Suspense>
       ) : (

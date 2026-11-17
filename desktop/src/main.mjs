@@ -407,6 +407,10 @@ function createWindow() {
     minWidth: 420,
     minHeight: 620,
     show: false,
+    // Sem a barra de título do Windows: a própria interface desenha o cabeçalho e os botões da janela. A
+    // moldura "grossa" do Windows continua (padrão), então redimensionar pelas bordas, encaixar nas laterais,
+    // maximizar só na área útil da tela, sombras e animações seguem nativos. O título continua para Alt+Tab.
+    frame: false,
     title: 'Cosmic Night',
     backgroundColor: '#0b0914',
     autoHideMenuBar: true,
@@ -440,6 +444,12 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
   });
+  // O cabeçalho da interface troca o ícone de maximizar/restaurar e apaga quando a janela perde o foco.
+  for (const name of ['maximize', 'unmaximize', 'restore', 'enter-full-screen', 'leave-full-screen', 'focus', 'blur']) {
+    win.on(name, () => {
+      if (win && !win.isDestroyed()) win.webContents.send('window:state', windowState());
+    });
+  }
 
   const contents = win.webContents;
   // A janela nunca sai da interface do aplicativo; links para fora abrem no navegador padrão.
@@ -469,7 +479,21 @@ function installPermissions(ses) {
   ses.setPermissionCheckHandler((_contents, permission, requestingOrigin) => fromApp(requestingOrigin) && ALLOWED_PERMISSIONS.has(permission));
 }
 
+const windowState = () => ({ maximized: Boolean(win?.isMaximized()), fullscreen: Boolean(win?.isFullScreen()), focused: Boolean(win?.isFocused()) });
+
 function installIpc() {
+  // Botões da janela desenhados pela interface. "Fechar" passa pelo mesmo caminho do X do Windows (numa
+  // sala, só esconde na bandeja).
+  ipcMain.handle('window:state', (event) => (trusted(event) ? windowState() : null));
+  ipcMain.handle('window:control', (event, action) => {
+    if (!trusted(event) || !win) return null;
+    if (action === 'minimize') win.minimize();
+    else if (action === 'maximize') {
+      if (win.isMaximized()) win.unmaximize();
+      else win.maximize();
+    } else if (action === 'close') win.close();
+    return windowState();
+  });
   ipcMain.on('desktop:config', (event) => {
     event.returnValue = trusted(event)
       ? { ...config, helperPort: process.platform === 'win32' && existsSync(HELPER_EXE) ? helperPort : null, version: app.getVersion(), packaged: app.isPackaged }

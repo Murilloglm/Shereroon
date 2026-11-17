@@ -877,7 +877,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
 
   return (
     <UserInteractions view={dm ? null : current} voice={voice ? { channelId: voice.channelId, session: voice.session } : null}>
-    <div className="flex h-dvh overflow-hidden p-2 sm:p-2.5" data-testid="groups" data-live={live}>
+    <div className="flex h-(--app-h) overflow-hidden p-2 sm:p-2.5" data-testid="groups" data-live={live}>
       {showList && (
         <>
           <nav className="cn-panel flex w-[4.5rem] shrink-0 flex-col items-center gap-2 py-2.5" aria-label="Seus grupos" data-testid="group-rail">
@@ -1060,9 +1060,9 @@ export function GroupsPage({ groupId, channelId, invite, dm }: { groupId?: strin
 
   return (
     <>
-      {status === 'verificando' && <div className="flex min-h-dvh items-center justify-center text-fog-400">Conectando ao servidor…</div>}
+      {status === 'verificando' && <div className="flex min-h-(--app-h) items-center justify-center text-fog-400">Conectando ao servidor…</div>}
       {status === 'indisponivel' && (
-        <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-5">
+        <div className="mx-auto flex min-h-(--app-h) max-w-md flex-col justify-center gap-4 px-5">
           <Logo />
           <Notice tone="aviso" data-testid="groups-unavailable">
             Os grupos não estão disponíveis neste servidor agora. Eles precisam de um banco de dados configurado no backend. As salas por link continuam funcionando.

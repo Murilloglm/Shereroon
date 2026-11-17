@@ -72,6 +72,12 @@ export interface AutostartState {
   supported: boolean;
 }
 
+export interface WindowState {
+  maximized: boolean;
+  fullscreen: boolean;
+  focused: boolean;
+}
+
 export interface DesktopBridge {
   config: {
     apiUrl: string;
@@ -90,6 +96,14 @@ export interface DesktopBridge {
   autostart?: {
     get(): Promise<AutostartState | null>;
     set(state: { enabled: boolean; minimized: boolean }): Promise<AutostartState | null>;
+  };
+  /** Janela sem a barra do Windows (não existe em versões antigas do aplicativo, que têm a moldura padrão). */
+  window?: {
+    state(): Promise<WindowState | null>;
+    minimize(): Promise<WindowState | null>;
+    toggleMaximize(): Promise<WindowState | null>;
+    close(): Promise<WindowState | null>;
+    onState(listener: (state: WindowState) => void): () => void;
   };
   /** Convites abertos por link cosmicnight:// (não existe em versões antigas do aplicativo). */
   links?: {

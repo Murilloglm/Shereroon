@@ -30,7 +30,7 @@ export function AuthPage({ invite }: { invite?: string }) {
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-10">
+    <div className="mx-auto flex min-h-(--app-h) max-w-md flex-col justify-center px-5 py-10">
       <button type="button" className="mb-8 self-start" onClick={() => navigate('#/')} aria-label="Voltar para o início">
         <Logo />
       </button>

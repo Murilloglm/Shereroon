@@ -108,7 +108,7 @@ export function RoomGate({ invite }: { invite: string }) {
   const ended = phase === 'ended' && endReason ? END_MESSAGES[endReason] : null;
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-5 pb-16">
+    <div className="mx-auto flex min-h-(--app-h) max-w-lg flex-col px-5 pb-16">
       <header className="flex items-center justify-between py-6">
         <button type="button" onClick={() => navigate('#/')} className="rounded-lg" aria-label="Voltar ao início">
           <Logo />

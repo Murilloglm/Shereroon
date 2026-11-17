@@ -82,12 +82,57 @@ test('a interface roda de dentro do aplicativo, isolada do sistema', { skip }, a
     secure: window.isSecureContext,
   }));
   assert.equal(facts.node, false, 'a página não tem acesso ao Node');
-  assert.deepEqual(facts.bridge, ['autostart', 'chooseSource', 'config', 'links', 'listSources', 'onCommand', 'setState', 'update']);
+  assert.deepEqual(facts.bridge, ['autostart', 'chooseSource', 'config', 'links', 'listSources', 'onCommand', 'setState', 'update', 'window']);
   assert.equal(facts.config.apiUrl, BASE_URL);
   assert.equal(facts.config.siteUrl, SITE);
   assert.ok(facts.config.helperPort > 1023, `componente de áudio numa porta local: ${facts.config.helperPort}`);
   assert.equal(facts.secure, true);
   assert.equal(await hook('helperRunning'), true, 'o componente de áudio subiu junto com o aplicativo');
+});
+
+test('janela sem a moldura do Windows: o cabeçalho próprio arrasta; os botões minimizam, maximizam na área útil e restauram', { skip }, async () => {
+  const bar = page.getByTestId('titlebar');
+  await bar.waitFor();
+  const region = (testId) => page.getByTestId(testId).evaluate((element) => getComputedStyle(element).getPropertyValue('-webkit-app-region'));
+  assert.equal(await region('titlebar'), 'drag', 'a faixa arrasta a janela');
+  for (const button of ['window-minimize', 'window-maximize', 'window-close']) assert.equal(await region(button), 'no-drag', `${button} é clicável`);
+  const frame = await main(() => {
+    const win = globalThis.__shareroom.window();
+    const [outer, inner] = [win.getBounds(), win.getContentBounds()];
+    return { frameless: outer.width === inner.width && outer.height === inner.height, resizable: win.isResizable(), movable: win.isMovable(), title: win.getTitle() };
+  });
+  assert.deepEqual(frame, { frameless: true, resizable: true, movable: true, title: 'Cosmic Night' });
+  // O conteúdo começa logo abaixo do cabeçalho, sem ficar escondido atrás dele.
+  assert.equal(await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById('root')).paddingTop)), 32);
+
+  await page.getByTestId('window-maximize').click();
+  await waitFor(() => main(() => globalThis.__shareroom.window().isMaximized()), 'maximizar');
+  await waitFor(async () => (await page.getByTestId('window-maximize').getAttribute('aria-label')) === 'Restaurar', 'o botão virar "Restaurar"');
+  const fit = await main(({ screen }) => {
+    const win = globalThis.__shareroom.window();
+    return { bounds: win.getBounds(), area: screen.getDisplayMatching(win.getBounds()).workArea };
+  });
+  // Maximizada, ocupa a área útil da tela em que está, sem cobrir a barra de tarefas (o Windows pode deixar
+  // alguns pixels da moldura invisível para fora da área).
+  assert.ok(fit.bounds.y + fit.bounds.height <= fit.area.y + fit.area.height + 8, `não cobre a barra de tarefas: ${JSON.stringify(fit)}`);
+  assert.ok(fit.bounds.width >= fit.area.width - 2 && fit.bounds.height >= fit.area.height - 2, `ocupa a área útil: ${JSON.stringify(fit)}`);
+
+  await page.getByTestId('window-maximize').click();
+  await waitFor(() => main(() => !globalThis.__shareroom.window().isMaximized()), 'restaurar');
+
+  await page.getByTestId('window-minimize').click();
+  await waitFor(() => main(() => globalThis.__shareroom.window().isMinimized()), 'minimizar');
+  await main(() => globalThis.__shareroom.window().restore());
+  await waitFor(() => main(() => !globalThis.__shareroom.window().isMinimized()), 'voltar da barra de tarefas');
+
+  // Redimensionar continua livre (respeitando o tamanho mínimo).
+  const size = await main(() => {
+    const win = globalThis.__shareroom.window();
+    win.setSize(1100, 760);
+    return win.getSize();
+  });
+  assert.deepEqual(size, [1100, 760]);
+  await main(() => globalThis.__shareroom.window().setSize(1520, 940));
 });
 
 test('criar sala: o convite aponta para o site público, que abre em qualquer navegador', { skip }, async () => {

@@ -28,6 +28,15 @@ contextBridge.exposeInMainWorld('shareroomDesktop', {
     set: (state) => ipcRenderer.invoke('autostart:set', { enabled: state?.enabled === true, minimized: state?.minimized === true }),
   },
 
+  /** Janela sem a barra do Windows: os botões ficam no cabeçalho da interface. */
+  window: {
+    state: () => ipcRenderer.invoke('window:state'),
+    minimize: () => ipcRenderer.invoke('window:control', 'minimize'),
+    toggleMaximize: () => ipcRenderer.invoke('window:control', 'maximize'),
+    close: () => ipcRenderer.invoke('window:control', 'close'),
+    onState: (listener) => subscribe('window:state', listener),
+  },
+
   /** Convites abertos por um link cosmicnight://. `take` devolve o pendente (uma vez só). */
   links: {
     take: () => ipcRenderer.invoke('desktop:take-link'),

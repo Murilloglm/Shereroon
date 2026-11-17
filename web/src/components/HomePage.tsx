@@ -80,7 +80,7 @@ export function HomePage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-6xl flex-col px-5 pb-16 sm:px-8">
+    <div className="mx-auto flex min-h-(--app-h) max-w-6xl flex-col px-5 pb-16 sm:px-8">
       <header className="flex items-center justify-between py-6">
         <Logo />
         <div className="flex items-center gap-3">

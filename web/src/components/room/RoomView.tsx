@@ -137,7 +137,7 @@ export function RoomView({
   );
 
   return (
-    <div className={cx('flex flex-col', embedded ? 'h-full min-h-0 overflow-y-auto lg:overflow-hidden' : desktop ? 'h-dvh overflow-hidden' : 'min-h-dvh')} data-testid="room">
+    <div className={cx('flex flex-col', embedded ? 'h-full min-h-0 overflow-y-auto lg:overflow-hidden' : desktop ? 'h-(--app-h) overflow-hidden' : 'min-h-(--app-h)')} data-testid="room">
       {!cinema && <Header session={session} onLeave={onLeave} embedded={embedded} />}
 
       {phase === 'reconnecting' && (

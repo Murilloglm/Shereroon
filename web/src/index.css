@@ -92,6 +92,21 @@
     height: 100%;
   }
 
+  /* Altura útil: a tela inteira no site; no aplicativo de Windows, menos o cabeçalho da janela (TitleBar). */
+  :root {
+    --titlebar-h: 0px;
+    --app-h: calc(100dvh - var(--titlebar-h));
+  }
+
+  :root[data-titlebar='on'] {
+    --titlebar-h: 32px;
+  }
+
+  #root {
+    box-sizing: border-box;
+    padding-top: var(--titlebar-h);
+  }
+
   body {
     margin: 0;
     background: var(--color-ink-900);
