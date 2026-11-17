@@ -1,6 +1,7 @@
 import { Copy, Crown, Eye, EyeOff, KeyRound, Link2, Lock, LockOpen, MicOff, Monitor, UserPlus, Users, UserX } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { copyText } from '../../lib/format.ts';
+import { dialogs } from '../../lib/dialogs.ts';
 import { inviteLink } from '../../lib/invite-access.ts';
 import type { ParticipantView, RoomSession } from '../../lib/session.ts';
 import { storage } from '../../lib/storage.ts';
@@ -106,7 +107,13 @@ export function RoomCard({ session, invite, className }: { session: RoomSession;
             size="sm"
             className="justify-start text-live-300 hover:bg-live-500/10 hover:text-live-300"
             onClick={() => {
-              if (window.confirm('Encerrar a sala para todos? Quem estiver assistindo será desconectado.')) void session.closeRoom();
+              void dialogs.confirm({
+                title: 'Encerrar a sala para todos?',
+                message: 'Quem estiver na sala é desconectado e o link deixa de funcionar.',
+                confirmLabel: 'Encerrar a sala',
+                tone: 'perigo',
+                action: () => session.closeRoom(),
+              });
             }}
           >
             Encerrar a sala para todos
@@ -186,9 +193,13 @@ export function ParticipantsCard({
                 data-testid="kick"
                 className="size-8 text-live-300 opacity-0 group-hover:opacity-100 hover:bg-live-500/15 hover:text-live-300 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                 onClick={() => {
-                  if (window.confirm(`Expulsar ${person.name} da sala? A pessoa não consegue voltar com a mesma sessão.`)) {
-                    void session.kick(person.identity);
-                  }
+                  void dialogs.confirm({
+                    title: `Expulsar ${person.name} da sala?`,
+                    message: 'A pessoa é desconectada e não consegue voltar com a mesma sessão.',
+                    confirmLabel: 'Expulsar',
+                    tone: 'perigo',
+                    action: () => session.kick(person.identity),
+                  });
                 }}
               >
                 <UserX className="size-4" />

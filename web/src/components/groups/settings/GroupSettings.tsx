@@ -5,6 +5,7 @@ import { navigate } from '../../../App.tsx';
 import { desktop } from '../../../lib/desktop.ts';
 import { copyText } from '../../../lib/format.ts';
 import { groups, type GroupView } from '../../../lib/groups/client.ts';
+import { dialogs } from '../../../lib/dialogs.ts';
 import { Button, cx, Modal, Notice, TextInput, Toggle } from '../../ui.tsx';
 import { can, fieldLabel, fileToIcon, GroupIcon, memberName, selectClass, useAction, when } from '../common.tsx';
 import { BotsTab } from './BotsTab.tsx';
@@ -132,8 +133,13 @@ function Overview({ view, onClose }: { view: GroupView; onClose: () => void }) {
               <Button
                 disabled={!heir || busy}
                 onClick={() =>
-                  window.confirm('Passar o grupo? Você deixa de ser o dono e não dá para desfazer sozinho.') &&
-                  void run(() => groups.change('POST', `/api/groups/${group.id}/transfer`, { userId: heir }))
+                  void dialogs.confirm({
+                    title: 'Passar o grupo?',
+                    message: 'Você deixa de ser o dono e não dá para desfazer sozinho.',
+                    confirmLabel: 'Passar o grupo',
+                    tone: 'perigo',
+                    action: () => groups.change('POST', `/api/groups/${group.id}/transfer`, { userId: heir }),
+                  })
                 }
               >
                 Passar o grupo
@@ -144,10 +150,17 @@ function Overview({ view, onClose }: { view: GroupView; onClose: () => void }) {
               className="w-fit"
               disabled={busy}
               data-testid="group-delete"
-              onClick={() => {
-                if (window.prompt(`Excluir o grupo apaga canais, mensagens e cargos, para todos, e não tem volta.\nDigite o nome do grupo (${group.name}) para confirmar:`) !== group.name) return;
-                void run(() => groups.call('DELETE', `/api/groups/${group.id}`)).then((done) => done && (void groups.refreshGroups(), gone()));
-              }}
+              onClick={() =>
+                void dialogs
+                  .remove({
+                    title: 'Excluir o grupo?',
+                    item: group.name,
+                    message: 'Canais, mensagens e cargos são apagados para todos. Não tem volta.',
+                    irreversible: true,
+                    action: () => groups.call('DELETE', `/api/groups/${group.id}`),
+                  })
+                  .then((done) => done && (void groups.refreshGroups(), gone()))
+              }
             >
               <Trash2 className="size-4" aria-hidden="true" />
               Excluir o grupo
@@ -159,7 +172,17 @@ function Overview({ view, onClose }: { view: GroupView; onClose: () => void }) {
             className="w-fit"
             disabled={busy}
             data-testid="group-leave"
-            onClick={() => window.confirm(`Sair de “${group.name}”?`) && void run(() => groups.call('POST', `/api/groups/${group.id}/leave`)).then((done) => done && (void groups.refreshGroups(), gone()))}
+            onClick={() =>
+              void dialogs
+                .confirm({
+                  title: `Sair de “${group.name}”?`,
+                  message: 'Para voltar você vai precisar de um novo convite (ou de o grupo ser público).',
+                  confirmLabel: 'Sair do grupo',
+                  tone: 'perigo',
+                  action: () => groups.call('POST', `/api/groups/${group.id}/leave`),
+                })
+                .then((done) => done && (void groups.refreshGroups(), gone()))
+            }
           >
             Sair do grupo
           </Button>

@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, FolderClosed, Hash, Lock, Plus, ShieldCheck, Tr
 import { useEffect, useState } from 'react';
 import { AREA_NAMES, GROUP_WIDE, has, P, PERMISSIONS, type PermissionArea } from '../../../../../shared/permissions.ts';
 import { groups, type ChannelKind, type ChannelView, type GroupView } from '../../../lib/groups/client.ts';
+import { dialogs } from '../../../lib/dialogs.ts';
 import { Button, cx, IconButton, Modal, Notice, TextInput } from '../../ui.tsx';
 import { can, fieldLabel, memberName, selectClass, useAction } from '../common.tsx';
 
@@ -347,8 +348,17 @@ function ChannelRow({ view, channel, siblings, onPermissions }: { view: GroupVie
           disabled={busy}
           data-testid="channel-delete"
           onClick={() =>
-            window.confirm(channel.kind === 'texto' ? `Excluir #${channel.name}? As mensagens dele são apagadas.` : `Excluir “${channel.name}”?`) &&
-            void run(() => groups.change('DELETE', `/api/channels/${channel.id}`))
+            void dialogs.remove({
+              title: channel.kind === 'categoria' ? 'Excluir a categoria?' : 'Excluir o canal?',
+              item: channel.kind === 'texto' ? `#${channel.name}` : channel.name,
+              message:
+                channel.kind === 'texto'
+                  ? 'Todas as mensagens dele são apagadas, para todos.'
+                  : channel.kind === 'categoria'
+                    ? 'Os canais dentro dela ficam sem categoria.'
+                    : 'Quem estiver nele é desconectado.',
+              action: () => groups.change('DELETE', `/api/channels/${channel.id}`),
+            })
           }
         >
           <Trash2 className="size-4" />

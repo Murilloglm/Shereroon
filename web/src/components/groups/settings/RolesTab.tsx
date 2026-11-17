@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Copy, GripVertical, Plus, Trash2 } from 'lucide
 import { useEffect, useState } from 'react';
 import { AREA_NAMES, has, PERMISSIONS, ROLE_TEMPLATES, type PermissionArea, type PermissionInfo } from '../../../../../shared/permissions.ts';
 import { groups, type GroupView, type RoleView } from '../../../lib/groups/client.ts';
+import { dialogs } from '../../../lib/dialogs.ts';
 import { Button, cx, IconButton, Menu, MenuItem, MenuLabel, Notice, TextInput, Toggle } from '../../ui.tsx';
 import { fieldLabel, useAction } from '../common.tsx';
 
@@ -153,8 +154,12 @@ function RoleEditor({ view, role, manageable }: { view: GroupView; role: RoleVie
                 disabled={busy}
                 data-testid="role-delete"
                 onClick={() =>
-                  window.confirm(`Excluir o cargo “${role.name}”? ${role.memberCount} ${role.memberCount === 1 ? 'membro perde' : 'membros perdem'} este cargo.`) &&
-                  void run(() => groups.change('DELETE', `/api/roles/${role.id}`))
+                  void dialogs.remove({
+                    title: 'Excluir o cargo?',
+                    item: role.name,
+                    message: `${role.memberCount} ${role.memberCount === 1 ? 'membro perde' : 'membros perdem'} este cargo e as permissões dele.`,
+                    action: () => groups.change('DELETE', `/api/roles/${role.id}`),
+                  })
                 }
               >
                 <Trash2 className="size-4" aria-hidden="true" />

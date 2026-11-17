@@ -237,4 +237,198 @@
     border: 0;
     background: #000;
   }
+
+  /* Diálogos (confirmar, excluir, aviso, erro, entrada): paleta própria pedida para as janelas do app. */
+  .cn-dialog-backdrop {
+    background: rgb(3 4 8 / 0.74);
+    backdrop-filter: blur(6px);
+    animation: cn-dialog-fade 180ms ease-out both;
+  }
+  .cn-dialog-backdrop[data-closing] {
+    animation: cn-dialog-fade-out 150ms ease-in both;
+  }
+  .cn-dialog {
+    --dlg-bg: #0d1118;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    color: #f4f8ff;
+    background:
+      linear-gradient(var(--dlg-bg), var(--dlg-bg)) padding-box,
+      linear-gradient(125deg, #74d7ff 0%, #6c4dff 55%, #4b348e 100%) border-box;
+    box-shadow:
+      0 0 34px -12px rgb(116 215 255 / 0.5),
+      0 0 52px -18px rgb(108 77 255 / 0.65),
+      0 30px 80px -30px rgb(0 0 0 / 0.95);
+    animation: cn-dialog-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .cn-dialog[data-closing] {
+    animation: cn-dialog-out 150ms ease-in both;
+  }
+  .cn-dialog-head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    overflow: hidden;
+    border-radius: 15px 15px 0 0;
+    padding: 12px 12px 12px 20px;
+    background: linear-gradient(180deg, #07090d 0%, #0d1118 100%);
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(90deg, rgb(116 215 255 / 0.6), rgb(108 77 255 / 0.6), rgb(75 52 142 / 0.4)) 1;
+  }
+  .cn-dialog-sky {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .cn-dialog-x {
+    position: relative;
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    color: #74d7ff;
+    transition: background-color 150ms, color 150ms;
+  }
+  .cn-dialog-x:hover:not(:disabled) {
+    background: rgb(116 215 255 / 0.12);
+    color: #f4f8ff;
+  }
+  .cn-dialog-x:focus-visible,
+  .cn-dialog-btn:focus-visible,
+  .cn-dialog-input:focus-visible {
+    outline: 2px solid #74d7ff;
+    outline-offset: 2px;
+  }
+  .cn-dialog-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    border: 1px solid rgb(116 215 255 / 0.35);
+    background: rgb(116 215 255 / 0.1);
+    color: #74d7ff;
+  }
+  .cn-dialog-icon[data-tone='perigo'] {
+    border-color: rgb(255 92 133 / 0.45);
+    background: rgb(255 92 133 / 0.12);
+    color: #ff8aa6;
+  }
+  .cn-dialog-icon[data-tone='aviso'] {
+    border-color: rgb(255 198 92 / 0.45);
+    background: rgb(255 198 92 / 0.1);
+    color: #ffc65c;
+  }
+  .cn-dialog-icon[data-tone='ok'] {
+    border-color: rgb(69 226 131 / 0.45);
+    background: rgb(69 226 131 / 0.1);
+    color: #45e283;
+  }
+  .cn-dialog-item {
+    color: #74d7ff;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+  .cn-dialog-input {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid #2a2f45;
+    background: #07090d;
+    padding: 10px 12px;
+    color: #f4f8ff;
+    font-size: 15px;
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  .cn-dialog-input:focus {
+    border-color: #74d7ff;
+    box-shadow: 0 0 0 3px rgb(116 215 255 / 0.18);
+  }
+  .cn-dialog-input[aria-invalid='true'] {
+    border-color: #ff5c85;
+  }
+  .cn-dialog-btn {
+    display: inline-flex;
+    min-height: 44px;
+    min-width: 120px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 12px;
+    padding: 0 20px;
+    font-size: 15px;
+    font-weight: 800;
+    transition: filter 150ms, box-shadow 150ms, border-color 150ms, opacity 150ms;
+  }
+  .cn-dialog-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .cn-dialog-primary {
+    color: #ffffff;
+    border: 1px solid rgb(116 215 255 / 0.75);
+    background: linear-gradient(100deg, #2f6bff 0%, #6c4dff 100%);
+    box-shadow: 0 0 18px -6px rgb(116 215 255 / 0.8);
+  }
+  .cn-dialog-primary:hover:not(:disabled) {
+    filter: brightness(1.12);
+    box-shadow: 0 0 24px -4px rgb(116 215 255 / 0.85);
+  }
+  .cn-dialog-danger {
+    color: #ffffff;
+    border: 1px solid rgb(255 138 166 / 0.7);
+    background: linear-gradient(180deg, #e23a66 0%, #b82650 100%);
+    box-shadow: 0 0 18px -6px rgb(255 92 133 / 0.8);
+  }
+  .cn-dialog-danger:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+  .cn-dialog-secondary {
+    color: #f4f8ff;
+    border: 1px solid #4b348e;
+    background: rgb(75 52 142 / 0.14);
+  }
+  .cn-dialog-secondary:hover:not(:disabled) {
+    border-color: #6c4dff;
+    background: rgb(108 77 255 / 0.18);
+  }
+  @keyframes cn-dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes cn-dialog-out {
+    to {
+      opacity: 0;
+      transform: translateY(6px) scale(0.97);
+    }
+  }
+  @keyframes cn-dialog-fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes cn-dialog-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cn-dialog,
+    .cn-dialog-backdrop {
+      animation: none !important;
+    }
+  }
 }

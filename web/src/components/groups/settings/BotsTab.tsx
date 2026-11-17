@@ -2,6 +2,7 @@ import { Bot, ChevronDown, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { P } from '../../../../../shared/permissions.ts';
 import { groups, type GroupView } from '../../../lib/groups/client.ts';
+import { dialogs } from '../../../lib/dialogs.ts';
 import { Button, Card, cx, Notice, TextInput, Toggle } from '../../ui.tsx';
 import { can, fieldLabel, selectClass, useAction } from '../common.tsx';
 
@@ -199,7 +200,15 @@ function InstalledBot({ view, bot, install, onChanged }: { view: GroupView; bot:
                 size="sm"
                 className="text-live-300"
                 disabled={busy}
-                onClick={() => window.confirm(`Remover o bot ${bot.name} do grupo? As configurações e os dados dele neste grupo são apagados.`) && void run(async () => (await groups.change('DELETE', path), onChanged()))}
+                onClick={() =>
+                  void dialogs.remove({
+                    title: 'Remover o bot do grupo?',
+                    item: bot.name,
+                    message: 'As configurações e os dados dele neste grupo são apagados.',
+                    confirmLabel: 'Remover',
+                    action: async () => (await groups.change('DELETE', path), onChanged()),
+                  })
+                }
                 data-testid="bot-remove"
               >
                 <Trash2 className="size-4" aria-hidden="true" /> Remover do grupo

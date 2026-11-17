@@ -2,6 +2,7 @@ import { Check, Clock, Crown, Eye, Gavel, UserX, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { AREA_NAMES, has, P, PERMISSIONS, type PermissionArea } from '../../../../../shared/permissions.ts';
 import { groups, type GroupView, type MemberView } from '../../../lib/groups/client.ts';
+import { dialogs } from '../../../lib/dialogs.ts';
 import { Avatar, Button, cx, IconButton, Menu, MenuItem, MenuLabel, Modal, Notice, TextInput } from '../../ui.tsx';
 import { can, memberName, nameColor, selectClass, useAction } from '../common.tsx';
 
@@ -182,7 +183,16 @@ export function MembersTab({ view }: { view: GroupView }) {
                           <MenuItem
                             icon={<UserX className="size-4" />}
                             data-testid="member-kick"
-                            onClick={() => (close(), window.confirm(`Expulsar ${memberName(member)}? A pessoa pode voltar com um convite.`) && void run(() => groups.change('POST', path(member, '/kick'), {})))}
+                            onClick={() => {
+                              close();
+                              void dialogs.confirm({
+                                title: `Expulsar ${memberName(member)}?`,
+                                message: 'A pessoa sai do grupo agora e pode voltar com um convite.',
+                                confirmLabel: 'Expulsar',
+                                tone: 'perigo',
+                                action: () => groups.change('POST', path(member, '/kick'), {}),
+                              });
+                            }}
                           >
                             Expulsar do grupo
                           </MenuItem>
@@ -194,8 +204,15 @@ export function MembersTab({ view }: { view: GroupView }) {
                           data-testid="member-ban"
                           onClick={() => {
                             close();
-                            const reason = window.prompt(`Banir ${memberName(member)}? A pessoa não volta nem com convite. Motivo (opcional):`, '');
-                            if (reason !== null) void run(() => groups.change('POST', path(member, '/ban'), { reason }));
+                            void dialogs.prompt({
+                              title: `Banir ${memberName(member)}?`,
+                              message: 'A pessoa sai do grupo e não volta nem com convite, até alguém desfazer o banimento.',
+                              label: 'Motivo (opcional, aparece na auditoria)',
+                              maxLength: 300,
+                              confirmLabel: 'Banir',
+                              tone: 'perigo',
+                              action: (reason) => groups.change('POST', path(member, '/ban'), { reason }),
+                            });
                           }}
                         >
                           Banir do grupo

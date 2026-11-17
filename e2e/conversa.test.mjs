@@ -317,8 +317,8 @@ test('bots: a dona instala um bot da biblioteca, ele entra como membro, e ela de
   await waitFor(async () => (await installed.getByTestId('bot-status').getAttribute('data-state')) === 'desativado', 'o bot ser desligado');
 
   await installed.getByTestId('bot-configure').click();
-  ana.once('dialog', (dialog) => dialog.accept());
   await installed.getByTestId('bot-remove').click();
+  await ana.getByTestId('dialog-confirm').click();
   await waitFor(async () => (await ana.getByTestId('installed-bot').count()) === 0, 'o bot sair da lista de instalados');
   await waitFor(async () => (await beto.getByTestId('member').count()) === 2, 'o bot sair da lista de membros');
   // O Beto não tem permissão de bots: a aba nem aparece para ele.

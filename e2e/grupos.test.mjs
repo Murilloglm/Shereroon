@@ -105,8 +105,8 @@ test('chat em tempo real: enviar, editar e apagar; a dona apaga a mensagem de ou
   assert.equal(await received.getByTestId('chat-delete').count(), 0);
   // A dona apaga a do Beto, e ela some para os dois.
   await reply.hover();
-  ana.once('dialog', (dialog) => dialog.accept());
   await reply.getByTestId('chat-delete').click();
+  await ana.getByTestId('dialog-confirm').click();
   await waitFor(async () => (await beto.getByTestId('chat-message').filter({ hasText: 'oi, Ana!' }).count()) === 0, 'a mensagem apagada sumir para o Beto');
 
   // Conteúdo com marcação não vira HTML.
@@ -250,8 +250,9 @@ test('auditoria registra quem fez o quê; expulsar tira a pessoa do grupo na hor
 
   await ana.getByTestId('settings-tab-membros').click();
   await ana.getByTestId('member-row').and(ana.locator('[data-user="beto"]')).getByTestId('member-punish').click();
-  ana.once('dialog', (dialog) => dialog.accept());
   await ana.getByTestId('member-kick').click();
+  assert.match(await ana.getByTestId('dialog-title').textContent(), /Expulsar/);
+  await ana.getByTestId('dialog-confirm').click();
   await waitFor(async () => (await ana.getByTestId('member-row').count()) === 1, 'o Beto sair da lista de membros');
   await closeDialog(ana, /Configurações de/);
 
@@ -265,7 +266,13 @@ test('auditoria registra quem fez o quê; expulsar tira a pessoa do grupo na hor
 
 test('sair da conta encerra a sessão; senha errada não entra', async () => {
   await beto.getByTestId('account-menu').click();
+  // Cancelar não sai da conta; confirmar sai.
   await beto.getByTestId('account-logout').click();
+  await beto.getByTestId('dialog-cancel').click();
+  await waitFor(async () => (await beto.getByTestId('dialog').count()) === 0, 'o diálogo fechar');
+  assert.notEqual(await beto.evaluate(() => localStorage.getItem('shareroom:conta')), null);
+  await beto.getByTestId('account-logout').click();
+  await beto.getByTestId('dialog-confirm').click();
   await beto.getByTestId('auth-submit').waitFor();
   assert.equal(await beto.evaluate(() => localStorage.getItem('shareroom:conta')), null);
   await beto.getByTestId('auth-tab-entrar').click();

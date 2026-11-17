@@ -24,6 +24,7 @@ import { desktop } from '../../lib/desktop.ts';
 import { MIC_KEY, type NoiseControl } from '../../lib/noise-control.ts';
 import type { RoomSession } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
+import { dialogs } from '../../lib/dialogs.ts';
 import { Button, Card, cx, IconButton, LevelMeter, Menu, MenuItem, MenuLabel, Notice, Slider, Toggle } from '../ui.tsx';
 import { NoiseButton } from './NoiseModal.tsx';
 
@@ -271,10 +272,18 @@ export function MixerPanel({
   const helperMs = Math.max(0, ...mixer.helper.levels.bufferMs.values());
   const captureMs = Math.max(0, ...mixer.helper.levels.captureMs.values());
 
-  const saveProfile = () => {
-    const name = window.prompt('Nome do perfil de áudio (por exemplo: “Jogar com call”):', activeProfile ?? '');
-    if (name?.trim()) mixer.saveProfile(name);
-  };
+  const saveProfile = () =>
+    void dialogs.prompt({
+      title: 'Salvar perfil de áudio',
+      message: 'Guarda quais aplicativos estão ligados e o volume de cada um.',
+      label: 'Nome do perfil',
+      placeholder: 'Por exemplo: Jogar com call',
+      defaultValue: activeProfile ?? '',
+      required: true,
+      maxLength: 40,
+      confirmLabel: 'Salvar',
+      action: (name) => mixer.saveProfile(name),
+    });
 
   return (
     <Card className={cx('flex min-h-0 flex-col border-brand-400/60 shadow-glow', className)} data-testid="mixer-panel" data-phase={phase}>
@@ -352,7 +361,9 @@ export function MixerPanel({
                       disabled={!activeProfile}
                       onClick={() => {
                         close();
-                        if (activeProfile && window.confirm(`Excluir o perfil “${activeProfile}”?`)) mixer.deleteProfile(activeProfile);
+                        if (activeProfile) {
+                          void dialogs.remove({ title: 'Excluir o perfil de áudio?', item: activeProfile, action: () => mixer.deleteProfile(activeProfile) });
+                        }
                       }}
                     >
                       Excluir o perfil atual

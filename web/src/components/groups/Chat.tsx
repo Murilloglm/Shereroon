@@ -2,6 +2,7 @@ import { Bell, BellOff, CornerUpLeft, Hash, Lock, Pencil, Pin, PinOff, Plus, Rep
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
 import { groups, type Attachment, type ChannelView, type ChatMessage, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
+import { dialogs } from '../../lib/dialogs.ts';
 import { applyMention, insertAt, mentionQuery, splitMessage } from '../../lib/groups/text.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, IconButton, Menu, MenuItem, MenuLabel, Notice } from '../ui.tsx';
@@ -643,7 +644,15 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                         </IconButton>
                       )}
                       {(own || has(perms, P.DELETE_MESSAGES)) && (
-                        <IconButton label="Apagar" className="size-8 hover:text-live-300" data-testid="chat-delete" onClick={() => window.confirm('Apagar esta mensagem?') && void run(() => groups.remove(message))}>
+                        <IconButton label="Apagar" className="size-8 hover:text-live-300" data-testid="chat-delete" onClick={() =>
+                            void dialogs.confirm({
+                              title: 'Apagar esta mensagem?',
+                              message: 'Ela some para todos no canal.',
+                              confirmLabel: 'Apagar',
+                              tone: 'perigo',
+                              action: () => groups.remove(message),
+                            })
+                          }>
                           <Trash2 className="size-4" />
                         </IconButton>
                       )}

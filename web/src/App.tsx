@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { DialogHost } from './components/DialogHost.tsx';
 import { HomePage } from './components/HomePage.tsx';
 import { RoomGate } from './components/RoomGate.tsx';
 import { Backdrop } from './components/ui.tsx';
@@ -49,6 +50,7 @@ export function App() {
       ) : (
         <HomePage />
       )}
+      <DialogHost />
     </>
   );
 }

@@ -213,8 +213,9 @@ test('perfis de áudio: salvar, desligar tudo e reaplicar', { skip }, async () =
   await row(host, game.name).getByRole('switch').click();
   await expectTones(guest, { [GAME_HZ]: true, [VOICE_HZ]: true }, 'jogo + voz antes de salvar');
 
-  host.once('dialog', (dialog) => dialog.accept('Jogar com call'));
   await host.getByTestId('mixer-save-profile').click();
+  await host.getByTestId('dialog-input').fill('Jogar com call');
+  await host.getByTestId('dialog-confirm').click();
   await waitFor(async () => (await host.getByTestId('mixer-profile').inputValue()) === 'Jogar com call', 'o perfil aparecer selecionado');
 
   await host.getByRole('button', { name: 'Mais opções do mixer' }).click();

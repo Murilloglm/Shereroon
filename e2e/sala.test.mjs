@@ -181,9 +181,9 @@ test('parar e voltar a compartilhar é imediato', async () => {
 });
 
 test('o dono expulsa o convidado, que não consegue voltar', async () => {
-  host.once('dialog', (dialog) => dialog.accept());
   await host.getByTestId('participant').filter({ hasText: 'Ana' }).hover();
   await host.getByTestId('kick').click();
+  await host.getByTestId('dialog-confirm').click();
 
   await guest.getByText('Você foi removido da sala').waitFor();
   assert.equal(await guest.getByTestId('gate-return').count(), 0);

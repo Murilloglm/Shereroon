@@ -2,6 +2,7 @@ import { Headphones, HeadphoneOff, LogOut, Mic, MicOff, Settings } from 'lucide-
 import { useState, type FormEvent } from 'react';
 import { alertPrefs, allowDesktopAlerts, desktopAlertsSupported } from '../../lib/groups/alerts.ts';
 import { groups, type Account } from '../../lib/groups/client.ts';
+import { dialogs } from '../../lib/dialogs.ts';
 import type { RoomSession } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, IconButton, Modal, TextInput, Toggle } from '../ui.tsx';
@@ -124,7 +125,19 @@ function AccountSettings({ account, onClose }: { account: Account; onClose: () =
         </form>
 
         <div className="flex flex-wrap gap-2 border-t border-ink-700 pt-5">
-          <Button variant="danger" onClick={() => void groups.logout()} data-testid="account-logout">
+          <Button
+            variant="danger"
+            onClick={() =>
+              void dialogs.confirm({
+                title: 'Sair da conta?',
+                message: 'Você sai neste aparelho. Para voltar, entre de novo com seu usuário e senha.',
+                confirmLabel: 'Sair da conta',
+                tone: 'perigo',
+                action: () => groups.logout(),
+              })
+            }
+            data-testid="account-logout"
+          >
             <LogOut className="size-4" aria-hidden="true" /> Sair da conta
           </Button>
         </div>

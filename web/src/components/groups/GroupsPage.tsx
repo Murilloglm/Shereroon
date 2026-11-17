@@ -5,6 +5,7 @@ import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
 import { alertIncoming } from '../../lib/groups/alerts.ts';
 import { groups, type ChannelKind, type ChannelView, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
+import { dialogs } from '../../lib/dialogs.ts';
 import type { ParticipantView, RoomSession } from '../../lib/session.ts';
 import { storage } from '../../lib/storage.ts';
 import { useStore } from '../../lib/store.ts';
@@ -539,8 +540,15 @@ function ChannelList({ view, selected, voice, onPick, onModal }: {
               <MenuItem
                 onClick={() => {
                   close();
-                  const nickname = window.prompt('Seu apelido neste grupo (deixe vazio para usar o nome da conta):', view.members.find((member) => member.userId === view.me.userId)?.nickname ?? '');
-                  if (nickname !== null) void run(() => groups.change('PATCH', `/api/groups/${view.group.id}/members/${view.me.userId}`, { nickname }));
+                  void dialogs.prompt({
+                    title: 'Meu apelido neste grupo',
+                    message: 'Deixe vazio para usar o nome da conta.',
+                    label: 'Apelido',
+                    defaultValue: view.members.find((member) => member.userId === view.me.userId)?.nickname ?? '',
+                    maxLength: 32,
+                    confirmLabel: 'Salvar',
+                    action: (nickname) => groups.change('PATCH', `/api/groups/${view.group.id}/members/${view.me.userId}`, { nickname }),
+                  });
                 }}
               >
                 Meu apelido neste grupo
