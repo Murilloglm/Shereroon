@@ -54,7 +54,13 @@ export interface QueueStats {
   bufferMs: number | null;
   underruns: number;
   lostBlocks: number;
+  /** Atraso alvo atual da fila adaptativa, em ms. */
+  targetMs: number | null;
 }
+
+/** Fila do navegador: começa em 20 ms e só cresce (até 80 ms) se faltar áudio de verdade. */
+const QUEUE_MIN_FRAMES = 960;
+const QUEUE_MAX_FRAMES = 3840;
 
 export interface HelperState {
   phase: HelperPhase;
@@ -96,7 +102,13 @@ export class HelperClient {
     queue: null,
   });
   /** Níveis de pico atualizados 20 vezes por segundo. Lidos direto pelos medidores, sem re-renderizar a tela. */
-  readonly levels = { master: 0, bySlot: new Map<number, number>(), bufferMs: new Map<number, number>() };
+  readonly levels = {
+    master: 0,
+    bySlot: new Map<number, number>(),
+    bufferMs: new Map<number, number>(),
+    /** Atraso medido da captura do Windows até o auxiliar, por fonte. */
+    captureMs: new Map<number, number>(),
+  };
   onError: ((error: HelperError) => void) | null = null;
 
   #worker: Worker | null = null;
@@ -112,6 +124,21 @@ export class HelperClient {
   /** Faixa de áudio com a mixagem dos aplicativos. Só existe depois de `connect()`. */
   get track(): MediaStreamTrack | null {
     return this.#destination?.stream.getAudioTracks()[0] ?? null;
+  }
+
+  /**
+   * Atraso total do áudio dos aplicativos antes de entrar no WebRTC, em ms: captura do Windows + fila do
+   * auxiliar + fila do navegador, tudo medido. É esse o quanto o som chega atrasado em relação à imagem,
+   * porque o vídeo da tela recebe o horário da captura e o áudio, o horário em que entra no navegador.
+   * Null enquanto não há medição.
+   */
+  pipelineDelayMs(): number | null {
+    const queue = this.store.get().queue?.bufferMs ?? null;
+    if (queue === null || this.levels.bufferMs.size === 0) return null;
+    // Fontes diferentes são misturadas juntas: vale a mais atrasada.
+    let source = 0;
+    for (const [slot, buffered] of this.levels.bufferMs) source = Math.max(source, buffered + (this.levels.captureMs.get(slot) ?? 0));
+    return Math.round(source + queue);
   }
 
   /** Fontes "solo" em captura, na ordem das faixas (índice 0 = primeira faixa solo). */
@@ -206,6 +233,7 @@ export class HelperClient {
       numberOfInputs: 0,
       numberOfOutputs: MAX_SOLO + 1,
       outputChannelCount: Array.from({ length: MAX_SOLO + 1 }, () => 2),
+      processorOptions: { adaptive: { min: QUEUE_MIN_FRAMES, max: QUEUE_MAX_FRAMES } },
     });
     const destination = context.createMediaStreamDestination();
     node.connect(destination, 0);
@@ -216,9 +244,11 @@ export class HelperClient {
       return gain;
     });
     node.port.onmessage = (event) => {
-      const stats = event.data as { type: string; bufferMs: number | null; underruns: number; lostBlocks: number };
+      const stats = event.data as { type: string; bufferMs: number | null; underruns: number; lostBlocks: number; targetMs?: number };
       if (stats.type === 'stats') {
-        this.store.set({ queue: { bufferMs: stats.bufferMs, underruns: stats.underruns, lostBlocks: stats.lostBlocks } });
+        this.store.set({
+          queue: { bufferMs: stats.bufferMs, underruns: stats.underruns, lostBlocks: stats.lostBlocks, targetMs: stats.targetMs ?? null },
+        });
       }
     };
 
@@ -283,6 +313,8 @@ export class HelperClient {
         for (const [slot, peak] of Object.entries((message.s ?? {}) as Record<string, number>)) this.levels.bySlot.set(Number(slot), peak);
         this.levels.bufferMs.clear();
         for (const [slot, ms] of Object.entries((message.b ?? {}) as Record<string, number>)) this.levels.bufferMs.set(Number(slot), ms);
+        this.levels.captureMs.clear();
+        for (const [slot, ms] of Object.entries((message.c ?? {}) as Record<string, number>)) this.levels.captureMs.set(Number(slot), ms);
         break;
       }
       case 'pending':

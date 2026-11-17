@@ -153,6 +153,8 @@ export class AppMixer {
       session.notify(message);
     };
     session.store.subscribe(() => this.#onSession());
+    // Quem assiste usa este atraso medido para segurar a imagem e deixar o som sincronizado.
+    session.setAudioDelaySource(() => this.helper.pipelineDelayMs());
   }
 
   /** Conecta ao auxiliar. Chame a partir de um clique (abre o áudio do navegador). */

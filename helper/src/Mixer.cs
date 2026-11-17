@@ -52,6 +52,8 @@ namespace ShareRoomAudio
         public Dictionary<int, float> Sources = new Dictionary<int, float>();
         /// <summary>Atraso médio de cada fonte dentro do mixer, em milissegundos (medido, não estimado).</summary>
         public Dictionary<int, double> BufferMs = new Dictionary<int, double>();
+        /// <summary>Atraso da captura do Windows até o auxiliar, em milissegundos (medido pelo relógio do WASAPI).</summary>
+        public Dictionary<int, double> CaptureMs = new Dictionary<int, double>();
     }
 
     /// <summary>
@@ -467,6 +469,11 @@ namespace ShareRoomAudio
                                 }
                                 source.BufferedFramesSum = 0;
                                 source.BufferedSamples = 0;
+                                double captureMs = source.Capture.TakeLatencyMs();
+                                if (captureMs >= 0)
+                                {
+                                    report.CaptureMs[source.Slot] = captureMs;
+                                }
                             }
                         }
                         levels(report);

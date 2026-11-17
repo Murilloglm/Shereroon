@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Diagnostics;
 
 namespace ShareRoomAudio
 {
@@ -48,6 +49,9 @@ namespace ShareRoomAudio
         private readonly ManualResetEvent started = new ManualResetEvent(false);
         private Exception failure;
         private long framesCaptured;
+        private readonly object latencyGate = new object();
+        private double latencySumMs;
+        private int latencyCount;
 
         public ProcessLoopback(uint processId, bool exclude, RingBuffer sink)
         {
@@ -57,6 +61,42 @@ namespace ShareRoomAudio
         }
 
         /// <summary>Total de quadros recebidos do Windows desde o início.</summary>
+        /// <summary>
+        /// Atraso médio, em ms, entre o instante em que o Windows registrou o primeiro quadro de cada pacote
+        /// (relógio QPC, informado pelo próprio WASAPI) e o momento em que este programa o recebeu, desde a
+        /// última leitura. -1 quando o Windows não informou o horário.
+        /// </summary>
+        public double TakeLatencyMs()
+        {
+            lock (latencyGate)
+            {
+                double result = latencyCount > 0 ? latencySumMs / latencyCount : -1;
+                latencySumMs = 0;
+                latencyCount = 0;
+                return result;
+            }
+        }
+
+        private void RecordLatency(ulong qpcPosition)
+        {
+            if (qpcPosition == 0)
+            {
+                return;
+            }
+            // qpcPosition vem em unidades de 100 ns do mesmo relógio que o Stopwatch usa.
+            double now100ns = (double)Stopwatch.GetTimestamp() * 10000000.0 / Stopwatch.Frequency;
+            double ms = (now100ns - qpcPosition) / 10000.0;
+            if (ms < 0 || ms > 2000)
+            {
+                return;
+            }
+            lock (latencyGate)
+            {
+                latencySumMs += ms;
+                latencyCount++;
+            }
+        }
+
         public long FramesCaptured
         {
             get { return Interlocked.Read(ref framesCaptured); }
@@ -227,6 +267,7 @@ namespace ShareRoomAudio
                         ulong devicePosition;
                         ulong qpcPosition;
                         Native.Check(capture.GetBuffer(out data, out frames, out bufferFlags, out devicePosition, out qpcPosition), "GetBuffer");
+                        RecordLatency(qpcPosition);
                         int samples = (int)frames * Format.Channels;
                         if (samples > block.Length)
                         {

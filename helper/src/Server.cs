@@ -506,6 +506,17 @@ namespace ShareRoomAudio
                 first = false;
                 text.Append('"').Append(entry.Key).Append("\":").Append(entry.Value.ToString("0.#", CultureInfo.InvariantCulture));
             }
+            text.Append("},\"c\":{");
+            first = true;
+            foreach (KeyValuePair<int, double> entry in levels.CaptureMs)
+            {
+                if (!first)
+                {
+                    text.Append(',');
+                }
+                first = false;
+                text.Append('"').Append(entry.Key).Append("\":").Append(entry.Value.ToString("0.#", CultureInfo.InvariantCulture));
+            }
             text.Append("}}");
             connection.SendText(text.ToString());
         }

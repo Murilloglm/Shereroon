@@ -9,6 +9,7 @@ import type { ParticipantView, RoomSession } from '../../lib/session.ts';
 import { storage } from '../../lib/storage.ts';
 import { useStore } from '../../lib/store.ts';
 import { RoomView } from '../room/RoomView.tsx';
+import { StreamHover } from '../room/StreamHover.tsx';
 import { Avatar, Button, Card, cx, IconButton, Logo, LogoMark, Menu, MenuItem, MenuLabel, Modal, Notice, TextInput, Toast, Toggle } from '../ui.tsx';
 import { AuthPage } from './AuthPage.tsx';
 import { Chat, NOTIFY_LABELS } from './Chat.tsx';
@@ -336,23 +337,32 @@ function VoiceBar({ view, voice, onLeave }: { view: GroupView | null; voice: Voi
 
 /** Quem está num canal de voz. No canal em que esta conta está conectada, mostra também quem fala, microfone e transmissão. */
 function VoicePeopleRows({ people, session }: { people: MemberView[]; session: RoomSession | null }) {
-  return session ? <LiveVoicePeople people={people} session={session} /> : <VoicePeopleList people={people} live={new Map()} />;
+  return session ? <LiveVoicePeople people={people} session={session} /> : <VoicePeopleList people={people} live={new Map()} session={null} />;
 }
 
 function LiveVoicePeople({ people, session }: { people: MemberView[]; session: RoomSession }) {
   const participants = useStore(session.store, (state) => state.participants);
-  return <VoicePeopleList people={people} live={new Map(participants.map((participant) => [participant.identity, participant]))} />;
+  return <VoicePeopleList people={people} live={new Map(participants.map((participant) => [participant.identity, participant]))} session={session} />;
 }
 
-function VoicePeopleList({ people, live }: { people: MemberView[]; live: Map<string, ParticipantView> }) {
+function VoicePeopleList({ people, live, session }: { people: MemberView[]; live: Map<string, ParticipantView>; session: RoomSession | null }) {
   return (
     <ul className="mt-0.5 mb-1 ml-7 grid gap-0.5" data-testid="channel-voice-people">
       {people.map((member) => {
         const state = live.get(member.userId);
         return (
           <li key={member.userId} className="flex items-center gap-2 py-0.5 text-sm text-fog-300" data-user={member.username} data-speaking={state?.speaking === true}>
-            <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} />
-            <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+            {session ? (
+              <StreamHover session={session} identity={member.userId} name={memberName(member)} enabled={state?.sharing === true} className="flex min-w-0 flex-1 items-center gap-2">
+                <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} />
+                <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+              </StreamHover>
+            ) : (
+              <>
+                <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} />
+                <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+              </>
+            )}
             {state?.sharing && <span className="shrink-0 rounded bg-live-500 px-1 text-[10px] font-extrabold text-white">AO VIVO</span>}
             {state && !state.micOn && <MicOff className="size-3.5 shrink-0 text-fog-500" aria-label="Microfone desligado" />}
           </li>

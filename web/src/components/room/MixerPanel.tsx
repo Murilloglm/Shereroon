@@ -269,6 +269,7 @@ export function MixerPanel({
   const voiceOn = [...rows.keys()].some((key) => desired[key]?.enabled && isVoiceApp(key));
   const voiceOff = [...rows.entries()].find(([key]) => !desired[key]?.enabled && isVoiceApp(key));
   const helperMs = Math.max(0, ...mixer.helper.levels.bufferMs.values());
+  const captureMs = Math.max(0, ...mixer.helper.levels.captureMs.values());
 
   const saveProfile = () => {
     const name = window.prompt('Nome do perfil de áudio (por exemplo: “Jogar com call”):', activeProfile ?? '');
@@ -556,8 +557,10 @@ export function MixerPanel({
 
         {connected && anyEnabled && (
           <p className="text-xs leading-snug text-fog-500" data-testid="mixer-latency">
-            Atraso medido do áudio dos aplicativos: {helperMs > 0 ? `${Math.round(helperMs + 10)} ms no auxiliar` : 'medindo'}
+            Atraso medido do áudio dos aplicativos: {captureMs > 0 && `${Math.round(captureMs)} ms na captura do Windows + `}
+            {helperMs > 0 ? `${Math.round(helperMs)} ms no auxiliar` : 'medindo'}
             {queue?.bufferMs != null && ` + ${Math.round(queue.bufferMs)} ms na fila do navegador`}
+            {queue?.targetMs != null && ` (alvo ${Math.round(queue.targetMs)} ms, ajusta sozinho)`}
             {queue && queue.underruns + queue.lostBlocks > 0 && ` (${queue.underruns + queue.lostBlocks} falha(s) no último segundo)`}.
           </p>
         )}

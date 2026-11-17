@@ -20,10 +20,11 @@ import {
   type RemoteParticipant,
   type RemoteTrack,
   type RemoteTrackPublication,
+  type RemoteVideoTrack,
   type TrackPublishOptions,
 } from 'livekit-client';
 import { ApiError } from './api.ts';
-import { audioContext, listAudioDevices, resumeAudio, type AudioDevices } from './audio.ts';
+import { audioContext, listAudioDevices, PeakMeter, resumeAudio, type AudioDevices } from './audio.ts';
 import {
   CaptureError,
   captureFacts,
@@ -35,7 +36,9 @@ import {
   type Surface,
 } from './capture.ts';
 import { desktop } from './desktop.ts';
-import { DEFAULT_MIC, MicError, MicPipeline, type MicSettings } from './mic.ts';
+import { SpeechDetector } from './speaking.ts';
+import { AvSyncController } from './av-sync.ts';
+import { DEFAULT_MIC, GATE_FADE_MS, MicError, MicPipeline, OPEN_FADE_MS, type MicSettings } from './mic.ts';
 import {
   buildLadder,
   contentHintFor,
@@ -132,7 +135,13 @@ export interface StreamView {
   isLocal: boolean;
   track: Track | null;
   hasAudio: boolean;
+  /** Esta pessoa está assistindo (a faixa é assinada e aparece no palco). */
+  watching: boolean;
+  /** O que está sendo compartilhado: "Tela inteira", "Janela: VALORANT", "Aba do navegador". */
+  source: string | null;
 }
+
+export type StageLayout = 'foco' | 'mosaico';
 
 export interface ShareView {
   active: boolean;
@@ -164,6 +173,8 @@ export interface ViewerView {
   delayMs: number | null;
   /** Quadros realmente pintados na tela por segundo (medido no elemento de vídeo). */
   presentedFps: number | null;
+  /** Sincronia do áudio dos aplicativos: atraso informado por quem transmite e quanto a imagem está sendo segurada. */
+  sync: { audioDelayMs: number | null; compensationMs: number; supported: boolean };
 }
 
 export interface SessionState {
@@ -180,7 +191,11 @@ export interface SessionState {
   rights: Rights;
   participants: ParticipantView[];
   streams: StreamView[];
+  /** A transmissão em destaque (no modo foco é a grande; as estatísticas são dela). */
   selected: string | null;
+  /** Transmissões que esta pessoa escolheu assistir (inclui a própria tela, como prévia). */
+  watching: string[];
+  layout: StageLayout;
   link: LinkQuality;
   audioBlocked: boolean;
   share: ShareView;
@@ -214,6 +229,13 @@ const IDLE_SHARE: ShareView = {
 };
 
 const SCREEN_STREAM = 'tela';
+const SPEECH_TICK_MS = 40;
+/** Depois de tirar o mouse, a prévia fica assinada mais um pouco: voltar logo não reconecta. */
+const PREVIEW_RELEASE_MS = 2500;
+/** Mutado por mais tempo que isto, o microfone é solto de verdade (o indicador de microfone do Windows apaga). */
+const MIC_RELEASE_MS = 2 * 60_000;
+/** Depois de fechar o som, quanto esperar para avisar o mute: o tempo de a rampa atravessar a rede e o buffer de quem ouve. */
+const MUTE_SIGNAL_DELAY_MS = 350;
 const VOICE_STREAM = 'voz';
 const UPLINK_TOPIC = 'sr.uplink';
 /** Depois de iniciar ou mudar a qualidade, as primeiras leituras ainda não dizem nada. */
@@ -276,6 +298,7 @@ export class RoomSession {
   #screenPub: LocalTrackPublication | null = null;
   #screenAudioPub: LocalTrackPublication | null = null;
   #micPub: LocalTrackPublication | null = null;
+  #micRelease: ReturnType<typeof setTimeout> | null = null;
   /** Enquanto um filtro de ruído cuida do microfone, isto manda na supressão do navegador (null = vale a preferência). */
   #micBrowserNs: boolean | null = null;
   #appAudio: MediaStreamTrack | null = null;
@@ -295,6 +318,20 @@ export class RoomSession {
   #uplinks = new Map<string, UplinkInfo>();
   #presentedFps: number | null = null;
   #audioElements = new Map<string, HTMLMediaElement>();
+  #audioDelaySource: (() => number | null) | null = null;
+  readonly #avSync = new Map<string, AvSyncController>();
+  /** Transmissões que a pessoa parou de assistir de propósito: não voltam sozinhas. */
+  readonly #unwatched = new Set<string>();
+  /** Prévias abertas (passar o mouse): contagem por pessoa e o atraso para soltar. */
+  readonly #previews = new Map<string, number>();
+  readonly #previewRelease = new Map<string, ReturnType<typeof setTimeout>>();
+  #speechTimer: ReturnType<typeof setInterval> | null = null;
+  readonly #speech = new Map<string, SpeechDetector>();
+  /** Medidor do som decodificado de cada voz recebida (por faixa), para o indicador de fala. */
+  readonly #voiceMeters = new Map<string, PeakMeter & { source: MediaStreamAudioSourceNode }>();
+  #muteTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Quando cada indicador acendeu pela última vez (diagnóstico e testes de latência). */
+  readonly speechOnsets = new Map<string, number>();
 
   constructor() {
     this.mic = new MicPipeline(audioContext());
@@ -313,6 +350,8 @@ export class RoomSession {
       participants: [],
       streams: [],
       selected: null,
+      watching: [],
+      layout: storage.get<StageLayout>('shareroom:layout-palco', 'foco') === 'mosaico' ? 'mosaico' : 'foco',
       link: 'desconhecida',
       audioBlocked: false,
       share: IDLE_SHARE,
@@ -365,12 +404,13 @@ export class RoomSession {
     await this.#teardownMedia();
     await this.#room.disconnect();
     this.#stopTimer();
-    this.store.set({ phase: 'ended', endReason: 'saiu', participants: [], streams: [], selected: null });
+    this.store.set({ phase: 'ended', endReason: 'saiu', participants: [], streams: [], selected: null, watching: [] });
   }
 
   async #connect(): Promise<void> {
     const grant = await this.#access!.grant();
-    await this.#room.connect(grant.url, grant.token, { autoSubscribe: true });
+    // Nada é assinado sozinho: vozes sempre, telas só quando a pessoa assiste ou abre a prévia.
+    await this.#room.connect(grant.url, grant.token, { autoSubscribe: false });
     void this.#room.startAudio().catch(() => undefined);
     this.store.set({
       phase: 'connected',
@@ -384,7 +424,7 @@ export class RoomSession {
       audioBlocked: !this.#room.canPlaybackAudio,
       error: null,
     });
-    this.#applyWatchRule();
+    this.#applySubscriptions();
     this.#refresh();
     this.#startTimer();
     void this.refreshDevices();
@@ -400,7 +440,7 @@ export class RoomSession {
     const end = (endReason: EndReason) => {
       this.#stopTimer();
       void this.#teardownMedia();
-      this.store.set({ phase: 'ended', endReason, participants: [], streams: [], selected: null, publisher: null, viewer: null });
+      this.store.set({ phase: 'ended', endReason, participants: [], streams: [], selected: null, watching: [], publisher: null, viewer: null });
     };
 
     switch (reason) {
@@ -450,6 +490,7 @@ export class RoomSession {
     if (this.#capture && this.#capture.video.readyState === 'live') {
       await this.#publishShare();
     }
+    // Mutado, a faixa só volta a ser publicada quando a pessoa desmutar.
     if (this.store.get().micOn && this.mic.active) {
       await this.#publishMic();
     }
@@ -458,6 +499,8 @@ export class RoomSession {
   async #teardownMedia(): Promise<void> {
     this.#capture?.stop();
     this.#capture = null;
+    this.#cancelMicRelease();
+    this.#cancelMuteSignal();
     this.mic.stop();
     this.#clearAudioElements();
     this.store.set({ share: IDLE_SHARE, micOn: false, publisher: null });
@@ -479,20 +522,24 @@ export class RoomSession {
       .on(RoomEvent.TrackMuted, refresh)
       .on(RoomEvent.TrackUnmuted, refresh)
       .on(RoomEvent.LocalTrackPublished, refresh)
-      .on(RoomEvent.LocalTrackUnpublished, refresh)
+      .on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
+        // O servidor pode tirar a faixa (perdeu a permissão de falar): na próxima vez ela é publicada de novo.
+        if (publication === this.#micPub) this.#micPub = null;
+        refresh();
+      })
       .on(RoomEvent.ActiveSpeakersChanged, refresh)
       .on(RoomEvent.ParticipantNameChanged, refresh)
       .on(RoomEvent.ParticipantMetadataChanged, refresh)
       .on(RoomEvent.ConnectionQualityChanged, refresh)
       .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication: RemoteTrackPublication) => {
-        if (track.kind === Track.Kind.Audio) this.#attachAudio(track as RemoteAudioTrack, publication.trackSid);
+        if (track.kind === Track.Kind.Audio) this.#attachAudio(track as RemoteAudioTrack, publication.trackSid, publication.source);
         refresh();
       })
       .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication: RemoteTrackPublication) => {
         if (track.kind === Track.Kind.Audio) this.#detachAudio(track as RemoteAudioTrack, publication.trackSid);
         refresh();
       })
-      .on(RoomEvent.TrackPublished, () => this.#applyWatchRule())
+      .on(RoomEvent.TrackPublished, () => this.#applySubscriptions())
       .on(RoomEvent.ParticipantPermissionsChanged, (_previous, participant) => {
         if (participant.isLocal) this.#onPublishRights();
       })
@@ -531,8 +578,9 @@ export class RoomSession {
       name: participant.name || 'Sem nome',
       isLocal: participant === room.localParticipant,
       isHost: isHostMetadata(participant.metadata),
-      micOn: participant.isMicrophoneEnabled,
-      speaking: participant.isSpeaking,
+      // O próprio participante mostra o estado escolhido na hora (o aviso ao servidor pode estar a caminho).
+      micOn: participant === room.localParticipant ? state.micOn : participant.isMicrophoneEnabled,
+      speaking: this.#speech.get(participant.identity)?.speaking ?? participant.isSpeaking,
       sharing: participant.isScreenShareEnabled,
       quality: linkQuality(participant.connectionQuality),
     }));
@@ -549,23 +597,52 @@ export class RoomSession {
         isLocal,
         track: publication.track ?? null,
         hasAudio: participant.getTrackPublication(Track.Source.ScreenShareAudio) !== undefined,
+        watching: false,
+        source: describeSource(publication.trackName),
       });
     }
 
-    // Mantém a escolha de quem assiste; se ela sumiu, prefere a tela de outra pessoa à própria.
+    // Quem parou de transmitir sai da lista de assistidos (e pode voltar a ser assistido sozinho depois).
+    const live = new Set(streams.map((stream) => stream.id));
+    for (const id of [...this.#unwatched]) if (!live.has(id)) this.#unwatched.delete(id);
+    let watching = state.watching.filter((id) => live.has(id));
+    // Sem nada assistido, assiste sozinho a primeira tela de outra pessoa (como antes), a menos que a pessoa
+    // tenha parado de assisti-la de propósito. As outras ficam na lista, com o botão "Assistir".
+    if (!watching.some((id) => id !== state.identity)) {
+      const next = streams.find((stream) => !stream.isLocal && !this.#unwatched.has(stream.id));
+      if (next) watching = [...watching, next.id];
+    }
+    const watchingSet = new Set(watching);
+    for (const stream of streams) stream.watching = watchingSet.has(stream.id);
+
+    // Destaque: mantém a escolha; se ela sumiu, prefere a tela de outra pessoa à própria.
     let selected = state.selected;
-    if (!selected || !streams.some((stream) => stream.id === selected)) {
-      selected = (streams.find((stream) => !stream.isLocal) ?? streams[0])?.id ?? null;
+    if (!selected || !watchingSet.has(selected)) {
+      selected = watching.find((id) => id !== state.identity) ?? watching[0] ?? null;
     }
 
-    this.store.set({ participants, streams, selected, link: linkQuality(room.localParticipant.connectionQuality) });
+    const changed = watching.length !== state.watching.length || watching.some((id, index) => id !== state.watching[index]);
+    this.store.set({ participants, streams, selected, watching, link: linkQuality(room.localParticipant.connectionQuality) });
+    if (changed) this.#applySubscriptions();
     this.#applyAudioRouting();
   }
 
   // --- Áudio recebido --------------------------------------------------------------
 
-  #attachAudio(track: RemoteAudioTrack, sid: string): void {
+  #attachAudio(track: RemoteAudioTrack, sid: string, source: Track.Source): void {
     const element = track.attach();
+    if (source === Track.Source.Microphone) {
+      try {
+        const ctx = audioContext();
+        const meter = Object.assign(new PeakMeter(ctx, 1024), {
+          source: ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack])),
+        });
+        meter.source.connect(meter.node);
+        this.#voiceMeters.set(sid, meter);
+      } catch {
+        // sem medidor: o indicador usa o aviso do servidor
+      }
+    }
     element.style.display = 'none';
     document.body.appendChild(element);
     this.#audioElements.set(sid, element);
@@ -576,25 +653,30 @@ export class RoomSession {
 
   #detachAudio(track: RemoteAudioTrack, sid: string): void {
     for (const element of track.detach()) element.remove();
+    this.#voiceMeters.get(sid)?.source.disconnect();
+    this.#voiceMeters.delete(sid);
     // Quando a faixa é despublicada o LiveKit já a soltou do elemento: remove pelo nosso registro.
     this.#audioElements.get(sid)?.remove();
     this.#audioElements.delete(sid);
   }
 
   #clearAudioElements(): void {
+    for (const meter of this.#voiceMeters.values()) meter.source.disconnect();
+    this.#voiceMeters.clear();
     for (const element of this.#audioElements.values()) element.remove();
     this.#audioElements.clear();
   }
 
-  /** Só toca o áudio de tela da transmissão que está em destaque; as vozes tocam sempre. */
+  /** Toca o som das telas que a pessoa assiste (cada uma com o seu volume); as vozes tocam sempre. */
   #applyAudioRouting(): void {
     const state = this.store.get();
-    const { selected, volumes } = state;
+    const { volumes } = state;
+    const watching = new Set(state.watching);
     const outputVolume = state.deafened ? 0 : state.outputVolume;
     for (const participant of this.#room.remoteParticipants.values()) {
       const screenAudio = participant.getTrackPublication(Track.Source.ScreenShareAudio) as RemoteTrackPublication | undefined;
       if (screenAudio) {
-        const wanted = participant.identity === selected;
+        const wanted = watching.has(participant.identity);
         if (screenAudio.isEnabled !== wanted) screenAudio.setEnabled(wanted);
         (screenAudio.track as RemoteAudioTrack | undefined)?.setVolume(outputVolume * (volumes[participant.identity] ?? 1));
       }
@@ -610,12 +692,77 @@ export class RoomSession {
     this.store.set({ audioBlocked: !this.#room.canPlaybackAudio });
   }
 
+  /** Assiste a uma transmissão e a põe em destaque. */
   select(streamId: string): void {
+    this.watch(streamId);
     if (this.store.get().selected === streamId) return;
     this.#viewCounters = null;
     this.#presentedFps = null;
     this.store.set({ selected: streamId, viewer: null });
-    this.#applyAudioRouting();
+  }
+
+  /** Passa a assistir uma transmissão (sem tirar as outras). */
+  watch(streamId: string): void {
+    this.#unwatched.delete(streamId);
+    const { watching } = this.store.get();
+    if (watching.includes(streamId)) return;
+    this.store.set({ watching: [...watching, streamId] });
+    this.#applySubscriptions();
+    this.#refresh();
+  }
+
+  /** Para de assistir: a tela deixa de ser recebida e decodificada. */
+  unwatch(streamId: string): void {
+    this.#unwatched.add(streamId);
+    const state = this.store.get();
+    if (!state.watching.includes(streamId)) return;
+    const watching = state.watching.filter((id) => id !== streamId);
+    const selected = state.selected === streamId ? (watching.find((id) => id !== state.identity) ?? watching[0] ?? null) : state.selected;
+    if (selected !== state.selected) {
+      this.#viewCounters = null;
+      this.#presentedFps = null;
+    }
+    this.store.set({ watching, selected, viewer: selected !== state.selected ? null : state.viewer });
+    this.#applySubscriptions();
+    this.#refresh();
+  }
+
+  setLayout(layout: StageLayout): void {
+    storage.set('shareroom:layout-palco', layout);
+    this.store.set({ layout });
+  }
+
+  /**
+   * Abre a prévia de uma transmissão (passar o mouse sobre quem transmite). Se a pessoa já assiste, usa a
+   * mesma faixa; senão assina só o vídeo, sem som, enquanto a prévia estiver aberta. Devolve a função que
+   * fecha a prévia; a assinatura é solta um pouco depois, para não reconectar a cada passada do mouse.
+   */
+  openPreview(streamId: string): () => void {
+    const pending = this.#previewRelease.get(streamId);
+    if (pending) {
+      clearTimeout(pending);
+      this.#previewRelease.delete(streamId);
+    }
+    this.#previews.set(streamId, (this.#previews.get(streamId) ?? 0) + 1);
+    this.#applySubscriptions();
+    let open = true;
+    return () => {
+      if (!open) return;
+      open = false;
+      const count = (this.#previews.get(streamId) ?? 1) - 1;
+      // Com zero prévias abertas a entrada continua no mapa durante a espera (a faixa segue assinada).
+      this.#previews.set(streamId, count);
+      if (count > 0) return;
+      this.#previewRelease.set(
+        streamId,
+        setTimeout(() => {
+          this.#previewRelease.delete(streamId);
+          if (this.#previews.get(streamId) !== 0) return;
+          this.#previews.delete(streamId);
+          this.#applySubscriptions();
+        }, PREVIEW_RELEASE_MS),
+      );
+    };
   }
 
   /** Volume (0 a 1) do áudio de uma transmissão, só para quem está ouvindo. Use `voz:<id>` para o microfone. */
@@ -670,19 +817,27 @@ export class RoomSession {
     const before = this.store.get().rights;
     if (before.watch === patch.watch && before.highQuality === patch.highQuality) return;
     this.store.set({ rights: { ...before, ...patch } });
-    this.#applyWatchRule();
+    this.#applySubscriptions();
     if (before.highQuality !== patch.highQuality && this.#capture) void this.#applyTarget();
     this.#refresh();
   }
 
-  /** Quem não pode assistir transmissões nem recebe o vídeo das telas (as vozes continuam). */
-  #applyWatchRule(): void {
+  /**
+   * Decide o que receber. Vozes: sempre. Vídeo de uma tela: só se a pessoa assiste ou está com a prévia
+   * aberta. Som de uma tela: só se assiste. Quem não pode assistir transmissões não recebe nenhuma tela.
+   * Uma tela que ninguém olha não gasta banda nem decodificação.
+   */
+  #applySubscriptions(): void {
     const { watch } = this.store.get().rights;
+    const watching = new Set(this.store.get().watching);
     for (const participant of this.#room.remoteParticipants.values()) {
+      const id = participant.identity;
       for (const publication of participant.trackPublications.values()) {
-        if (publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) {
-          publication.setSubscribed(watch);
-        }
+        let want: boolean;
+        if (publication.source === Track.Source.ScreenShare) want = watch && (watching.has(id) || this.#previews.has(id));
+        else if (publication.source === Track.Source.ScreenShareAudio) want = watch && watching.has(id);
+        else want = true;
+        if (publication.isDesired !== want) publication.setSubscribed(want);
       }
     }
   }
@@ -773,7 +928,10 @@ export class RoomSession {
       this.#notify(`Não foi possível publicar a tela: ${error instanceof Error ? error.message : 'erro desconhecido'}`);
       return;
     }
-    this.store.set({ selected: this.store.get().selected ?? this.store.get().identity });
+    // A própria tela aparece no palco como prévia; não toma o destaque da tela de outra pessoa.
+    const { identity, watching, selected } = this.store.get();
+    this.#unwatched.delete(identity);
+    this.store.set({ watching: watching.includes(identity) ? watching : [...watching, identity], selected: selected ?? identity });
     this.#refresh();
   }
 
@@ -819,7 +977,8 @@ export class RoomSession {
 
     const options: TrackPublishOptions = {
       source: Track.Source.ScreenShare,
-      name: 'tela',
+      // O nome da faixa diz a quem assiste o que está sendo compartilhado.
+      name: sourceName(capture),
       stream: SCREEN_STREAM,
       videoCodec: codec,
       // VP9/AV1: publica H.264 de reserva só se algum espectador não decodificar o codec escolhido.
@@ -993,19 +1152,37 @@ export class RoomSession {
     this.store.set({ micBusy: true });
     try {
       if (on) {
+        this.#cancelMicRelease();
         await resumeAudio();
-        await this.mic.start(this.#micSettings());
-        await this.#publishMic();
+        const opening = !this.mic.active;
+        if (opening) await this.mic.start(this.#micSettings());
+        // A faixa publicada é sempre a mesma: desmutar só a religa. Nada de reabrir aparelho nem republicar.
+        // Se o aviso de mute ainda não tinha saído, basta cancelá-lo.
+        const pendingMute = this.#muteTimer !== null;
+        this.#cancelMuteSignal();
+        if (!this.#micPub) await this.#publishMic();
+        else if (!pendingMute || this.#micPub.isMuted) await this.#micPub.unmute();
+        await this.mic.setOpen(true, opening ? OPEN_FADE_MS : GATE_FADE_MS);
         this.store.set({ micOn: true });
         void this.refreshDevices();
       } else {
-        if (this.#micPub?.track) await this.#room.localParticipant.unpublishTrack(this.#micPub.track, false);
-        this.#micPub = null;
-        // Solta o aparelho de verdade: o indicador de microfone do sistema apaga.
-        this.mic.stop();
+        // Fecha o som com rampa na hora: daqui em diante só sai silêncio. O aviso de mute (que faz quem ouve
+        // desligar a faixa) vai depois, quando os últimos pacotes com a rampa já chegaram do outro lado;
+        // avisar antes corta a onda no meio na casa de quem ouve, e esse é o estalo de mutar.
+        await this.mic.setOpen(false);
         this.store.set({ micOn: false });
+        const publication = this.#micPub;
+        this.#muteTimer = setTimeout(() => {
+          this.#muteTimer = null;
+          if (!this.store.get().micOn && publication === this.#micPub) void publication?.mute().catch(() => undefined);
+        }, MUTE_SIGNAL_DELAY_MS);
+        this.#micRelease = setTimeout(() => {
+          this.#micRelease = null;
+          if (!this.store.get().micOn) this.mic.stop();
+        }, MIC_RELEASE_MS);
       }
     } catch (error) {
+      this.#cancelMicRelease();
       this.mic.stop();
       this.store.set({ micOn: false });
       this.#notify(error instanceof MicError ? error.message : 'Não foi possível ligar o microfone.');
@@ -1015,12 +1192,24 @@ export class RoomSession {
     }
   }
 
+  #cancelMuteSignal(): void {
+    if (this.#muteTimer) clearTimeout(this.#muteTimer);
+    this.#muteTimer = null;
+  }
+
+  #cancelMicRelease(): void {
+    if (this.#micRelease) clearTimeout(this.#micRelease);
+    this.#micRelease = null;
+  }
+
   async #publishMic(): Promise<void> {
     this.#micPub = await this.#room.localParticipant.publishTrack(this.mic.output, {
       source: Track.Source.Microphone,
       name: 'microfone',
       stream: VOICE_STREAM,
-      dtx: true,
+      // Sem DTX: nas pausas o Opus passaria a mandar só "ruído de conforto", que o outro lado ouve como chiado
+      // e que faz o começo de cada frase entrar com um degrau. A banda extra é pequena (voz em Opus).
+      dtx: false,
       red: true,
     });
   }
@@ -1063,7 +1252,7 @@ export class RoomSession {
    */
   async setMicFilter(processor: AudioNode | null, browserNoiseSuppression: boolean | null): Promise<void> {
     const before = this.#micSettings().noiseSuppression;
-    this.mic.setProcessor(processor ? { input: processor, output: processor } : null);
+    await this.mic.setProcessor(processor ? { input: processor, output: processor } : null);
     this.#micBrowserNs = browserNoiseSuppression;
     if (!this.mic.active || before === this.#micSettings().noiseSuppression) return;
     try {
@@ -1098,6 +1287,7 @@ export class RoomSession {
   // --- Estatísticas ---------------------------------------------------------------------
 
   #startTimer(): void {
+    if (!this.#speechTimer) this.#speechTimer = setInterval(() => this.#speechTick(), SPEECH_TICK_MS);
     if (this.#timer) return;
     this.#timer = setInterval(() => void this.#tick(), 1000);
   }
@@ -1105,6 +1295,58 @@ export class RoomSession {
   #stopTimer(): void {
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = null;
+    if (this.#speechTimer) clearInterval(this.#speechTimer);
+    this.#speechTimer = null;
+    this.#speech.clear();
+  }
+
+  /**
+   * Indicador de fala com pouca latência. Para quem fala: o medidor do próprio microfone (antes da rede).
+   * Para os outros: o nível do som de cada voz já decodificado, o mesmo que vai para os alto-falantes, então
+   * o anel acende junto com o som que se ouve. O evento de "quem está falando" do servidor chega várias
+   * centenas de milissegundos depois e fica só como reserva quando não há como medir (áudio bloqueado).
+   * O LiveKit não repassa o nível de cada pacote (`audioLevel`) a quem recebe; por isso a medição é local.
+   */
+  #speechTick(): void {
+    const now = performance.now();
+    const seen = new Set<string>();
+    let changed = false;
+    const feed = (identity: string, level: number) => {
+      seen.add(identity);
+      let detector = this.#speech.get(identity);
+      if (!detector) {
+        detector = new SpeechDetector();
+        this.#speech.set(identity, detector);
+      }
+      const before = detector.speaking;
+      const after = detector.update(level, now);
+      if (after !== before) {
+        changed = true;
+        if (after) this.speechOnsets.set(identity, Date.now());
+      }
+    };
+
+    const local = this.#room.localParticipant;
+    if (local.identity) feed(local.identity, this.store.get().micOn && this.mic.open ? this.mic.meter.readRms() : 0);
+
+    const running = audioContext().state === 'running';
+    for (const participant of this.#room.remoteParticipants.values()) {
+      const publication = participant.getTrackPublication(Track.Source.Microphone) as RemoteTrackPublication | undefined;
+      const meter = publication ? this.#voiceMeters.get(publication.trackSid) : undefined;
+      if (!meter || !running) continue;
+      feed(participant.identity, publication!.isMuted ? 0 : meter.readRms());
+    }
+
+    for (const identity of [...this.#speech.keys()]) {
+      if (!seen.has(identity)) this.#speech.delete(identity);
+    }
+    if (!changed) return;
+    this.store.set((state) => ({
+      participants: state.participants.map((participant) => {
+        const detector = this.#speech.get(participant.identity);
+        return detector && detector.speaking !== participant.speaking ? { ...participant, speaking: detector.speaking } : participant;
+      }),
+    }));
   }
 
   async #tick(): Promise<void> {
@@ -1189,9 +1431,26 @@ export class RoomSession {
     await this.#applyTarget();
   }
 
+  /** O que quem transmite informou sobre a própria transmissão (resolução e FPS na origem). */
+  uplinkFor(identity: string): UplinkInfo | null {
+    return this.#uplinks.get(identity) ?? null;
+  }
+
+  /** Quem fornece o atraso medido do áudio dos aplicativos (o mixer, quando está em uso). */
+  setAudioDelaySource(source: (() => number | null) | null): void {
+    this.#audioDelaySource = source;
+  }
+
+  /** Atraso do áudio que acompanha a tela antes do WebRTC. Só o áudio dos aplicativos passa por filas próprias. */
+  #screenAudioDelayMs(): number | null {
+    if (!this.#screenAudioPub || this.store.get().audioSource !== 'apps') return null;
+    return this.#audioDelaySource?.() ?? null;
+  }
+
   #broadcastUplink(stats: PublisherStats, target: Target, mode: 'auto' | 'manual'): void {
     if (this.#room.remoteParticipants.size === 0) return;
     const info: UplinkInfo = {
+      audioDelayMs: this.#screenAudioDelayMs(),
       encodeMs: stats.encodeMs,
       rttMs: stats.rttMs,
       width: stats.width,
@@ -1205,6 +1464,37 @@ export class RoomSession {
     void this.#room.localParticipant
       .publishData(new TextEncoder().encode(JSON.stringify(info)), { reliable: false, topic: UPLINK_TOPIC })
       .catch(() => undefined);
+  }
+
+  /** Segura o vídeo da tela o tanto que o áudio dos aplicativos de quem transmite chega atrasado. */
+  #syncScreen(
+    trackSid: string,
+    track: RemoteVideoTrack,
+    videoBufferMs: number | null,
+    uplink: UplinkInfo | null,
+    participant: RemoteParticipant,
+  ): ViewerView['sync'] {
+    const receiver = track.receiver as (RTCRtpReceiver & { jitterBufferTarget?: number | null }) | undefined;
+    const supported = Boolean(receiver && 'jitterBufferTarget' in receiver);
+    // Só faz sentido com o som da tela realmente chegando para esta pessoa.
+    const screenAudio = participant.getTrackPublication(Track.Source.ScreenShareAudio);
+    const audioDelayMs = screenAudio?.isSubscribed && screenAudio.isEnabled ? (uplink?.audioDelayMs ?? null) : null;
+    for (const sid of this.#avSync.keys()) if (sid !== trackSid) this.#avSync.delete(sid);
+    let controller = this.#avSync.get(trackSid);
+    if (!controller) {
+      controller = new AvSyncController();
+      this.#avSync.set(trackSid, controller);
+    }
+    const before = controller.target;
+    const target = controller.update({ videoBufferMs, audioDelayMs });
+    if (supported && target !== before) {
+      try {
+        receiver!.jitterBufferTarget = target;
+      } catch {
+        // navegador recusou o valor: segue sem compensação
+      }
+    }
+    return { audioDelayMs, compensationMs: supported ? controller.compensationMs : 0, supported };
   }
 
   async #readViewer(): Promise<void> {
@@ -1224,8 +1514,9 @@ export class RoomSession {
     const { stats, counters } = readViewer(collect(await track.getRTCStatsReport()), this.#viewCounters);
     this.#viewCounters = counters;
     const uplink = this.#uplinks.get(participant.identity) ?? null;
+    const sync = this.#syncScreen(publication.trackSid, track as RemoteVideoTrack, stats.bufferMs, uplink, participant);
     this.store.set({
-      viewer: { stats, uplink, delayMs: estimateDelayMs(stats, uplink), presentedFps: this.#presentedFps },
+      viewer: { stats, uplink, delayMs: estimateDelayMs(stats, uplink), presentedFps: this.#presentedFps, sync },
     });
   }
 
@@ -1250,4 +1541,20 @@ function lightLayerFor(target: Target, codec: Codec): VideoPreset {
   const width = Math.round(widthFor(target.height) / 2);
   const kbps = Math.max(350, Math.round(presetBitrateKbps({ height: 480, fps: 30 }, codec) * (target.height >= 900 ? 0.8 : 0.4)));
   return new VideoPreset(width, height, kbps * 1000, 30);
+}
+
+/** Nome da faixa da tela: "tela|<superfície>|<rótulo>". Quem assiste lê com `describeSource`. */
+function sourceName(capture: CaptureSession): string {
+  const label = capture.surface === 'browser' ? '' : capture.video.label.replace(/[|\n\r]/g, ' ').trim().slice(0, 80);
+  return `tela|${capture.surface ?? ''}|${label}`;
+}
+
+/** Texto curto do que está sendo compartilhado, a partir do nome da faixa. */
+export function describeSource(trackName: string | undefined): string | null {
+  if (!trackName?.startsWith('tela|')) return null;
+  const [, surface, label] = trackName.split('|');
+  if (surface === 'monitor') return label && !/^screen|^tela/i.test(label) ? `Tela inteira (${label})` : 'Tela inteira';
+  if (surface === 'window') return label ? `Janela: ${label}` : 'Uma janela';
+  if (surface === 'browser') return 'Aba do navegador';
+  return null;
 }

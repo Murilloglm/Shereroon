@@ -254,6 +254,8 @@ export interface UplinkInfo {
   requestedFps: number;
   limitation: Limitation;
   mode: 'auto' | 'manual';
+  /** Atraso medido do áudio dos aplicativos antes do WebRTC (captura + filas), em ms. Ausente sem esse áudio. */
+  audioDelayMs?: number | null;
 }
 
 /**

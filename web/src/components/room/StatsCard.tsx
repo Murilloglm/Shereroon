@@ -186,6 +186,15 @@ export function StatsCard({ session, className }: { session: RoomSession; classN
                 value={viewer.stats.droppedPerSecond == null ? '—' : `${viewer.stats.droppedPerSecond.toFixed(1).replace('.', ',')}/s`}
               />
               <Detail label="Travamentos" value={viewer.stats.freezes == null ? '—' : String(viewer.stats.freezes)} />
+              {viewer.sync.audioDelayMs != null && (
+                <>
+                  <Detail label="Atraso do som na origem" value={formatMs(viewer.sync.audioDelayMs)} />
+                  <Detail
+                    label="Imagem segurada para sincronizar"
+                    value={viewer.sync.supported ? formatMs(viewer.sync.compensationMs) : 'navegador sem suporte'}
+                  />
+                </>
+              )}
               {viewer.uplink && (
                 <>
                   <Detail

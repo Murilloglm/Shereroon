@@ -230,13 +230,31 @@ test('perfis de áudio: salvar, desligar tudo e reaplicar', { skip }, async () =
   assert.equal(saved[0].entries['jogo-teste.exe'].enabled, true);
 });
 
-test('o atraso do áudio é medido e fica baixo', { skip }, async () => {
+test('o atraso do áudio é medido, fica baixo e quem assiste segura a imagem o mesmo tanto', { skip }, async () => {
   await sleep(2500);
   const text = await host.getByTestId('mixer-latency').textContent();
-  const [helperMs, queueMs] = [...text.matchAll(/(\d+) ms/g)].map((match) => Number(match[1]));
+  const ms = (label) => Number(text.match(new RegExp(`(\\d+) ms ${label}`))?.[1] ?? NaN);
+  const captureMs = ms('na captura do Windows');
+  const helperMs = ms('no auxiliar');
+  const queueMs = ms('na fila do navegador');
+  console.log(`  ${text}`);
+  assert.ok(captureMs > 0 && captureMs <= 80, `captura do Windows: ${captureMs} ms (${text})`);
   assert.ok(helperMs > 0 && helperMs <= 55, `auxiliar: ${helperMs} ms (${text})`);
   assert.ok(queueMs > 0 && queueMs <= 60, `fila do navegador: ${queueMs} ms (${text})`);
   assert.ok(!/falha/.test(text), `sem falhas na fila: ${text}`);
+
+  // Quem assiste recebe o atraso medido e segura a imagem para o som não chegar atrasado.
+  const total = captureMs + helperMs + queueMs;
+  let held = NaN;
+  let reported = NaN;
+  await waitFor(async () => {
+    const card = (await guest.getByTestId('stats-card').textContent().catch(() => '')) ?? '';
+    reported = Number(card.match(/Atraso do som na origem\s*(\d+)\s*ms/)?.[1] ?? NaN);
+    held = Number(card.match(/Imagem segurada para sincronizar\s*(\d+)\s*ms/)?.[1] ?? NaN);
+    return held > 0 && Math.abs(held - reported) <= 20;
+  }, 'o convidado segurar a imagem o tanto que o som atrasa', 20_000);
+  console.log(`  atraso informado ${reported} ms, imagem segurada ${held} ms (medido na origem: ${total} ms)`);
+  assert.ok(Math.abs(reported - total) <= 25, `o convidado recebe o atraso medido (${reported} ms x ${total} ms)`);
 });
 
 test('o aplicativo fecha e abre de novo: volta a ser transmitido sozinho', { skip }, async () => {

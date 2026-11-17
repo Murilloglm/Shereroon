@@ -25,9 +25,9 @@ export class PeakMeter {
   readonly node: AnalyserNode;
   readonly #buffer: Float32Array<ArrayBuffer>;
 
-  constructor(ctx: AudioContext) {
+  constructor(ctx: AudioContext, fftSize = 1024) {
     this.node = ctx.createAnalyser();
-    this.node.fftSize = 1024;
+    this.node.fftSize = fftSize;
     this.node.smoothingTimeConstant = 0;
     this.#buffer = new Float32Array(this.node.fftSize);
   }
@@ -40,6 +40,14 @@ export class PeakMeter {
       if (magnitude > peak) peak = magnitude;
     }
     return Math.min(1, peak);
+  }
+
+  /** Nível RMS (0 a 1) da última janela: a mesma escala do `audioLevel` que o WebRTC dá para o áudio recebido. */
+  readRms(): number {
+    this.node.getFloatTimeDomainData(this.#buffer);
+    let sum = 0;
+    for (const sample of this.#buffer) sum += sample * sample;
+    return Math.min(1, Math.sqrt(sum / this.#buffer.length));
   }
 }
 

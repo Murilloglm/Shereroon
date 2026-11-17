@@ -204,4 +204,41 @@ describe('fila de áudio do app auxiliar', () => {
     expect(out[0]![0][0]).toBeGreaterThan(290);
     expect(buffer.takeStats().droppedFrames).toBeGreaterThan(0);
   });
+
+  it('fila adaptativa: começa em 20 ms, cresce quando falta áudio e encolhe aos poucos sem faltas', () => {
+    const buffer = new TickBuffer();
+    buffer.setAdaptive(960, 3840);
+    expect(buffer.takeStats(48_000).targetMs).toBe(20);
+
+    // Áudio chega com um buraco: cada falta aumenta o alvo em 5 ms.
+    let sequence = 0;
+    for (let i = 0; i < 3; i++) buffer.push(tick(sequence++, [{ slot: 0, fill: () => 0.1 }]));
+    const out = outputs();
+    while (buffer.pull(out, 128)) {
+      // consome até faltar
+    }
+    expect(buffer.takeStats(48_000).targetMs).toBe(25);
+
+    // Dez segundos sem falta (relógios iguais): o alvo volta 2,5 ms.
+    let pulled = 0;
+    while (pulled < 48_000 * 10 + 4800) {
+      while ((buffer.fill ?? 0) < buffer.target + 960) buffer.push(tick(sequence++, [{ slot: 0, fill: () => 0.1 }]));
+      if (buffer.pull(out, 128)) pulled += 128;
+    }
+    expect(buffer.takeStats(48_000).targetMs).toBe(22.5);
+  });
+
+  it('fila adaptativa nunca passa do teto nem do piso', () => {
+    const buffer = new TickBuffer();
+    buffer.setAdaptive(960, 1200);
+    const out = outputs();
+    let sequence = 0;
+    for (let round = 0; round < 10; round++) {
+      while ((buffer.fill ?? 0) < buffer.target) buffer.push(tick(sequence++, [{ slot: 0, fill: () => 0 }]));
+      while (buffer.pull(out, 128)) {
+        // até faltar
+      }
+    }
+    expect(buffer.target).toBe(1200);
+  });
 });

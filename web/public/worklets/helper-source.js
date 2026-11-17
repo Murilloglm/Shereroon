@@ -6,7 +6,9 @@ import { MAX_STREAMS, TickBuffer } from './tick-buffer.js';
 class HelperSource extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    this.buffer = new TickBuffer(options?.processorOptions?.targetFrames ?? 1440);
+    const opts = options?.processorOptions ?? {};
+    this.buffer = new TickBuffer(opts.targetFrames ?? 1440);
+    if (opts.adaptive) this.buffer.setAdaptive(opts.adaptive.min, opts.adaptive.max);
     this.calls = 0;
     this.port.onmessage = (event) => {
       const message = event.data;

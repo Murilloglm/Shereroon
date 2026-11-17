@@ -327,9 +327,11 @@ export function Avatar({
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       <span
         className={cx(
-          'flex size-full items-center justify-center rounded-full font-extrabold text-white transition-shadow duration-150',
-          speaking ? 'shadow-[0_0_0_2px_var(--color-ok-400)]' : 'shadow-[0_0_0_1px_rgb(255_255_255/0.12)]',
+          'flex size-full items-center justify-center rounded-full font-extrabold text-white transition-shadow',
+          // Acende quase na hora (o atraso já foi medido no detector) e apaga devagar, sem piscar.
+          speaking ? 'shadow-[0_0_0_2px_var(--color-ok-400)] duration-[40ms]' : 'shadow-[0_0_0_1px_rgb(255_255_255/0.12)] duration-300',
         )}
+        data-speaking={speaking ? 'true' : undefined}
         style={{
           fontSize: size * 0.36,
           background: `linear-gradient(140deg, hsl(${hue} 72% 58%), hsl(${hue + 35} 68% 30%))`,

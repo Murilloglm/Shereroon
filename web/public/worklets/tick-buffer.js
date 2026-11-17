@@ -11,6 +11,10 @@ export const BLOCK_FRAMES = 480;
 /** Faixa 0 é o mix; as demais são fontes "solo" (entregues separadas para receber filtros). */
 export const MAX_STREAMS = 7;
 const CAPACITY_FRAMES = 48000;
+/** Fila adaptativa: cresce assim a cada falta de áudio e encolhe assim depois de um tempo sem faltar. */
+const GROW_FRAMES = 240;
+const SHRINK_FRAMES = 120;
+const CALM_FRAMES = 48000 * 10;
 const HEADER_BYTES = 8;
 const STREAM_BYTES = 4 + BLOCK_FRAMES * CHANNELS * 4;
 
@@ -23,7 +27,20 @@ export class TickBuffer {
     this.slots = new Int32Array(MAX_STREAMS).fill(-1);
     this.slots[0] = 0;
     this.scratch = new Float32Array(0);
+    this.adaptive = null;
+    this.calmFrames = 0;
     this.reset();
+  }
+
+  /**
+   * Liga a fila adaptativa: o alvo começa em `min`, sobe a cada falta de áudio (até `max`) e desce aos
+   * poucos quando passa um tempo sem faltar. Cada milissegundo a menos aqui é um milissegundo a menos de
+   * atraso do áudio em relação ao vídeo, mas só se reduz o que as medições mostram que sobra.
+   */
+  setAdaptive(min, max) {
+    this.adaptive = { min, max };
+    this.target = min;
+    this.calmFrames = 0;
   }
 
   reset() {
@@ -128,7 +145,18 @@ export class TickBuffer {
       // Faltou áudio: fica em silêncio e só volta quando a fila encher de novo, sem picotar.
       this.underruns += 1;
       this.primed = false;
+      if (this.adaptive) {
+        this.target = Math.min(this.adaptive.max, this.target + GROW_FRAMES);
+        this.calmFrames = 0;
+      }
       return false;
+    }
+    if (this.adaptive) {
+      this.calmFrames += want;
+      if (this.calmFrames >= CALM_FRAMES) {
+        this.calmFrames = 0;
+        this.target = Math.max(this.adaptive.min, this.target - SHRINK_FRAMES);
+      }
     }
 
     this.fillSum += this.fill;
@@ -178,6 +206,7 @@ export class TickBuffer {
       lostBlocks: this.lostBlocks,
       droppedFrames: this.droppedFrames,
       primed: this.primed,
+      targetMs: (this.target / sampleRate) * 1000,
     };
     this.fillSum = 0;
     this.fillCount = 0;

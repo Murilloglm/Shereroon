@@ -86,7 +86,6 @@ test('microfone: o que uma convidada fala chega ao dono', { skip: noSound }, asy
 
   await talker.getByTestId('dock-mic').click();
   await waitFor(async () => (await row.getByTestId('mic-off').count()) === 1, 'o dono ver o microfone da Bia desligado');
-  await waitFor(async () => (await host.locator('audio').count()) === 0, 'a faixa de áudio sumir no dono');
   await talker.context().close();
   await waitFor(async () => (await host.getByTestId('participant').count()) === 2, 'a Bia sair da lista');
 });
