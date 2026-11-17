@@ -3,9 +3,12 @@ import { navigate } from '../../App.tsx';
 import { groups } from '../../lib/groups/client.ts';
 import { Button, Card, cx, Logo, Notice, TextInput } from '../ui.tsx';
 import { errorText, fieldLabel } from './common.tsx';
+import { AppLinks, InviteCard, useInvitePreview } from './InviteCard.tsx';
 
 /** Entrar ou criar conta. Os grupos guardam mensagens, cargos e convites, então precisam saber quem é quem. */
-export function AuthPage({ invited }: { invited: boolean }) {
+export function AuthPage({ invite }: { invite?: string }) {
+  const invited = Boolean(invite);
+  const { preview, error: inviteError } = useInvitePreview(invite);
   const [mode, setMode] = useState<'entrar' | 'criar'>(invited ? 'criar' : 'entrar');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -31,6 +34,20 @@ export function AuthPage({ invited }: { invited: boolean }) {
       <button type="button" className="mb-8 self-start" onClick={() => navigate('#/')} aria-label="Voltar para o início">
         <Logo />
       </button>
+      {invite && (preview || inviteError) && (
+        <div className="mb-4 animate-rise">
+          {preview ? (
+            <InviteCard preview={preview}>
+              <p className="text-sm text-fog-400">Entre ou crie sua conta para aceitar. O convite continua guardado.</p>
+              <AppLinks code={invite} />
+            </InviteCard>
+          ) : (
+            <p className="rounded-xl border border-live-400/40 bg-live-500/10 px-3 py-2 text-sm font-semibold text-live-300" data-testid="invite-invalid">
+              {inviteError}
+            </p>
+          )}
+        </div>
+      )}
       <Card className="animate-rise p-6">
         <h1 className="text-2xl font-extrabold tracking-tight">{mode === 'criar' ? 'Criar sua conta' : 'Entrar nos grupos'}</h1>
         <p className="mt-1.5 text-sm leading-relaxed text-fog-400">

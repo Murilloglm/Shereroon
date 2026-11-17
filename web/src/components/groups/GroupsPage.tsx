@@ -1,8 +1,9 @@
-import { ArrowLeft, AudioLines, Bell, BellOff, ChevronDown, ChevronRight, Compass, Crown, FolderPlus, Hash, Lock, MicOff, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PhoneOff, Plus, Settings, UserPlus, Users, Volume2 } from 'lucide-react';
+import { ArrowLeft, AudioLines, Bell, BellOff, ChevronDown, ChevronRight, Compass, Crown, FolderPlus, Hash, Link2, Lock, MessageSquare, MicOff, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PhoneOff, Plus, Settings, UserPlus, Users, Volume2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
+import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
 import { alertIncoming } from '../../lib/groups/alerts.ts';
 import { groups, type ChannelKind, type ChannelView, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
 import { dialogs } from '../../lib/dialogs.ts';
@@ -11,6 +12,7 @@ import { storage } from '../../lib/storage.ts';
 import { useStore } from '../../lib/store.ts';
 import { RoomView } from '../room/RoomView.tsx';
 import { StreamHover } from '../room/StreamHover.tsx';
+import { AppLinks, inviteValidity, type InvitePreview } from './InviteCard.tsx';
 import { Avatar, Button, Card, cx, IconButton, Logo, LogoMark, Menu, MenuItem, MenuLabel, Modal, Notice, TextInput, Toast, Toggle } from '../ui.tsx';
 import { AuthPage } from './AuthPage.tsx';
 import { Chat, NOTIFY_LABELS } from './Chat.tsx';
@@ -89,7 +91,7 @@ function CreateGroupModal({ onClose }: { onClose: () => void }) {
 function JoinGroupModal({ code, onClose }: { code?: string; onClose: () => void }) {
   const [mode, setMode] = useState<'convite' | 'publicos'>('convite');
   const [text, setText] = useState(code ?? '');
-  const [preview, setPreview] = useState<{ code: string; group: { id: string; name: string; description: string; icon: string | null; memberCount: number }; joined: boolean } | null>(null);
+  const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [search, setSearch] = useState('');
   const [found, setFound] = useState<any[] | null>(null);
   const { busy, run } = useAction();
@@ -100,7 +102,7 @@ function JoinGroupModal({ code, onClose }: { code?: string; onClose: () => void 
       if (!parsed) return groups.notify('Cole o link de convite inteiro ou só o código.');
       void run(async () => {
         const result = await groups.call('GET', `/api/invites/${parsed}`);
-        setPreview({ code: parsed, group: result.group, joined: result.joined });
+        setPreview({ ...result, code: parsed });
       });
     },
     [run],
@@ -160,6 +162,11 @@ function JoinGroupModal({ code, onClose }: { code?: string; onClose: () => void 
                     {preview.group.memberCount} {preview.group.memberCount === 1 ? 'membro' : 'membros'}
                     {preview.group.description && ` • ${preview.group.description}`}
                   </p>
+                  {inviteValidity(preview.invite) && (
+                    <p className="truncate text-xs text-fog-500" data-testid="invite-validity">
+                      Convite: {inviteValidity(preview.invite)}
+                    </p>
+                  )}
                 </div>
                 <Button
                   variant="primary"
@@ -171,6 +178,7 @@ function JoinGroupModal({ code, onClose }: { code?: string; onClose: () => void 
                 </Button>
               </Card>
             )}
+            {preview && !preview.joined && <AppLinks code={preview.code} />}
           </>
         ) : (
           <>
@@ -337,22 +345,45 @@ function VoiceBar({ view, voice, onLeave }: { view: GroupView | null; voice: Voi
 }
 
 /** Quem está num canal de voz. No canal em que esta conta está conectada, mostra também quem fala, microfone e transmissão. */
-function VoicePeopleRows({ people, session }: { people: MemberView[]; session: RoomSession | null }) {
-  return session ? <LiveVoicePeople people={people} session={session} /> : <VoicePeopleList people={people} live={new Map()} session={null} />;
+/** Quem está sendo arrastado de um canal de voz para outro (na mesma página). */
+let draggingMember: { userId: string; from: string } | null = null;
+const MEMBER_DRAG = 'application/x-cosmic-member';
+
+function VoicePeopleRows({ people, session, channel }: { people: MemberView[]; session: RoomSession | null; channel: ChannelView }) {
+  return session ? <LiveVoicePeople people={people} session={session} channel={channel} /> : <VoicePeopleList people={people} live={new Map()} session={null} channel={channel} />;
 }
 
-function LiveVoicePeople({ people, session }: { people: MemberView[]; session: RoomSession }) {
+function LiveVoicePeople({ people, session, channel }: { people: MemberView[]; session: RoomSession; channel: ChannelView }) {
   const participants = useStore(session.store, (state) => state.participants);
-  return <VoicePeopleList people={people} live={new Map(participants.map((participant) => [participant.identity, participant]))} session={session} />;
+  return <VoicePeopleList people={people} live={new Map(participants.map((participant) => [participant.identity, participant]))} session={session} channel={channel} />;
 }
 
-function VoicePeopleList({ people, live, session }: { people: MemberView[]; live: Map<string, ParticipantView>; session: RoomSession | null }) {
+function VoicePeopleList({ people, live, session, channel }: { people: MemberView[]; live: Map<string, ParticipantView>; session: RoomSession | null; channel: ChannelView }) {
+  // Quem pode mover participantes deste canal arrasta a pessoa até outro canal de voz.
+  const canMove = has(channel.permissions, P.MOVE_MEMBERS);
   return (
     <ul className="mt-0.5 mb-1 ml-7 grid gap-0.5" data-testid="channel-voice-people">
       {people.map((member) => {
         const state = live.get(member.userId);
         return (
-          <li key={member.userId} className="flex items-center gap-2 py-0.5 text-sm text-fog-300" data-user={member.username} data-speaking={state?.speaking === true}>
+          <li
+            key={member.userId}
+            className={cx('flex items-center gap-2 rounded-md py-0.5 text-sm text-fog-300', canMove && 'cursor-grab active:cursor-grabbing')}
+            data-user={member.username}
+            data-speaking={state?.speaking === true}
+            draggable={canMove}
+            onDragStart={(event) => {
+              if (!canMove) return;
+              draggingMember = { userId: member.userId, from: channel.id };
+              event.dataTransfer.setData(MEMBER_DRAG, member.userId);
+              event.dataTransfer.effectAllowed = 'move';
+              event.stopPropagation();
+            }}
+            onDragEnd={() => {
+              draggingMember = null;
+            }}
+            data-testid="voice-member"
+          >
             {session ? (
               <StreamHover session={session} identity={member.userId} name={memberName(member)} enabled={state?.sharing === true} className="flex min-w-0 flex-1 items-center gap-2">
                 <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} />
@@ -373,13 +404,15 @@ function VoicePeopleList({ people, live, session }: { people: MemberView[]; live
   );
 }
 
-function ChannelList({ view, selected, voice, onPick, onModal }: {
+function ChannelList({ view, selected, voice, onPick, onModal, onOpenChat }: {
   view: GroupView;
   selected: string | undefined;
   voice: VoiceState | null;
   onPick: (channel: ChannelView) => void;
   onModal: (modal: ModalState) => void;
+  onOpenChat: (channel: ChannelView) => void;
 }) {
+  const [memberOver, setMemberOver] = useState<{ channelId: string; allowed: boolean } | null>(null);
   const { run } = useAction();
   const collapsedKey = `shareroom:categorias:${view.group.id}`;
   const [collapsed, setCollapsed] = useState<string[]>(() => storage.get<string[]>(collapsedKey, []));
@@ -451,13 +484,52 @@ function ChannelList({ view, selected, voice, onPick, onModal }: {
   const row = (channel: ChannelView) => {
     const inside = (view.voice[channel.id] ?? []).map((userId) => view.members.find((member) => member.userId === userId)).filter((member) => member !== undefined);
     const Icon = channel.private ? Lock : channel.kind === 'voz' ? Volume2 : Hash;
-    const news = channel.kind === 'texto' ? unreadOf(view, channel.id) : { unread: false, mentions: 0, muted: false };
+    const news = unreadOf(view, channel.id);
+    // Soltar alguém arrastado aqui: só em canal de voz diferente, onde quem move pode conectar.
+    const dropAllowed = (from: string | undefined) => channel.kind === 'voz' && from !== undefined && from !== channel.id && has(channel.permissions, P.CONNECT);
+    const memberHere = memberOver?.channelId === channel.id ? memberOver : null;
+    const memberDrop =
+      channel.kind === 'voz'
+        ? {
+            onDragOver: (event: DragEvent<HTMLElement>) => {
+              if (!event.dataTransfer.types.includes(MEMBER_DRAG)) return;
+              event.stopPropagation();
+              const allowed = dropAllowed(draggingMember?.from);
+              if (allowed) event.preventDefault();
+              event.dataTransfer.dropEffect = allowed ? 'move' : 'none';
+              if (memberOver?.channelId !== channel.id || memberOver.allowed !== allowed) setMemberOver({ channelId: channel.id, allowed });
+            },
+            onDragLeave: () => setMemberOver((current) => (current?.channelId === channel.id ? null : current)),
+            onDrop: (event: DragEvent<HTMLElement>) => {
+              if (!event.dataTransfer.types.includes(MEMBER_DRAG)) return;
+              event.preventDefault();
+              event.stopPropagation();
+              setMemberOver(null);
+              const dragged = draggingMember;
+              draggingMember = null;
+              if (!dragged || !dropAllowed(dragged.from)) {
+                groups.notify('Você não pode mover para este canal.');
+                return;
+              }
+              void moveToVoice(view, dragged.from, dragged.userId, channel.id);
+            },
+          }
+        : {};
     const active = selected === channel.id;
     const connected = voice?.channelId === channel.id;
     return (
       <li key={channel.id} className={cx('relative', over === channel.id && 'shadow-[0_-2px_0_var(--color-neon-400)]', drag === channel.id && 'opacity-40')} data-testid="channel-item" data-unread={news.unread} data-mentions={news.mentions} {...dragProps(channel, { before: channel })}>
         {news.unread && !active && <span className="absolute top-1/2 -left-2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-white" aria-hidden="true" />}
-        <div className={cx('flex items-center rounded-lg border border-transparent transition-colors', active ? 'cn-selected text-white' : connected ? 'bg-ok-400/10' : 'hover:bg-white/5')}>
+        <div
+          className={cx(
+            'group/row flex items-center rounded-lg border border-transparent transition-colors',
+            active ? 'cn-selected text-white' : connected ? 'bg-ok-400/10' : 'hover:bg-white/5',
+            memberHere?.allowed && 'border-neon-400 bg-neon-500/15',
+            memberHere && !memberHere.allowed && 'border-live-400/70 bg-live-500/10',
+          )}
+          data-drop={memberHere ? (memberHere.allowed ? 'pode' : 'nao-pode') : undefined}
+          {...memberDrop}
+        >
           <button
             type="button"
             onClick={() => onPick(channel)}
@@ -479,14 +551,35 @@ function ChannelList({ view, selected, voice, onPick, onModal }: {
             </span>
           )}
           {news.muted && <BellOff className="mr-2 size-3.5 shrink-0 text-fog-500" aria-label="Canal silenciado" />}
+          {memberHere && !memberHere.allowed && <span className="mr-2 shrink-0 text-xs font-bold text-live-300">Sem permissão</span>}
+          {channel.kind === 'voz' && (
+            <span className="mr-1 hidden shrink-0 items-center group-focus-within/row:flex group-hover/row:flex" data-testid="voice-channel-actions">
+              <IconButton label={`Abrir o chat de ${channel.name}`} className="size-7" onClick={() => onOpenChat(channel)} data-testid="voice-channel-chat">
+                <MessageSquare className="size-3.5" />
+              </IconButton>
+              <IconButton
+                label={`Copiar o link de ${channel.name}`}
+                className="size-7"
+                onClick={() => void copyText(channelLink(view.group.id, channel.id)).then((done) => groups.notify(done ? 'Link do canal copiado.' : 'Não foi possível copiar.'))}
+                data-testid="voice-channel-link"
+              >
+                <Link2 className="size-3.5" />
+              </IconButton>
+              {manage && (
+                <IconButton label={`Editar ${channel.name}`} className="size-7" onClick={() => onModal({ type: 'config', tab: 'canais' })} data-testid="voice-channel-edit">
+                  <Settings className="size-3.5" />
+                </IconButton>
+              )}
+            </span>
+          )}
           {channel.kind === 'voz' && (inside.length > 0 || channel.userLimit > 0) && (
-            <span className="mr-2 shrink-0 text-xs text-fog-500">
+            <span className="mr-2 shrink-0 text-xs text-fog-500 group-focus-within/row:hidden group-hover/row:hidden">
               {inside.length}
               {channel.userLimit > 0 && `/${channel.userLimit}`}
             </span>
           )}
         </div>
-        {inside.length > 0 && <VoicePeopleRows people={inside} session={connected ? voice.session : null} />}
+        {inside.length > 0 && <VoicePeopleRows people={inside} session={connected ? voice.session : null} channel={channel} />}
       </li>
     );
   };
@@ -602,6 +695,12 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
   const [modal, setModal] = useState<ModalState>(invite ? { type: 'entrar', code: invite } : null);
   const [pane, setPane] = useState<'lista' | 'conteudo'>(channelId ? 'conteudo' : 'lista');
   const { voice, joining, join, leave } = useVoice(view);
+  // O chat do canal de voz fica aberto ao lado da chamada (a escolha fica guardada neste aparelho).
+  const [voiceChat, setVoiceChatState] = useState(() => storage.get<boolean>('shareroom:chat-da-chamada', true) === true);
+  const setVoiceChat = (open: boolean) => {
+    storage.set('shareroom:chat-da-chamada', open);
+    setVoiceChatState(open);
+  };
   const openedFor = useRef<string | undefined>(undefined);
   const channelsPanel = usePanel('canais', 'left', 264, 208, 420, 'a coluna de canais');
   const membersPanel = usePanel('membros', 'right', 256, 200, 400, 'a lista de membros');
@@ -673,6 +772,17 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
     document.title = `${pendingMentions > 0 ? `(${pendingMentions}) ` : anyUnread ? '• ' : ''}${current ? `${current.group.name} – ` : ''}Cosmic Night`;
   }, [pendingMentions, anyUnread, current]);
 
+  // Movida para outro canal de voz (por um moderador) enquanto olhava a chamada: a tela acompanha.
+  const lastVoiceChannel = useRef<string | null>(null);
+  useEffect(() => {
+    const now = voice?.channelId ?? null;
+    // Entre sair do canal antigo e entrar no novo a conexão some por um instante: lembra o último canal real.
+    if (!now) return;
+    const before = lastVoiceChannel.current;
+    lastVoiceChannel.current = now;
+    if (before && before !== now && channelId === before && voice) redirect(groupHash(voice.groupId, now));
+  }, [voice, channelId]);
+
   const pick = (target: ChannelView) => {
     navigate(groupHash(current!.group.id, target.id));
     setPane('conteudo');
@@ -681,6 +791,35 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
   };
 
   const inThisVoice = Boolean(voice && channel && voice.channelId === channel.id);
+  const voiceChannel = current && voice ? current.channels.find((item) => item.id === voice.channelId) : undefined;
+  const openChat = (target: ChannelView) => {
+    navigate(groupHash(current!.group.id, target.id));
+    setPane('conteudo');
+    setVoiceChat(true);
+  };
+  const voiceChatPanel = (target: ChannelView) =>
+    voiceChat && has(target.permissions, P.VIEW_CHANNEL) ? (
+      <aside className="flex w-[min(26rem,40%)] min-w-72 shrink-0 flex-col border-l border-brand-500/15" data-testid="voice-chat">
+        <Chat key={target.id} view={current!} channel={target} />
+      </aside>
+    ) : null;
+  const voiceChatToggle = (target: ChannelView) => {
+    const news = unreadOf(current!, target.id);
+    return (
+      <Button
+        size="sm"
+        variant={voiceChat ? 'quiet' : 'outline'}
+        className="absolute top-2 right-3 z-10"
+        onClick={() => setVoiceChat(!voiceChat)}
+        aria-pressed={voiceChat}
+        data-testid="voice-chat-toggle"
+      >
+        <MessageSquare className="size-4" aria-hidden="true" />
+        {voiceChat ? 'Fechar chat' : 'Chat da chamada'}
+        {!voiceChat && news.unread && <span className="size-2 rounded-full bg-neon-300" aria-label="mensagens novas" />}
+      </Button>
+    );
+  };
   const showContent = wide || pane === 'conteudo';
   const showList = wide || pane === 'lista';
   const showChannels = !wide || channelsPanel.open;
@@ -738,7 +877,7 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
               {gap}
               <div className={cx('cn-panel flex min-h-0 flex-col overflow-hidden', wide ? 'shrink-0' : 'min-w-0 flex-1')} style={wide ? { width: channelsPanel.width } : undefined} data-testid="channels-panel">
                 {current ? (
-                  <ChannelList view={current} selected={channelId} voice={voice} onPick={pick} onModal={setModal} />
+                  <ChannelList view={current} selected={channelId} voice={voice} onPick={pick} onModal={setModal} onOpenChat={openChat} />
                 ) : (
                   <div className="min-h-0 flex-1 p-4">
                     <Logo compact />
@@ -779,8 +918,12 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
           </div>
         )}
         {voice && (
-          <div className={cx('min-h-0 flex-1', inThisVoice ? 'flex flex-col' : 'hidden')} data-testid="voice-room">
-            <RoomView session={voice.session} invite="" embedded onLeave={() => void leave()} />
+          <div className={cx('relative min-h-0 flex-1', inThisVoice ? 'flex' : 'hidden')}>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="voice-room">
+              <RoomView session={voice.session} invite="" embedded onLeave={() => void leave()} />
+            </div>
+            {inThisVoice && voiceChannel && voiceChatPanel(voiceChannel)}
+            {inThisVoice && voiceChannel && voiceChatToggle(voiceChannel)}
           </div>
         )}
         {!inThisVoice &&
@@ -788,7 +931,11 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
             channel.kind === 'texto' ? (
               <Chat key={channel.id} view={current} channel={channel} membersOpen={membersPanel.open} onToggleMembers={wide ? membersPanel.toggle : undefined} />
             ) : (
-              <VoiceLobby view={current} channel={channel} joining={joining === channel.id} onJoin={() => void join(current.group.id, channel.id)} />
+              <div className="relative flex min-h-0 flex-1">
+                <VoiceLobby view={current} channel={channel} joining={joining === channel.id} onJoin={() => void join(current.group.id, channel.id)} />
+                {voiceChatPanel(channel)}
+                {voiceChatToggle(channel)}
+              </div>
             )
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-fog-400">
@@ -857,7 +1004,7 @@ export function GroupsPage({ groupId, channelId, invite }: { groupId?: string; c
           </div>
         </div>
       )}
-      {status === 'fora' && <AuthPage invited={Boolean(invite)} />}
+      {status === 'fora' && <AuthPage invite={invite} />}
       {status === 'dentro' && <Shell groupId={groupId} channelId={channelId} invite={invite} />}
       <Toast message={notice} onDone={clear} />
     </>

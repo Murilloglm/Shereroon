@@ -174,7 +174,7 @@ export class BotRuntime {
         `bot-${module.id}-${groupId}`.toLowerCase(),
         module.name,
       ]);
-      await tx.query('INSERT INTO members (group_id, user_id) VALUES ($1, $2)', [groupId, userId]);
+      await tx.query("INSERT INTO members (group_id, user_id, joined_via) VALUES ($1, $2, 'bot')", [groupId, userId]);
       // O cargo do bot nasce no pé da hierarquia. Para ele agir sobre membros com cargo, alguém precisa subi-lo.
       await tx.query('UPDATE roles SET position = position + 1 WHERE group_id = $1 AND NOT is_everyone', [groupId]);
       await tx.query(`INSERT INTO roles (id, group_id, name, color, position, permissions, bot_id) VALUES ($1, $2, $3, '#a78bfa', 1, $4, $5)`, [

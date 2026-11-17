@@ -313,6 +313,7 @@ const ACTIONS: Record<string, string> = {
   'canal.excluido': 'excluiu o canal',
   'canal.reordenado': 'reorganizou os canais',
   'canal.permissoes': 'mudou as permissões do canal',
+  'canal.acesso_concedido': 'liberou o acesso a um canal para',
   'convite.criado': 'criou o convite',
   'convite.revogado': 'revogou o convite',
   'mensagem.excluida': 'apagou uma mensagem em',

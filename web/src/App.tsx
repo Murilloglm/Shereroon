@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { DialogHost } from './components/DialogHost.tsx';
+import { desktop } from './lib/desktop.ts';
 import { HomePage } from './components/HomePage.tsx';
 import { RoomGate } from './components/RoomGate.tsx';
 import { Backdrop } from './components/ui.tsx';
@@ -31,6 +32,18 @@ export function navigate(hash: string): void {
 
 export function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
+
+  // Aplicativo de Windows: um link cosmicnight://convite/... abre a tela do convite aqui dentro.
+  useEffect(() => {
+    const links = desktop?.links;
+    if (!links) return;
+    const take = async () => {
+      const link = await links.take();
+      if (link?.kind === 'convite' && /^[A-Za-z0-9_-]{8,40}$/.test(link.code)) navigate(`#/convite/${link.code}`);
+    };
+    void take();
+    return links.onLink(() => void take());
+  }, []);
 
   useEffect(() => {
     const onChange = () => setRoute(parseRoute(window.location.hash));

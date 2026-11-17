@@ -53,6 +53,8 @@ export interface RoleView {
   position: number;
   permissions: bigint;
   isEveryone: boolean;
+  /** Cargo próprio de um bot (só muda pela Central de Bots). */
+  botId?: string | null;
   memberCount: number;
 }
 
@@ -66,6 +68,8 @@ export interface ChannelView {
   parentId: string | null;
   position: number;
   userLimit: number;
+  /** Canal de voz com chat temporário: as mensagens somem quando o último sai. */
+  temporaryChat?: boolean;
   private: boolean;
   /** Permissões desta conta neste canal, já calculadas pelo backend. */
   permissions: bigint;
@@ -80,6 +84,8 @@ export interface MemberView {
   joinedAt: string;
   timeoutUntil: string | null;
   online: boolean;
+  /** Conta de bot instalada no grupo. */
+  bot?: boolean;
 }
 
 export interface GroupView {
@@ -642,6 +648,13 @@ export class GroupsClient {
       case 'message.updated':
         this.#upsert(event.message as ChatMessage);
         break;
+      case 'channel.cleared': {
+        // Chat temporário de um canal de voz que esvaziou: as mensagens sumiram para todos.
+        const id = event.channelId as string;
+        if (this.store.get().messages[id]?.loaded) this.#setMessages(id, { items: [] });
+        this.#scheduleGroups();
+        break;
+      }
       case 'message.deleted':
         this.#drop(event.channelId as string, event.id as string);
         this.#scheduleGroups();

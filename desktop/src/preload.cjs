@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('shareroomDesktop', {
   /** Comandos vindos do menu da bandeja. */
   onCommand: (listener) => subscribe('desktop:command', listener),
 
+  /** Convites abertos por um link cosmicnight://. `take` devolve o pendente (uma vez só). */
+  links: {
+    take: () => ipcRenderer.invoke('desktop:take-link'),
+    onLink: (listener) => subscribe('desktop:link', listener),
+  },
+
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     check: () => ipcRenderer.invoke('update:check'),

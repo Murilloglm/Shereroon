@@ -275,6 +275,152 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       UPDATE roles SET permissions = permissions | 68719476736 WHERE is_everyone;
     `,
   },
+  {
+    id: 4,
+    name: 'perfis, amizades, mensagens privadas, notas pessoais, entrada no grupo, bots na lista, chat de voz e emojis',
+    sql: `
+      -- Perfil. avatar: 'padrao:<n>' ou 'arquivo:<id>'; banner: 'cor:#rrggbb' ou 'arquivo:<id>'.
+      ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT '';
+      ALTER TABLE users ADD COLUMN status_text TEXT NOT NULL DEFAULT '';
+      ALTER TABLE users ADD COLUMN avatar TEXT;
+      ALTER TABLE users ADD COLUMN banner TEXT;
+      -- Quem vê bio, status e servidores em comum: qualquer conta que encontrar o perfil, quem divide um
+      -- grupo, ou só amigos. Nome e foto aparecem sempre (são necessários para as conversas funcionarem).
+      ALTER TABLE users ADD COLUMN profile_privacy TEXT NOT NULL DEFAULT 'membros' CHECK (profile_privacy IN ('todos', 'membros', 'amigos'));
+      -- Quem pode mandar mensagem privada: amigos, ou também quem divide um grupo.
+      ALTER TABLE users ADD COLUMN dm_privacy TEXT NOT NULL DEFAULT 'membros' CHECK (dm_privacy IN ('amigos', 'membros'));
+
+      CREATE TABLE user_media (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('avatar', 'banner')),
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        animated BOOLEAN NOT NULL DEFAULT false,
+        data BYTEA NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX user_media_user ON user_media(user_id);
+
+      -- Amizade: um registro por par, com o menor id primeiro.
+      CREATE TABLE friendships (
+        user_low TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_high TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        requested_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status TEXT NOT NULL CHECK (status IN ('pendente', 'amigos')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        accepted_at TIMESTAMPTZ,
+        PRIMARY KEY (user_low, user_high),
+        CHECK (user_low < user_high)
+      );
+      CREATE INDEX friendships_high ON friendships(user_high);
+
+      CREATE TABLE user_blocks (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        blocked_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, blocked_id)
+      );
+      CREATE INDEX user_blocks_blocked ON user_blocks(blocked_id);
+
+      -- Nota e apelido que só quem escreveu vê.
+      CREATE TABLE user_notes (
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        target_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        note TEXT NOT NULL DEFAULT '',
+        nickname TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (owner_id, target_id)
+      );
+
+      -- Mensagens privadas: uma conversa por par. Nenhuma rota de grupo lê estas tabelas.
+      CREATE TABLE dm_channels (
+        id TEXT PRIMARY KEY,
+        user_low TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_high TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        last_message_id BIGINT NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (user_low, user_high),
+        CHECK (user_low < user_high)
+      );
+      CREATE INDEX dm_channels_high ON dm_channels(user_high);
+
+      CREATE TABLE dm_messages (
+        id BIGSERIAL PRIMARY KEY,
+        dm_id TEXT NOT NULL REFERENCES dm_channels(id) ON DELETE CASCADE,
+        author_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        content TEXT NOT NULL,
+        reply_to BIGINT REFERENCES dm_messages(id) ON DELETE SET NULL,
+        -- Cartões especiais (convite para grupo).
+        meta JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        edited_at TIMESTAMPTZ
+      );
+      CREATE INDEX dm_messages_dm ON dm_messages(dm_id, id DESC);
+
+      CREATE TABLE dm_files (
+        id TEXT PRIMARY KEY,
+        dm_id TEXT NOT NULL REFERENCES dm_channels(id) ON DELETE CASCADE,
+        uploader_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        message_id BIGINT REFERENCES dm_messages(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        width INTEGER,
+        height INTEGER,
+        data BYTEA NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX dm_files_message ON dm_files(message_id);
+      CREATE INDEX dm_files_dm ON dm_files(dm_id);
+
+      CREATE TABLE dm_reactions (
+        message_id BIGINT NOT NULL REFERENCES dm_messages(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        emoji TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (message_id, emoji, user_id)
+      );
+
+      CREATE TABLE dm_states (
+        dm_id TEXT NOT NULL REFERENCES dm_channels(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        last_read_id BIGINT NOT NULL DEFAULT 0,
+        notify TEXT NOT NULL DEFAULT 'tudo' CHECK (notify IN ('tudo', 'nada')),
+        PRIMARY KEY (dm_id, user_id)
+      );
+
+      -- Como cada membro entrou. Só existe para quem entrar daqui em diante: o passado não é inventado.
+      ALTER TABLE members ADD COLUMN joined_via TEXT;
+      ALTER TABLE members ADD COLUMN invited_by TEXT REFERENCES users(id) ON DELETE SET NULL;
+
+      -- Bots na lista de membros (só aparência: as permissões e o registro de ações continuam valendo).
+      ALTER TABLE bot_installs ADD COLUMN member_list TEXT NOT NULL DEFAULT 'categoria' CHECK (member_list IN ('mostrar', 'ocultar', 'categoria'));
+
+      -- Chat dos canais de voz: temporário apaga as mensagens quando o canal esvazia.
+      ALTER TABLE channels ADD COLUMN temporary_chat BOOLEAN NOT NULL DEFAULT false;
+      INSERT INTO read_states (user_id, channel_id, last_read_id)
+        SELECT m.user_id, c.id, (SELECT coalesce(max(id), 0) FROM messages)
+          FROM members m JOIN channels c ON c.group_id = m.group_id WHERE c.kind = 'voz'
+        ON CONFLICT DO NOTHING;
+
+      -- Emojis próprios de cada grupo (estáticos ou animados).
+      CREATE TABLE group_emojis (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        animated BOOLEAN NOT NULL DEFAULT false,
+        size INTEGER NOT NULL,
+        data BYTEA NOT NULL,
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (group_id, name)
+      );
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

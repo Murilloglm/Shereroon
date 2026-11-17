@@ -250,9 +250,14 @@ describe('mensagens', () => {
     await w.ok('POST', `/api/channels/${geral}/messages`, membro.token, { content: 'voltei' });
   });
 
-  it('canal de voz não aceita mensagens; enviar rápido demais é contido', async () => {
+  it('canal de voz tem chat próprio (categoria não); enviar rápido demais é contido', async () => {
     const voz = (await w.channelByName(dono, groupId, 'Sala de voz'))!;
-    expect((await w.api('POST', `/api/channels/${voz}/messages`, membro.token, { content: 'oi' })).json.error.code).toBe('nao_e_texto');
+    const sent = await w.ok('POST', `/api/channels/${voz}/messages`, membro.token, { content: 'oi da chamada' });
+    expect(sent.message.content).toBe('oi da chamada');
+    const history = (await w.ok('GET', `/api/channels/${voz}/messages`, dono.token)).messages as { content: string }[];
+    expect(history.map((message) => message.content)).toContain('oi da chamada');
+    const categoria = (await w.ok('POST', `/api/groups/${groupId}/channels`, dono.token, { kind: 'categoria', name: 'Tudo' })).id as string;
+    expect((await w.api('POST', `/api/channels/${categoria}/messages`, membro.token, { content: 'oi' })).json.error.code).toBe('nao_e_texto');
 
     const limited = await createWorld(new RateLimiter());
     const rapido = await limited.signup('rapido');

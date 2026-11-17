@@ -59,6 +59,8 @@ export interface Channel {
   parentId: string | null;
   position: number;
   userLimit: number;
+  /** Só canais de voz: as mensagens do chat da chamada somem quando o canal esvazia. */
+  temporaryChat: boolean;
 }
 
 export interface Override extends OverrideLike {
@@ -309,7 +311,17 @@ export class Community {
     hub.onVoiceChanged = (userId, before, after) => {
       if (before) this.#emit({ type: 'voice.leave', groupId: before.groupId, channelId: before.channelId, userId });
       if (after) this.#emit({ type: 'voice.join', groupId: after.groupId, channelId: after.channelId, userId });
+      if (before && before.channelId !== after?.channelId) void this.#voiceEmptied(before.groupId, before.channelId).catch(() => undefined);
     };
+  }
+
+  /** O último saiu de um canal de voz com chat temporário: as mensagens dele são apagadas (para todos). */
+  async #voiceEmptied(groupId: string, channelId: string): Promise<void> {
+    if ((this.hub.voiceIn(groupId)[channelId] ?? []).length > 0) return;
+    const channel = (await this.snapshot(groupId)).channels.get(channelId);
+    if (!channel?.temporaryChat) return;
+    const removed = await this.#db.query('DELETE FROM messages WHERE channel_id = $1 RETURNING id', [channelId]);
+    if (removed.length > 0) await this.hub.publishToChannel(groupId, channelId, { t: 'channel.cleared', groupId, channelId });
   }
 
   // --- Eventos internos (para os bots) -----------------------------------------------------
@@ -385,6 +397,7 @@ export class Community {
         parentId: row.parent_id === null ? null : String(row.parent_id),
         position: num(row.position),
         userLimit: num(row.user_limit),
+        temporaryChat: row.temporary_chat === true,
       };
       channels.set(channel.id, channel);
       this.#channelGroup.set(channel.id, groupId);
@@ -547,7 +560,7 @@ export class Community {
                 WHERE m.channel_id = c.id AND m.id > coalesce(r.last_read_id, 0) AND m.author_id IS DISTINCT FROM $1
                   AND (m.mention_everyone OR m.mentions @> $2::jsonb)) AS mentions
          FROM channels c LEFT JOIN read_states r ON r.channel_id = c.id AND r.user_id = $1
-        WHERE c.group_id = ANY($3::text[]) AND c.kind = 'texto'`,
+        WHERE c.group_id = ANY($3::text[]) AND c.kind IN ('texto', 'voz')`,
       [userId, JSON.stringify([userId]), groupIds],
     );
     for (const row of rows) {
@@ -645,7 +658,7 @@ export class Community {
         input.isPublic === true,
         user.id,
       ]);
-      await tx.query('INSERT INTO members (group_id, user_id) VALUES ($1, $2)', [id, user.id]);
+      await tx.query("INSERT INTO members (group_id, user_id, joined_via) VALUES ($1, $2, 'criador')", [id, user.id]);
       await tx.query(`INSERT INTO roles (id, group_id, name, color, position, permissions, is_everyone) VALUES ($1, $2, '@everyone', NULL, 0, $3, true)`, [
         newId(),
         id,
@@ -720,6 +733,7 @@ export class Community {
         parentId: channel.parentId,
         position: channel.position,
         userLimit: channel.userLimit,
+        temporaryChat: channel.temporaryChat,
         private: isPrivate(channel),
         permissions: str(channel.kind === 'categoria' ? this.permissionsIn(snap, subject, channel) : visible.get(channel.id)!),
       }));
@@ -817,16 +831,17 @@ export class Community {
 
   // --- Entrar e sair ----------------------------------------------------------------------
 
-  async #addMember(db: Db, groupId: string, user: User): Promise<void> {
+  /** `via`: como a pessoa entrou ('publico', 'convite:<código>'); fica registrado para a moderação. */
+  async #addMember(db: Db, groupId: string, user: User, via: string, invitedBy: string | null = null): Promise<void> {
     const [banned] = await db.query('SELECT 1 FROM bans WHERE group_id = $1 AND user_id = $2', [groupId, user.id]);
     if (banned) throw new ApiError(403, 'banido', 'Você foi banido deste grupo.');
     const [count] = await db.query('SELECT count(*) AS total FROM members WHERE user_id = $1', [user.id]);
     if (num(count?.total) >= LIMITS.groupsPerUser) throw new ApiError(409, 'grupos_demais', `Cada conta participa de no máximo ${LIMITS.groupsPerUser} grupos.`);
-    await db.query('INSERT INTO members (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [groupId, user.id]);
+    await db.query('INSERT INTO members (group_id, user_id, joined_via, invited_by) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [groupId, user.id, via, invitedBy]);
     // Quem entra agora não recebe o histórico inteiro como "não lido".
     await db.query(
       `INSERT INTO read_states (user_id, channel_id, last_read_id)
-       SELECT $2, c.id, (SELECT coalesce(max(id), 0) FROM messages) FROM channels c WHERE c.group_id = $1 AND c.kind = 'texto'
+       SELECT $2, c.id, (SELECT coalesce(max(id), 0) FROM messages) FROM channels c WHERE c.group_id = $1 AND c.kind IN ('texto', 'voz')
        ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_id = GREATEST(read_states.last_read_id, EXCLUDED.last_read_id)`,
       [groupId, user.id],
     );
@@ -852,7 +867,7 @@ export class Community {
     const snap = await this.snapshot(groupId);
     if (snap.members.has(user.id)) return snap.group;
     if (!snap.group.isPublic) throw NOT_FOUND();
-    await this.#addMember(this.#db, groupId, user);
+    await this.#addMember(this.#db, groupId, user, 'publico');
     this.#joined(groupId, user);
     return snap.group;
   }
@@ -946,11 +961,24 @@ export class Community {
     return row;
   }
 
-  async previewInvite(user: User, code: string) {
+  /**
+   * O que um convite mostra antes de aceitar: nome, ícone, descrição e tamanho do grupo, e a validade. Funciona
+   * sem conta (quem recebe o link vê para onde vai antes de criar uma). Nada de membros, canais ou mensagens.
+   */
+  async previewInvite(user: User | null, code: string) {
     const row = await this.#usableInvite(this.#db, code);
     const snap = await this.snapshot(String(row.group_id));
     const { id, name, description, icon } = snap.group;
-    return { group: { id, name, description, icon, memberCount: snap.members.size }, joined: snap.members.has(user.id) };
+    return {
+      code,
+      group: { id, name, description, icon, memberCount: snap.members.size },
+      joined: user ? snap.members.has(user.id) : false,
+      invite: {
+        expiresAt: row.expires_at === null ? null : new Date(String(row.expires_at)).toISOString(),
+        maxUses: num(row.max_uses),
+        uses: num(row.uses),
+      },
+    };
   }
 
   async acceptInvite(user: User, code: string): Promise<Group> {
@@ -962,7 +990,7 @@ export class Community {
       if (locked && already) return String(locked.group_id);
       const row = await this.#usableInvite(tx, code);
       const id = String(row.group_id);
-      await this.#addMember(tx, id, user);
+      await this.#addMember(tx, id, user, `convite:${code}`, String(row.created_by));
       await tx.query('UPDATE invites SET uses = uses + 1 WHERE code = $1', [code]);
       return id;
     });
@@ -1237,11 +1265,17 @@ export class Community {
     const name = requiredName(input.name, 'o nome do canal');
     const parentId = this.#parent(ctx, kind, input.parentId);
     const userLimit = this.#userLimit(kind, input.userLimit);
+    const temporaryChat = kind === 'voz' && input.temporaryChat === true;
+    // Quem pode ver (e entrar) num canal privado, escolhido já na criação. Só membros e cargos deste grupo.
+    const pick = (value: unknown, valid: (id: string) => boolean): string[] =>
+      Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === 'string' && valid(item)))].slice(0, 100) : [];
+    const allowMembers = input.private === true ? pick(input.allowMembers, (id) => ctx.snap.members.has(id) && id !== user.id) : [];
+    const allowRoles = input.private === true ? pick(input.allowRoles, (id) => ctx.snap.roles.some((role) => role.id === id) && id !== ctx.snap.everyone.id) : [];
     const id = newId();
     const siblings = [...ctx.snap.channels.values()].filter((channel) => channel.parentId === parentId && (channel.kind === 'categoria') === (kind === 'categoria'));
     const position = siblings.reduce((max, channel) => Math.max(max, channel.position + 1), 0);
     await this.#db.tx(async (tx) => {
-      await tx.query('INSERT INTO channels (id, group_id, kind, name, topic, parent_id, position, user_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [
+      await tx.query('INSERT INTO channels (id, group_id, kind, name, topic, parent_id, position, user_limit, temporary_chat) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
         id,
         groupId,
         kind,
@@ -1250,6 +1284,7 @@ export class Community {
         parentId,
         position,
         userLimit,
+        temporaryChat,
       ]);
       if (input.private === true) {
         // Canal privado: escondido do @everyone e liberado para quem criou. Outros cargos entram pelas regras do canal.
@@ -1260,8 +1295,30 @@ export class Community {
           str(hide),
           user.id,
         ]);
+        // As pessoas e os cargos escolhidos ganham só "ver" e "conectar"; o resto continua vindo dos cargos.
+        for (const memberId of allowMembers) {
+          await tx.query(`INSERT INTO overrides (channel_id, target_kind, target_id, allow, deny) VALUES ($1, 'membro', $2, $3, 0)`, [id, memberId, str(hide)]);
+        }
+        for (const roleId of allowRoles) {
+          await tx.query(`INSERT INTO overrides (channel_id, target_kind, target_id, allow, deny) VALUES ($1, 'cargo', $2, $3, 0)`, [id, roleId, str(hide)]);
+        }
       }
-      await this.#audit(tx, ctx, 'canal.criado', { kind: 'canal', id, name }, { tipo: kind, privado: input.private === true });
+      if (kind === 'texto' || kind === 'voz') {
+        // Ninguém começa com o canal novo cheio de "não lidas".
+        await tx.query(
+          `INSERT INTO read_states (user_id, channel_id, last_read_id)
+           SELECT m.user_id, $2, (SELECT coalesce(max(id), 0) FROM messages) FROM members m WHERE m.group_id = $1
+           ON CONFLICT DO NOTHING`,
+          [groupId, id],
+        );
+      }
+      await this.#audit(tx, ctx, 'canal.criado', { kind: 'canal', id, name }, {
+        tipo: kind,
+        privado: input.private === true,
+        ...(allowMembers.length > 0 ? { pessoas: allowMembers.length } : {}),
+        ...(allowRoles.length > 0 ? { cargos: allowRoles.length } : {}),
+        ...(temporaryChat ? { chat_temporario: true } : {}),
+      });
     });
     this.#channelGroup.set(id, groupId);
     this.#changed(groupId);
@@ -1290,13 +1347,15 @@ export class Community {
     const topic = input.topic === undefined ? channel.topic : cleanText(input.topic, LIMITS.topicChars);
     const parentId = input.parentId === undefined ? channel.parentId : this.#parent(ctx, channel.kind, input.parentId);
     const userLimit = input.userLimit === undefined ? channel.userLimit : this.#userLimit(channel.kind, input.userLimit);
+    const temporaryChat = channel.kind === 'voz' && input.temporaryChat !== undefined ? input.temporaryChat === true : channel.temporaryChat;
     await this.#db.tx(async (tx) => {
-      await tx.query('UPDATE channels SET name = $2, topic = $3, parent_id = $4, user_limit = $5 WHERE id = $1', [channelId, name, topic, parentId, userLimit]);
+      await tx.query('UPDATE channels SET name = $2, topic = $3, parent_id = $4, user_limit = $5, temporary_chat = $6 WHERE id = $1', [channelId, name, topic, parentId, userLimit, temporaryChat]);
       await this.#audit(tx, ctx, 'canal.atualizado', { kind: 'canal', id: channelId, name }, {
         ...(name !== channel.name ? { nome: [channel.name, name] } : {}),
         ...(topic !== channel.topic ? { assunto: [channel.topic, topic] } : {}),
         ...(parentId !== channel.parentId ? { categoria: [channel.parentId, parentId] } : {}),
         ...(userLimit !== channel.userLimit ? { limite: [channel.userLimit, userLimit] } : {}),
+        ...(temporaryChat !== channel.temporaryChat ? { chat_temporario: temporaryChat } : {}),
       });
     });
     this.#changed(ctx.snap.group.id);
@@ -1392,7 +1451,7 @@ export class Community {
 
   async listMessages(user: User, channelId: string, options: { before?: unknown; limit?: unknown; pinned?: boolean } = {}): Promise<Message[]> {
     const { channel } = await this.#channelCtx(user, channelId);
-    if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
+    if (channel.kind === 'categoria') throw new ApiError(400, 'nao_e_texto', 'Categorias não têm mensagens.');
     const limit = Math.min(100, Math.max(1, Number(options.limit) || 50));
     const before = typeof options.before === 'string' && MESSAGE_ID.test(options.before) ? options.before : null;
     const rows = await this.#db.query(
@@ -1430,7 +1489,7 @@ export class Community {
    */
   async sendMessage(user: User, channelId: string, value: unknown, extra: { meta?: MessageMeta; as?: string; replyTo?: unknown; attachments?: unknown } = {}): Promise<Message> {
     const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
-    if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
+    if (channel.kind === 'categoria') throw new ApiError(400, 'nao_e_texto', 'Categorias não têm mensagens.');
     if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo e não pode enviar mensagens por enquanto.');
     this.#need(ctx, P.SEND_MESSAGES, perms);
     const fromBot = ctx.me.bot;
@@ -1610,7 +1669,7 @@ export class Community {
   /** Guarda um arquivo para ser anexado à próxima mensagem da pessoa neste canal. */
   async uploadFile(user: User, channelId: string, input: { name: unknown; mime: unknown; bytes: Uint8Array; width?: unknown; height?: unknown }): Promise<Attachment> {
     const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
-    if (channel.kind !== 'texto') throw new ApiError(400, 'nao_e_texto', 'Este canal não é de texto.');
+    if (channel.kind === 'categoria') throw new ApiError(400, 'nao_e_texto', 'Categorias não têm mensagens.');
     if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo e não pode enviar arquivos por enquanto.');
     this.#need(ctx, P.SEND_MESSAGES, perms);
     this.#need(ctx, P.ATTACH_FILES, perms);
@@ -1680,6 +1739,99 @@ export class Community {
     }));
   }
 
+  /**
+   * Painel de moderação de um membro. Só para quem tem alguma permissão de moderação no grupo. Tudo vem
+   * deste grupo: nada de mensagens privadas nem de outros grupos. A forma de entrada só aparece se ficou
+   * registrada (quem entrou antes do registro existir aparece como "não registrada").
+   */
+  async memberDetails(user: User, groupId: string, targetId: string) {
+    const ctx = await this.#ctx(user, groupId);
+    const moderation = P.KICK_MEMBERS | P.BAN_MEMBERS | P.MANAGE_ROLES | P.VIEW_AUDIT_LOG | P.MUTE_MEMBERS | P.MOVE_MEMBERS | P.MANAGE_MESSAGES;
+    if (!ctx.subject.isOwner && !has(ctx.base, P.ADMINISTRATOR) && (ctx.base & moderation) === 0n) {
+      throw new ApiError(403, 'sem_permissao', 'Você não tem permissões de moderação neste grupo.');
+    }
+    const { member, subject } = this.#targetMember(ctx, targetId);
+    const [joined] = await this.#db.query(
+      'SELECT m.joined_via, m.invited_by, u.display_name AS inviter_name FROM members m LEFT JOIN users u ON u.id = m.invited_by WHERE m.group_id = $1 AND m.user_id = $2',
+      [groupId, targetId],
+    );
+    const via = joined?.joined_via === null || joined?.joined_via === undefined ? null : String(joined.joined_via);
+    const joinedVia = via === null
+      ? null
+      : {
+          kind: via.startsWith('convite:') ? 'convite' : via,
+          code: via.startsWith('convite:') ? via.slice(8) : null,
+          invitedBy: joined?.invited_by ? { id: String(joined.invited_by), name: String(joined.inviter_name ?? '') } : null,
+        };
+
+    // Estatísticas só dos canais que quem consulta enxerga.
+    const visible = [...ctx.snap.channels.values()].filter((channel) => channel.kind !== 'categoria' && has(this.permissionsIn(ctx.snap, ctx.subject, channel), P.VIEW_CHANNEL));
+    const ids = visible.map((channel) => channel.id);
+    const [totals] = await this.#db.query(
+      `SELECT count(*) AS messages,
+              count(*) FILTER (WHERE content ~* 'https?://') AS links
+         FROM messages WHERE author_id = $1 AND channel_id = ANY($2::text[])`,
+      [targetId, ids],
+    );
+    const [files] = await this.#db.query(
+      `SELECT count(*) FILTER (WHERE f.mime LIKE 'image/%') AS images, count(*) FILTER (WHERE f.mime NOT LIKE 'image/%') AS others
+         FROM files f WHERE f.uploader_id = $1 AND f.channel_id = ANY($2::text[]) AND f.message_id IS NOT NULL`,
+      [targetId, ids],
+    );
+    const perChannel = await this.#db.query(
+      'SELECT channel_id, count(*) AS total FROM messages WHERE author_id = $1 AND channel_id = ANY($2::text[]) GROUP BY channel_id ORDER BY total DESC LIMIT 20',
+      [targetId, ids],
+    );
+    const history = has(ctx.base, P.VIEW_AUDIT_LOG) || ctx.subject.isOwner
+      ? (await this.#db.query("SELECT * FROM audit_log WHERE group_id = $1 AND target_kind = 'membro' AND target_id = $2 ORDER BY id DESC LIMIT 30", [groupId, targetId])).map((row) => ({
+          id: String(row.id),
+          actorName: String(row.actor_name),
+          action: String(row.action),
+          detail: (typeof row.detail === 'string' ? JSON.parse(row.detail) : row.detail) as Record<string, unknown>,
+          createdAt: iso(row.created_at),
+        }))
+      : null;
+    const above = canActOnMember(ctx.subject, subject, ctx.snap.roles) && !member.bot;
+    return {
+      member: {
+        userId: member.userId,
+        username: member.username,
+        displayName: member.displayName,
+        nickname: member.nickname,
+        joinedAt: member.joinedAt,
+        joinedVia,
+        timeoutUntil: member.timeoutUntil,
+        roleIds: [...member.roleIds],
+        bot: member.bot,
+        isOwner: subject.isOwner,
+      },
+      permissions: str(basePermissions(subject, ctx.snap.roles)),
+      canAct: {
+        kick: above && has(ctx.base, P.KICK_MEMBERS),
+        ban: above && has(ctx.base, P.BAN_MEMBERS),
+        timeout: above && has(ctx.base, P.KICK_MEMBERS),
+        roles: above && has(ctx.base, P.MANAGE_ROLES),
+        mute: above && has(ctx.base, P.MUTE_MEMBERS),
+        move: above && has(ctx.base, P.MOVE_MEMBERS),
+        audit: history !== null,
+      },
+      stats: {
+        messages: num(totals?.messages),
+        links: num(totals?.links),
+        images: num(files?.images),
+        files: num(files?.others),
+        channels: perChannel.map((row) => ({ channelId: String(row.channel_id), name: ctx.snap.channels.get(String(row.channel_id))?.name ?? '', messages: num(row.total) })),
+      },
+      history,
+      voice: this.hub.voiceOf(targetId)?.groupId === groupId ? this.hub.voiceOf(targetId)!.channelId : null,
+    };
+  }
+
+  /** O perfil de alguém mudou (nome, foto): os grupos dessa pessoa recarregam a lista de membros. */
+  async userChanged(userId: string): Promise<void> {
+    for (const groupId of await this.groupIdsOf(userId)) this.#changed(groupId);
+  }
+
   // --- Canais de voz ----------------------------------------------------------------------
 
   async #rightsFor(snap: Snapshot, member: Member, channel: Channel): Promise<{ perms: bigint; rights: PublishRights }> {
@@ -1693,23 +1845,17 @@ export class Community {
 
   /** Entra num canal de voz: devolve o token do SFU, que já vem limitado ao que a pessoa pode publicar ali. */
   async joinVoice(user: User, channelId: string) {
-    let found: { ctx: Ctx; channel: Channel; perms: bigint } | null = null;
     const pass = this.#movePass.get(user.id);
     const moved = pass !== undefined && pass.channelId === channelId && pass.expires > Date.now();
-    try {
-      found = await this.#channelCtx(user, channelId);
-    } catch (error) {
-      // Quem foi movido para um canal que não enxerga ainda assim entra nele, uma vez.
-      if (!moved) throw error;
-    }
-    const groupId = found?.ctx.snap.group.id ?? this.#channelGroup.get(channelId);
-    if (!groupId) throw NO_CHANNEL();
-    const ctx = found?.ctx ?? (await this.#ctx(user, groupId));
+    // Ninguém entra num canal que não pode ver nem conectar, nem quando é movido: mover confere isso antes.
+    const found = await this.#channelCtx(user, channelId);
+    const groupId = found.ctx.snap.group.id;
+    const ctx = found.ctx;
     const channel = ctx.snap.channels.get(channelId);
     if (!channel || channel.kind !== 'voz') throw new ApiError(400, 'nao_e_voz', 'Este canal não é de voz.');
     const { perms, rights } = await this.#rightsFor(ctx.snap, ctx.me, channel);
+    this.#need(ctx, P.CONNECT, perms);
     if (!moved) {
-      this.#need(ctx, P.CONNECT, perms);
       const inside = this.hub.voiceIn(groupId)[channelId] ?? [];
       if (channel.userLimit > 0 && inside.length >= channel.userLimit && !inside.includes(user.id) && !has(perms, P.MOVE_MEMBERS)) {
         throw new ApiError(403, 'canal_cheio', 'Este canal de voz está cheio.');
@@ -1850,6 +1996,23 @@ export class Community {
         if (there.channel.kind !== 'voz' || there.ctx.snap.group.id !== groupId || there.channel.id === channelId) throw new ApiError(400, 'destino_invalido', 'Escolha outro canal de voz deste grupo.');
         this.#need(ctx, P.CONNECT, there.perms);
         destination = there.channel;
+        const theirs = this.permissionsIn(ctx.snap, subject, destination);
+        if (!has(theirs, P.VIEW_CHANNEL) || !has(theirs, P.CONNECT)) {
+          if (input.grantAccess !== true) {
+            throw new ApiError(403, 'sem_acesso_destino', `${member.displayName} não tem acesso a “${destination.name}”. Libere o acesso dessa pessoa ao canal (ou confirme a concessão) antes de mover.`);
+          }
+          this.#need(ctx, P.MANAGE_ROLES, there.perms);
+          const grant = P.VIEW_CHANNEL | P.CONNECT;
+          await this.#db.query(
+            `INSERT INTO overrides (channel_id, target_kind, target_id, allow, deny) VALUES ($1, 'membro', $2, $3, 0)
+             ON CONFLICT (channel_id, target_kind, target_id)
+             DO UPDATE SET allow = overrides.allow | EXCLUDED.allow, deny = overrides.deny & ~EXCLUDED.allow`,
+            [destination.id, targetId, str(grant)],
+          );
+          await this.#audit(this.#db, ctx, 'canal.acesso_concedido', target, { canal: destination.name, motivo: 'mover para a chamada' });
+          this.#changed(groupId);
+        }
+        // O passe só dispensa o limite de pessoas do canal; as permissões já foram conferidas acima.
         this.#movePass.set(targetId, { channelId: destination.id, expires: Date.now() + 30_000 });
       }
       await sfu(() => this.#sfu.removeParticipant(room, targetId));

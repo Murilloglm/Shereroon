@@ -43,6 +43,11 @@ export interface DesktopBridge {
   chooseSource(id: string): Promise<boolean>;
   setState(state: DesktopRoomState): void;
   onCommand(listener: (command: DesktopCommand) => void): () => void;
+  /** Convites abertos por link cosmicnight:// (não existe em versões antigas do aplicativo). */
+  links?: {
+    take(): Promise<{ kind: 'convite'; code: string } | null>;
+    onLink(listener: () => void): () => void;
+  };
   update: {
     status(): Promise<UpdateStatus | null>;
     check(): Promise<UpdateStatus>;

@@ -9,6 +9,7 @@ import { createServer } from 'node:net';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runtimeConnection } from './connection-config.mjs';
+import { DEEP_SCHEME, linkFromArgv } from './deep-link.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SCHEME = 'app';
@@ -230,6 +231,17 @@ function showWindow() {
   win.focus();
 }
 
+// Link de convite que abriu o aplicativo (ou chegou à instância que já estava aberta). Fica guardado até a
+// interface pegar: assim nenhum se perde enquanto a janela ainda carrega.
+let pendingLink = linkFromArgv(process.argv);
+
+function deliverLink(link) {
+  if (!link) return;
+  pendingLink = link;
+  showWindow();
+  win?.webContents.send('desktop:link');
+}
+
 const command = (name) => win?.webContents.send('desktop:command', name);
 
 function trayTemplate() {
@@ -410,6 +422,12 @@ function installIpc() {
   ipcMain.on('room:state', (event, state) => {
     if (trusted(event)) applyRoomState(state);
   });
+  ipcMain.handle('desktop:take-link', (event) => {
+    if (!trusted(event)) return null;
+    const link = pendingLink;
+    pendingLink = null;
+    return link;
+  });
   ipcMain.handle('update:status', (event) => (trusted(event) ? updateStatus : null));
   ipcMain.handle('update:check', async (event) => {
     if (trusted(event) && updater) await updater.checkForUpdates().catch(() => undefined);
@@ -425,7 +443,11 @@ function installIpc() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', showWindow);
+  // Abrir de novo (ou clicar num link cosmicnight://) só traz a janela que já existe: nunca duas cópias.
+  app.on('second-instance', (_event, argv) => {
+    showWindow();
+    deliverLink(linkFromArgv(argv));
+  });
   app.on('before-quit', () => {
     quitting = true;
   });
@@ -443,6 +465,9 @@ if (!app.requestSingleInstanceLock()) {
     Menu.setApplicationMenu(null);
     app.setAppUserModelId('app.shareroom.desktop');
     protocol.handle(SCHEME, serveApp);
+    // Links cosmicnight:// abrem este aplicativo. O instalador já registra (só para este usuário, sem
+    // administrador); registrar de novo aqui conserta o registro se outra cópia o tiver trocado.
+    if (app.isPackaged) app.setAsDefaultProtocolClient(DEEP_SCHEME);
     installPermissions(session.defaultSession);
     installCapture(session.defaultSession);
     installIpc();
@@ -465,6 +490,7 @@ if (!app.requestSingleInstanceLock()) {
         helperRunning: () => Boolean(helper) && helper.exitCode === null,
         helperPid: () => helper?.pid ?? null,
         sleepBlocked: () => sleepBlocker !== null,
+        openLink: (argv) => deliverLink(linkFromArgv(argv)),
       };
     }
   });

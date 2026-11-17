@@ -209,8 +209,15 @@ export function CreateChannelModal({ view, initial, onClose }: { view: GroupView
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState(initial.parentId ?? '');
   const [isPrivate, setPrivate] = useState(false);
+  const [allowMembers, setAllowMembers] = useState<string[]>([]);
+  const [allowRoles, setAllowRoles] = useState<string[]>([]);
+  const [userLimit, setUserLimit] = useState('0');
+  const [temporaryChat, setTemporaryChat] = useState(false);
   const { busy, run } = useAction();
   const categories = view.channels.filter((channel) => channel.kind === 'categoria');
+  const people = view.members.filter((member) => member.userId !== view.me.userId && !member.bot).sort((a, b) => memberName(a).localeCompare(memberName(b)));
+  const roles = view.roles.filter((role) => !role.isEveryone && !role.botId).sort((a, b) => b.position - a.position);
+  const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
 
   return (
     <Modal title="Criar canal" onClose={onClose}>
@@ -219,7 +226,16 @@ export function CreateChannelModal({ view, initial, onClose }: { view: GroupView
         data-testid="create-channel"
         onSubmit={(event) => {
           event.preventDefault();
-          void run(() => groups.change('POST', `/api/groups/${view.group.id}/channels`, { kind, name, parentId: kind === 'categoria' ? null : parentId || null, private: isPrivate })).then((done) => done && onClose());
+          void run(() =>
+            groups.change('POST', `/api/groups/${view.group.id}/channels`, {
+              kind,
+              name,
+              parentId: kind === 'categoria' ? null : parentId || null,
+              private: isPrivate,
+              ...(isPrivate ? { allowMembers, allowRoles } : {}),
+              ...(kind === 'voz' ? { userLimit: Number(userLimit) || 0, temporaryChat } : {}),
+            }),
+          ).then((done) => done && onClose());
         }}
       >
         <div className="grid grid-cols-3 gap-2">
@@ -267,10 +283,49 @@ export function CreateChannelModal({ view, initial, onClose }: { view: GroupView
               <Lock className="size-4" aria-hidden="true" /> {kind === 'categoria' ? 'Categoria privada' : 'Canal privado'}
             </span>
             <span className="text-[13px] leading-snug text-fog-400">
-              Fica escondido de todos, menos de você e dos administradores. Depois, libere cargos ou pessoas em “Permissões” do canal.
+              Fica escondido de todos, menos de você, de quem você escolher abaixo e dos administradores. Dá para mudar depois em “Permissões” do canal.
             </span>
           </span>
         </label>
+        {isPrivate && kind !== 'categoria' && (people.length > 0 || roles.length > 0) && (
+          <fieldset className="grid gap-2 rounded-xl border border-ink-600 bg-ink-800/40 p-3" data-testid="channel-private-access">
+            <legend className="px-1 text-sm font-semibold">Quem pode ver{kind === 'voz' ? ' e entrar' : ''}</legend>
+            {roles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {roles.map((role) => (
+                  <label key={role.id} className={cx('flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 text-sm', allowRoles.includes(role.id) ? 'border-brand-300 bg-brand-500/20' : 'border-ink-600')}>
+                    <input type="checkbox" className="size-3.5 accent-brand-500" checked={allowRoles.includes(role.id)} onChange={() => setAllowRoles(toggle(allowRoles, role.id))} />
+                    <span style={{ color: role.color ?? undefined }}>{role.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="grid max-h-40 gap-1 overflow-y-auto">
+              {people.map((member) => (
+                <label key={member.userId} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 text-sm hover:bg-ink-700/60" data-testid="channel-allow-member" data-user={member.username}>
+                  <input type="checkbox" className="size-4 accent-brand-500" checked={allowMembers.includes(member.userId)} onChange={() => setAllowMembers(toggle(allowMembers, member.userId))} />
+                  {memberName(member)} <span className="text-fog-500">@{member.username}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        {kind === 'voz' && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={fieldLabel}>
+              Limite de participantes
+              <TextInput type="number" min={0} max={99} value={userLimit} onChange={(event) => setUserLimit(event.target.value)} aria-describedby="limite-ajuda" data-testid="channel-user-limit" />
+              <span id="limite-ajuda" className="text-xs font-normal text-fog-500">0 = sem limite</span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-2.5 self-center">
+              <input type="checkbox" className="mt-1 size-4 accent-brand-500" checked={temporaryChat} onChange={(event) => setTemporaryChat(event.target.checked)} data-testid="channel-temporary-chat" />
+              <span className="text-sm">
+                <span className="font-semibold">Chat temporário</span>
+                <span className="block text-[13px] leading-snug text-fog-400">As mensagens do chat da chamada somem quando o último sai.</span>
+              </span>
+            </label>
+          </div>
+        )}
         <Button type="submit" variant="primary" disabled={busy || !name.trim()} data-testid="channel-create">
           {busy ? 'Criando…' : 'Criar'}
         </Button>
@@ -313,6 +368,19 @@ function ChannelRow({ view, channel, siblings, onPermissions }: { view: GroupVie
           <label className="flex items-center gap-1.5 text-xs font-semibold text-fog-400">
             Limite
             <TextInput aria-label="Limite de pessoas (0 = sem limite)" type="number" min={0} max={99} value={limit} onChange={(event) => setLimit(event.target.value)} className="h-9 w-16" />
+          </label>
+        )}
+        {channel.kind === 'voz' && (
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-fog-400" title="As mensagens do chat da chamada somem quando o último sai">
+            <input
+              type="checkbox"
+              className="size-4 accent-brand-500"
+              checked={channel.temporaryChat === true}
+              disabled={busy}
+              onChange={(event) => void run(() => groups.change('PATCH', `/api/channels/${channel.id}`, { temporaryChat: event.target.checked }))}
+              data-testid="channel-row-temporary-chat"
+            />
+            Chat temporário
           </label>
         )}
         {channel.kind !== 'categoria' && (

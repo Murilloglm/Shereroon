@@ -174,7 +174,11 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
 
   app.get('/api/groups/:groupId/invites', async (c) => c.json({ invites: await community.listInvites(await who(c), id(c, 'groupId')) }));
   app.post('/api/groups/:groupId/invites', async (c) => c.json({ invite: await community.createInvite(await who(c), id(c, 'groupId'), await body(c)) }));
-  app.get('/api/invites/:code', async (c) => c.json(await community.previewInvite(await who(c), id(c, 'code'))));
+  // Sem conta também: quem recebeu o link vê o grupo antes de entrar. Limitado por endereço contra quem tenta adivinhar códigos.
+  app.get('/api/invites/:code', async (c) => {
+    if (!limiter.take(`convite-ver:${clientIp(c)}`, 60, 10 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Muitas consultas de convite. Espere alguns minutos.');
+    return c.json(await community.previewInvite(await accounts.authenticate(tokenOf(c)), id(c, 'code')));
+  });
   app.post('/api/invites/:code/accept', async (c) => {
     const user = await who(c);
     if (!limiter.take(`convite:${user.id}`, 30, 10 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Muitas tentativas. Espere alguns minutos.');

@@ -108,9 +108,19 @@ export function useVoice(view: GroupView | null) {
     if (!voice || !view || view.group.id !== voice.groupId) return;
     const channel = view.channels.find((item) => item.id === voice.channelId);
     if (!channel) {
-      groups.notify('Você não tem mais acesso a este canal de voz.');
-      void drop(true);
-      return;
+      // O canal pode ainda não estar na lista (acesso recém-liberado, por exemplo ao ser movido para um canal
+      // privado): o backend já deixou entrar. Confere com a lista atualizada antes de concluir que perdeu o acesso.
+      let alive = true;
+      void groups.refreshView().then(() => {
+        const fresh = groups.store.get().view;
+        if (!alive || current.current !== voice || !fresh || fresh.group.id !== voice.groupId) return;
+        if (fresh.channels.some((item) => item.id === voice.channelId)) return;
+        groups.notify('Você não tem mais acesso a este canal de voz.');
+        void drop(true);
+      });
+      return () => {
+        alive = false;
+      };
     }
     voice.session.setViewRights({ watch: has(channel.permissions, P.WATCH_STREAMS), highQuality: has(channel.permissions, P.HIGH_QUALITY_STREAM) });
   }, [voice, view, drop]);

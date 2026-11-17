@@ -142,17 +142,26 @@ describe('moderação de voz', () => {
     expect(live.ana!.of('voice.stream_stopped')).toHaveLength(1);
   });
 
-  it('mover: quem move precisa poder entrar no destino; quem foi movido entra uma vez, mesmo sem “Conectar”', async () => {
+  it('mover: quem move precisa poder entrar no destino; quem não tem acesso só é movido com concessão explícita', async () => {
     await w.ok('PUT', `/api/channels/${outra}/overrides/cargo/${roles['@everyone']}`, dono.token, { allow: '0', deny: P.CONNECT.toString() });
     expect(await moderate(mod, ana, 'move', { toChannelId: outra }), 'o mod não pode entrar no destino').toBe('sem_permissao');
     expect(await moderate(dono, ana, 'move', { toChannelId: sala })).toBe('destino_invalido');
-    expect(await moderate(dono, ana, 'move', { toChannelId: outra })).toBe('ok');
+    // A Ana não pode conectar no destino: mover recusa em vez de passar por cima da permissão em silêncio.
+    expect(await moderate(dono, ana, 'move', { toChannelId: outra })).toBe('sem_acesso_destino');
+    expect(await inside()).toContain(ana.id);
+    expect(await code('POST', `/api/channels/${outra}/voice`, ana, {}), 'nem entrando sozinha').toBe('sem_permissao');
+
+    // Concessão explícita (exige poder mudar permissões do canal): libera a Ana, fica na auditoria e move.
+    expect(await moderate(dono, ana, 'move', { toChannelId: outra, grantAccess: true })).toBe('ok');
     expect(await inside()).not.toContain(ana.id);
     expect(w.sfu.rooms.get(voiceRoom(sala))!.participants.has(ana.id)).toBe(false);
     expect(live.ana!.of('voice.move').at(-1)).toMatchObject({ channelId: outra });
-    expect(await code('POST', `/api/channels/${outra}/voice`, ana, {}), 'entra com o passe de quem a moveu').toBe('ok');
+    expect(await code('POST', `/api/channels/${outra}/voice`, ana, {}), 'entra porque agora tem acesso').toBe('ok');
+    const audit = (await w.ok('GET', `/api/groups/${groupId}/audit`, dono.token)).entries as { action: string; detail: Record<string, unknown> }[];
+    expect(audit.find((entry) => entry.action === 'canal.acesso_concedido')?.detail).toMatchObject({ motivo: 'mover para a chamada' });
     await w.ok('POST', '/api/voice/leave', ana.token, {});
-    expect(await code('POST', `/api/channels/${outra}/voice`, ana, {}), 'o passe vale uma vez só').toBe('sem_permissao');
+    await w.ok('PUT', `/api/channels/${outra}/overrides/membro/${ana.id}`, dono.token, { allow: '0', deny: '0' });
+    expect(await code('POST', `/api/channels/${outra}/voice`, ana, {}), 'tirando a liberação, volta a não entrar').toBe('sem_permissao');
     await w.ok('PUT', `/api/channels/${outra}/overrides/cargo/${roles['@everyone']}`, dono.token, { allow: '0', deny: '0' });
 
     await enter(ana);

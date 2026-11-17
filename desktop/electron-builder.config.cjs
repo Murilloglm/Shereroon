@@ -30,6 +30,8 @@ module.exports = {
   // O NSIS remove o EXE temporário do desinstalador. Guarda os mesmos bytes assinados
   // para que a auditoria possa verificá-los antes da publicação (não é um asset público).
   afterPack: signing.enabled ? require('./scripts/preserve-uninstaller.cjs') : undefined,
+  // Links cosmicnight://convite/... abrem o aplicativo instalado (registro por usuário, sem administrador).
+  protocols: [{ name: 'Cosmic Night', schemes: ['cosmicnight'] }],
   nsis: {
     oneClick: false,
     perMachine: false,

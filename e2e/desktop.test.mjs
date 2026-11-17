@@ -229,6 +229,21 @@ test('a janela não navega para fora; links externos vão para o navegador padr�
   assert.equal(after.working, true);
 });
 
+test('link cosmicnight://convite abre a tela do convite no aplicativo; o que não é convite é ignorado', { skip }, async () => {
+  const before = await page.evaluate(() => window.location.hash);
+  await hook('openLink', ['CosmicNight.exe', 'cosmicnight://convite/javascript:alert(1)']);
+  await hook('openLink', ['CosmicNight.exe', 'cosmicnight://outra-coisa/AbCdEf123']);
+  await sleep(500);
+  assert.equal(await page.evaluate(() => window.location.hash), before, 'links que não são convite não mudam nada');
+
+  // Como chega da segunda instância (o Windows abrindo o link com o aplicativo já aberto).
+  await hook('openLink', ['CosmicNight.exe', '--algum-parametro', 'cosmicnight://convite/AbCdEf123']);
+  await waitFor(async () => (await page.evaluate(() => window.location.hash)) === '#/convite/AbCdEf123', 'a tela do convite abrir');
+  const result = await main(({ BrowserWindow }) => ({ windows: BrowserWindow.getAllWindows().length, url: globalThis.__shareroom.window().webContents.getURL() }));
+  assert.equal(result.windows, 1, 'nenhuma janela nova');
+  assert.match(result.url, /^app:\/\/shareroom\//, 'continua dentro do aplicativo');
+});
+
 test('fora de uma sala, fechar a janela encerra o aplicativo e o componente de áudio', { skip }, async () => {
   const helperPid = await hook('helperPid');
   assert.ok(helperPid > 0);
