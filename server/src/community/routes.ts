@@ -393,4 +393,86 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
   });
 
   app.get('/api/groups/:groupId/commands', async (c) => c.json({ commands: await bots.commandsFor(await who(c), id(c, 'groupId')) }));
+
+  // --- Moderação: painel de um membro ---------------------------------------------------------------
+  app.get('/api/groups/:groupId/members/:userId/details', async (c) => c.json(await community.memberDetails(await who(c), id(c, 'groupId'), id(c, 'userId'))));
+
+  // --- Perfis, notas, amizades e mensagens privadas ---------------------------------------------------
+  const social = community.social;
+
+  app.get('/api/users/:userId', async (c) => c.json({ profile: await social.profile(await who(c), id(c, 'userId')) }));
+  app.patch('/api/me/profile', async (c) => c.json({ profile: await social.updateProfile(await who(c), await body(c)) }));
+  app.post('/api/me/media/:kind', async (c) => {
+    const user = await who(c);
+    if (!limiter.take(`midia:${user.id}`, 20, 60 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Muitas imagens enviadas. Espere um pouco.');
+    return c.json({ profile: await social.uploadMedia(user, c.req.param('kind'), await bytes(c, 6 * 1024 * 1024)) });
+  });
+  // Fotos e banners abrem sem login (como num CDN): o id é aleatório e muda a cada envio.
+  app.get('/api/media/:mediaId', async (c) => {
+    const media = await social.media(id(c, 'mediaId'));
+    return c.body(media.data as Uint8Array<ArrayBuffer>, 200, {
+      'content-type': media.mime,
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+      'cache-control': 'public, max-age=31536000, immutable',
+    });
+  });
+
+  app.get('/api/me/notes', async (c) => c.json({ notes: await social.notes(await who(c)) }));
+  app.put('/api/users/:userId/note', async (c) => c.json({ note: await social.setNote(await who(c), id(c, 'userId'), await body(c)) }));
+
+  app.get('/api/friends', async (c) => c.json({ friends: await social.friends(await who(c)) }));
+  app.post('/api/friends', async (c) => {
+    const user = await who(c);
+    if (!limiter.take(`amizade:${user.id}`, 30, 60 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Muitos pedidos de amizade. Espere um pouco.');
+    return c.json(await social.requestFriend(user, await body(c)));
+  });
+  app.post('/api/friends/:userId/accept', async (c) => c.json(await social.acceptFriend(await who(c), id(c, 'userId'))));
+  app.delete('/api/friends/:userId', async (c) => c.json(await social.removeFriend(await who(c), id(c, 'userId'))));
+  app.get('/api/blocks', async (c) => c.json({ blocks: await social.blocks(await who(c)) }));
+  app.put('/api/blocks/:userId', async (c) => c.json(await social.block(await who(c), id(c, 'userId'))));
+  app.delete('/api/blocks/:userId', async (c) => c.json(await social.unblock(await who(c), id(c, 'userId'))));
+
+  app.get('/api/dms', async (c) => c.json({ conversations: await social.conversations(await who(c)) }));
+  app.post('/api/dms', async (c) => c.json(await social.openDm(await who(c), String((await body(c)).userId ?? ''))));
+  app.get('/api/dms/:dmId/messages', async (c) =>
+    c.json({ messages: await social.messages(await who(c), id(c, 'dmId'), { before: c.req.query('before'), limit: c.req.query('limit') }) }),
+  );
+  app.post('/api/dms/:dmId/messages', async (c) => {
+    const user = await who(c);
+    if (!limiter.take(`dm:${user.id}`, 20, 10_000)) throw new ApiError(429, 'devagar', 'Calma: muitas mensagens em pouco tempo.');
+    return c.json({ message: await social.send(user, id(c, 'dmId'), await body(c, MESSAGE)) });
+  });
+  app.patch('/api/dm-messages/:messageId', async (c) => c.json({ message: await social.edit(await who(c), id(c, 'messageId'), await body(c, MESSAGE)) }));
+  app.delete('/api/dm-messages/:messageId', async (c) => {
+    await social.remove(await who(c), id(c, 'messageId'));
+    return c.json({ ok: true });
+  });
+  const dmReaction = async (c: Context, on: boolean) => c.json({ message: await social.react(await who(c), id(c, 'messageId'), c.req.param('emoji') ?? '', on) });
+  app.put('/api/dm-messages/:messageId/reactions/:emoji', (c) => dmReaction(c, true));
+  app.delete('/api/dm-messages/:messageId/reactions/:emoji', (c) => dmReaction(c, false));
+  app.post('/api/dms/:dmId/read', async (c) => {
+    await social.markRead(await who(c), id(c, 'dmId'), (await body(c)).messageId);
+    return c.json({ ok: true });
+  });
+  app.put('/api/dms/:dmId/notify', async (c) => {
+    await social.setNotify(await who(c), id(c, 'dmId'), (await body(c)).level);
+    return c.json({ ok: true });
+  });
+  app.post('/api/dms/:dmId/files', async (c) => {
+    const user = await who(c);
+    const data = await bytes(c, community.limits.fileBytes);
+    return c.json({ file: await social.uploadFile(user, id(c, 'dmId'), { name: c.req.query('name'), mime: c.req.header('content-type'), bytes: data }) });
+  });
+  app.get('/api/dm-files/:fileId', async (c) => {
+    const file = await social.readFile(await who(c), id(c, 'fileId'));
+    const inline = /^(image\/(png|jpeg|gif|webp)|video\/(mp4|webm)|audio\/(mpeg|ogg|wav|webm|mp4))$/.test(file.mime);
+    return c.body(file.data as Uint8Array<ArrayBuffer>, 200, {
+      'content-type': inline ? file.mime : 'application/octet-stream',
+      'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+      'cache-control': 'private, max-age=31536000, immutable',
+    });
+  });
 }

@@ -286,7 +286,7 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
     mountCommunity(app, { ...groups, limiter, clientIp });
   } else {
     app.get('/api/features', (c) => c.json({ groups: false }));
-    for (const path of ['/api/auth/*', '/api/groups/*', '/api/groups', '/api/channels/*', '/api/roles/*', '/api/messages/*', '/api/files/*', '/api/invites/*', '/api/voice/*']) {
+    for (const path of ['/api/auth/*', '/api/groups/*', '/api/groups', '/api/channels/*', '/api/roles/*', '/api/messages/*', '/api/files/*', '/api/invites/*', '/api/voice/*', '/api/users/*', '/api/me/*', '/api/media/*', '/api/friends', '/api/friends/*', '/api/blocks', '/api/blocks/*', '/api/dms', '/api/dms/*', '/api/dm-messages/*', '/api/dm-files/*']) {
       app.all(path, () => {
         throw new ApiError(503, 'grupos_indisponiveis', 'Contas e grupos precisam de um banco de dados, que este servidor não tem configurado.');
       });
