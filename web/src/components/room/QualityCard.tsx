@@ -51,7 +51,7 @@ export function QualityCard({ session, className }: { session: RoomSession; clas
                   className={cx(
                     'h-9 rounded-lg text-sm font-bold transition-[background,box-shadow] duration-150',
                     quality.mode === mode
-                      ? 'bg-linear-to-b from-brand-500 to-brand-700 text-white shadow-glow'
+                      ? 'bg-linear-to-b from-brand-500 to-brand-700 text-on-accent shadow-glow'
                       : 'text-fog-300 hover:text-fog-100',
                   )}
                 >

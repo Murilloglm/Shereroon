@@ -59,6 +59,8 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 export function Backdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-ink-950">
+      {/* A arte só aparece no tema Cosmic Night (--backdrop-art). */}
+      <div className="cn-backdrop-art absolute inset-0">
       <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_-12%,rgb(101_54_232/0.22),transparent_70%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(42%_52%_at_-4%_104%,rgb(124_77_255/0.46),transparent_70%),radial-gradient(40%_50%_at_104%_100%,rgb(79_38_192/0.46),transparent_70%),radial-gradient(30%_36%_at_100%_-6%,rgb(20_194_240/0.12),transparent_70%)]" />
       {/* Estrelas: pontos espalhados, repetidos em blocos grandes para não formar padrão visível. */}
@@ -78,6 +80,7 @@ export function Backdrop() {
         <path d="M520 150 C380 240 270 320 170 420" fill="none" stroke="url(#cn-streak-a)" strokeWidth="2.5" />
         <path d="M520 230 C410 290 330 350 270 420" fill="none" stroke="url(#cn-streak-a)" strokeWidth="1.5" opacity="0.7" />
       </svg>
+      </div>
       <div className="absolute inset-x-0 bottom-0 h-32 bg-linear-to-t from-ink-950/80 to-transparent" />
     </div>
   );
@@ -89,10 +92,10 @@ type Variant = 'primary' | 'neon' | 'danger' | 'quiet' | 'outline' | 'bare';
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'border border-brand-400/70 bg-linear-to-b from-brand-500 to-brand-700 text-white shadow-glow hover:from-brand-400 hover:to-brand-600',
+    'border border-brand-400/70 bg-linear-to-b from-brand-500 to-brand-700 text-on-accent shadow-glow hover:from-brand-400 hover:to-brand-600',
   neon: 'border border-neon-300/70 bg-linear-to-b from-neon-400 to-neon-600 text-ink-950 shadow-neon hover:from-neon-300 hover:to-neon-500',
   danger:
-    'border border-live-500/70 bg-linear-to-b from-live-600 to-live-700 text-white hover:from-live-500 hover:to-live-600',
+    'border border-live-500/70 bg-linear-to-b from-live-600 to-live-700 text-on-accent hover:from-live-500 hover:to-live-600',
   quiet: 'border border-ink-600 bg-ink-800/90 text-fog-100 hover:border-ink-500 hover:bg-ink-750',
   outline: 'border border-brand-400/70 bg-brand-500/10 text-brand-200 hover:bg-brand-500/20',
   bare: 'border border-transparent text-fog-300 hover:bg-ink-750 hover:text-fog-100',
@@ -160,7 +163,7 @@ export function Chip({
       className={cx(
         'inline-flex h-10 items-center justify-center gap-1 rounded-lg border text-sm font-bold transition-[background,border-color,box-shadow] duration-150 disabled:opacity-50',
         selected
-          ? 'border-brand-300 bg-linear-to-b from-brand-500 to-brand-700 text-white shadow-glow'
+          ? 'border-brand-300 bg-linear-to-b from-brand-500 to-brand-700 text-on-accent shadow-glow'
           : 'border-ink-600 bg-ink-800 text-fog-300 hover:border-ink-500 hover:text-fog-100',
         hinted && !selected && 'border-dashed border-brand-400 text-brand-200',
         className,

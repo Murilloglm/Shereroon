@@ -206,8 +206,8 @@ const TONES: Record<Tone, string> = {
   normal: 'bg-white/[0.06] text-fog-200 hover:bg-white/12 hover:text-white',
   ativo: 'bg-white/12 text-white hover:bg-white/18',
   mudo: 'bg-live-500/18 text-live-300 hover:bg-live-500/28',
-  principal: 'bg-brand-500 text-white shadow-glow hover:bg-brand-400',
-  perigo: 'bg-live-500 text-white hover:bg-live-400',
+  principal: 'bg-brand-500 text-on-accent shadow-glow hover:bg-brand-400',
+  perigo: 'bg-live-500 text-on-accent hover:bg-live-400',
 };
 
 /** Botão redondo da barra da chamada: só o ícone, com o nome na dica e para leitores de tela. */
@@ -409,7 +409,7 @@ function Tile({
       className={cx(
         'flex h-[4.75rem] w-full min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border px-0.5 text-center text-[12px] leading-[1.15] font-bold transition-colors disabled:opacity-45',
         primary
-          ? 'border-brand-300 bg-linear-to-b from-brand-500 to-brand-700 text-white shadow-glow'
+          ? 'border-brand-300 bg-linear-to-b from-brand-500 to-brand-700 text-on-accent shadow-glow'
           : active
             ? 'border-brand-400 bg-brand-500/20 text-white'
             : 'border-ink-600 bg-ink-800/90 text-fog-100',

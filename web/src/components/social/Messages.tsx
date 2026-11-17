@@ -43,7 +43,7 @@ export function SocialSidebar({ selected }: { selected: string }) {
       >
         <Users className="size-5" aria-hidden="true" />
         <span className="flex-1">Amigos</span>
-        {pending > 0 && <span className="rounded-full bg-live-500 px-1.5 text-xs font-extrabold text-white">{pending}</span>}
+        {pending > 0 && <span className="rounded-full bg-live-500 px-1.5 text-xs font-extrabold text-on-accent">{pending}</span>}
       </button>
       <p className="px-4 pt-3 pb-1 text-xs font-extrabold tracking-wide text-fog-500 uppercase">Mensagens privadas</p>
       <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">

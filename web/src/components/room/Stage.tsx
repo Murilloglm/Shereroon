@@ -434,7 +434,7 @@ export function Stage({
                 )}
 
                 {stream && (
-                  <span className="ml-1 flex shrink-0 items-center gap-1.5 rounded-md bg-live-500 px-2 py-0.5 text-xs font-extrabold tracking-wide text-white uppercase">
+                  <span className="ml-1 flex shrink-0 items-center gap-1.5 rounded-md bg-live-500 px-2 py-0.5 text-xs font-extrabold tracking-wide text-on-accent uppercase">
                     <span className="size-1.5 animate-pulse-dot rounded-full bg-white" />
                     Ao vivo
                   </span>

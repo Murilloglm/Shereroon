@@ -1,21 +1,26 @@
-// Aparência e acessibilidade, guardadas neste aparelho e aplicadas na hora (sem recarregar): o atributo no <html>
-// é o que o CSS lê. "sistema" segue a preferência do Windows/navegador.
+// Aparência e acessibilidade, guardadas neste aparelho e aplicadas na hora (sem recarregar): o tema troca as
+// variáveis de cor no <html> e o atributo data-motion é o que o CSS lê para reduzir animações. "sistema" segue a
+// preferência do Windows/navegador.
 import { storage } from './storage.ts';
 import { Store } from './store.ts';
+import { applyTheme, isThemeId, type ThemeId } from './themes.ts';
 
 export type MotionChoice = 'sistema' | 'reduzir' | 'normal';
 
 export interface AppearancePrefs {
+  theme: ThemeId;
   motion: MotionChoice;
 }
 
 const KEY = 'cosmic:aparencia';
-const DEFAULTS: AppearancePrefs = { motion: 'sistema' };
+const DEFAULTS: AppearancePrefs = { theme: 'cosmic', motion: 'sistema' };
 
 function load(): AppearancePrefs {
-  const saved = storage.get<Partial<AppearancePrefs>>(KEY, {});
-  const motion = saved && ['sistema', 'reduzir', 'normal'].includes(String(saved.motion)) ? (saved.motion as MotionChoice) : DEFAULTS.motion;
-  return { motion };
+  const saved = storage.get<Partial<AppearancePrefs>>(KEY, {}) ?? {};
+  return {
+    theme: isThemeId(saved.theme) ? saved.theme : DEFAULTS.theme,
+    motion: ['sistema', 'reduzir', 'normal'].includes(String(saved.motion)) ? (saved.motion as MotionChoice) : DEFAULTS.motion,
+  };
 }
 
 const systemReduces = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -29,7 +34,9 @@ export function reducedMotion(prefs: AppearancePrefs = appearance.get()): boolea
 
 function apply(): void {
   if (typeof document === 'undefined') return;
-  document.documentElement.dataset.motion = reducedMotion() ? 'reduzida' : 'normal';
+  const prefs = appearance.get();
+  applyTheme(prefs.theme);
+  document.documentElement.dataset.motion = reducedMotion(prefs) ? 'reduzida' : 'normal';
 }
 
 export function setAppearance(patch: Partial<AppearancePrefs>): void {

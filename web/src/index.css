@@ -48,6 +48,10 @@
   --color-fog-400: #969bbd;
   --color-fog-500: #6b7096;
 
+  /* "Branco": texto mais forte e véus (bg-white/5). No tema claro vira escuro. Texto sobre botão colorido usa on-accent. */
+  --color-white: #ffffff;
+  --color-on-accent: #ffffff;
+
   --shadow-glow: 0 0 24px -6px rgb(124 77 255 / 0.85);
   --shadow-neon: 0 0 22px -6px rgb(63 220 255 / 0.8);
   --shadow-panel: 0 0 0 1px rgb(124 77 255 / 0.06), 0 20px 60px -28px rgb(0 0 0 / 0.95);
@@ -102,6 +106,45 @@
     --titlebar-h: 32px;
   }
 
+  /*
+   * Variáveis semânticas das classes próprias, com os valores do tema padrão (Cosmic Night). Os outros temas
+   * trocam estes valores (e os --color-* acima) no <html>: veja src/lib/themes.ts, que é a fonte de cada tema.
+   */
+  :root {
+    --cn-panel-border: rgb(124 77 255 / 0.16);
+    --cn-panel-bg: linear-gradient(180deg, rgb(13 15 32 / 0.92), rgb(8 9 21 / 0.94));
+    --cn-panel-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.035),
+      0 0 0 1px rgb(3 4 11 / 0.6),
+      0 24px 60px -34px rgb(0 0 0 / 0.95);
+    --cn-selected-border: rgb(152 115 255 / 0.75);
+    --cn-selected-bg: linear-gradient(90deg, rgb(124 77 255 / 0.34), rgb(124 77 255 / 0.14));
+    --cn-selected-shadow:
+      inset 0 0 0 1px rgb(152 115 255 / 0.35),
+      0 0 20px -8px rgb(124 77 255 / 0.9);
+    --glow-brand: rgb(124 77 255 / 0.9);
+    --selection-bg: rgb(124 77 255 / 0.5);
+    --backdrop-art: 1;
+    --call-card-s: 42%;
+    --call-card-l: 20%;
+    --dlg-bg: #0d1118;
+    --dlg-text: #f4f8ff;
+    --dlg-frame: linear-gradient(125deg, #74d7ff 0%, #6c4dff 55%, #4b348e 100%);
+    --dlg-shadow:
+      0 0 34px -12px rgb(116 215 255 / 0.5),
+      0 0 52px -18px rgb(108 77 255 / 0.65),
+      0 30px 80px -30px rgb(0 0 0 / 0.95);
+    --dlg-head-bg: linear-gradient(180deg, #07090d 0%, #0d1118 100%);
+    --dlg-head-line: linear-gradient(90deg, rgb(116 215 255 / 0.6), rgb(108 77 255 / 0.6), rgb(75 52 142 / 0.4));
+    --dlg-accent: #74d7ff;
+    --dlg-accent-soft: rgb(116 215 255 / 0.12);
+    --dlg-input-bg: #07090d;
+    --dlg-input-border: #2a2f45;
+    --dlg-secondary-border: #4b348e;
+    --dlg-secondary-bg: rgb(75 52 142 / 0.14);
+    --dlg-backdrop: rgb(3 4 8 / 0.74);
+  }
+
   #root {
     box-sizing: border-box;
     padding-top: var(--titlebar-h);
@@ -146,7 +189,7 @@
   }
 
   ::selection {
-    background: rgb(124 77 255 / 0.5);
+    background: var(--selection-bg);
   }
 
   * {
@@ -165,24 +208,24 @@
 }
 
 @layer components {
+  /* Arte do fundo (nebulosas, estrelas, riscos de luz): só no tema Cosmic Night. */
+  .cn-backdrop-art {
+    opacity: var(--backdrop-art);
+  }
+
   /* Painel flutuante dos grupos: vidro azul-noite com contorno neon discreto. */
   .cn-panel {
-    border: 1px solid rgb(124 77 255 / 0.16);
+    border: 1px solid var(--cn-panel-border);
     border-radius: 18px;
-    background: linear-gradient(180deg, rgb(13 15 32 / 0.92), rgb(8 9 21 / 0.94));
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.035),
-      0 0 0 1px rgb(3 4 11 / 0.6),
-      0 24px 60px -34px rgb(0 0 0 / 0.95);
+    background: var(--cn-panel-bg);
+    box-shadow: var(--cn-panel-shadow);
     backdrop-filter: blur(10px);
   }
   /* Item escolhido (canal, grupo): preenchimento roxo com brilho. */
   .cn-selected {
-    border-color: rgb(152 115 255 / 0.75);
-    background: linear-gradient(90deg, rgb(124 77 255 / 0.34), rgb(124 77 255 / 0.14));
-    box-shadow:
-      inset 0 0 0 1px rgb(152 115 255 / 0.35),
-      0 0 20px -8px rgb(124 77 255 / 0.9);
+    border-color: var(--cn-selected-border);
+    background: var(--cn-selected-bg);
+    box-shadow: var(--cn-selected-shadow);
   }
   /* Alça para redimensionar um painel. */
   .cn-resizer {
@@ -204,7 +247,7 @@
   .cn-resizer:hover::after,
   .cn-resizer[data-dragging='true']::after {
     background: var(--color-brand-400);
-    box-shadow: 0 0 12px rgb(124 77 255 / 0.9);
+    box-shadow: 0 0 12px var(--glow-brand);
   }
 
   /* Controle deslizante: a parte preenchida usa --fill (0% a 100%), definida inline. */
@@ -246,7 +289,7 @@
     border-radius: 50%;
     background: var(--color-brand-200);
     border: 2px solid var(--color-brand-500);
-    box-shadow: 0 0 10px -1px rgb(124 77 255 / 0.9);
+    box-shadow: 0 0 10px -1px var(--glow-brand);
   }
   .sr-range::-moz-range-thumb {
     width: 12px;
@@ -265,7 +308,7 @@
 
   /* Diálogos (confirmar, excluir, aviso, erro, entrada): paleta própria pedida para as janelas do app. */
   .cn-dialog-backdrop {
-    background: rgb(3 4 8 / 0.74);
+    background: var(--dlg-backdrop);
     backdrop-filter: blur(6px);
     animation: cn-dialog-fade 180ms ease-out both;
   }
@@ -273,17 +316,13 @@
     animation: cn-dialog-fade-out 150ms ease-in both;
   }
   .cn-dialog {
-    --dlg-bg: #0d1118;
     border: 1px solid transparent;
     border-radius: 16px;
-    color: #f4f8ff;
+    color: var(--dlg-text);
     background:
       linear-gradient(var(--dlg-bg), var(--dlg-bg)) padding-box,
-      linear-gradient(125deg, #74d7ff 0%, #6c4dff 55%, #4b348e 100%) border-box;
-    box-shadow:
-      0 0 34px -12px rgb(116 215 255 / 0.5),
-      0 0 52px -18px rgb(108 77 255 / 0.65),
-      0 30px 80px -30px rgb(0 0 0 / 0.95);
+      var(--dlg-frame) border-box;
+    box-shadow: var(--dlg-shadow);
     animation: cn-dialog-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
   .cn-dialog[data-closing] {
@@ -298,9 +337,9 @@
     overflow: hidden;
     border-radius: 15px 15px 0 0;
     padding: 12px 12px 12px 20px;
-    background: linear-gradient(180deg, #07090d 0%, #0d1118 100%);
+    background: var(--dlg-head-bg);
     border-bottom: 1px solid transparent;
-    border-image: linear-gradient(90deg, rgb(116 215 255 / 0.6), rgb(108 77 255 / 0.6), rgb(75 52 142 / 0.4)) 1;
+    border-image: var(--dlg-head-line) 1;
   }
   .cn-dialog-sky {
     position: absolute;
@@ -317,17 +356,17 @@
     align-items: center;
     justify-content: center;
     border-radius: 10px;
-    color: #74d7ff;
+    color: var(--dlg-accent);
     transition: background-color 150ms, color 150ms;
   }
   .cn-dialog-x:hover:not(:disabled) {
-    background: rgb(116 215 255 / 0.12);
-    color: #f4f8ff;
+    background: var(--dlg-accent-soft);
+    color: var(--dlg-text);
   }
   .cn-dialog-x:focus-visible,
   .cn-dialog-btn:focus-visible,
   .cn-dialog-input:focus-visible {
-    outline: 2px solid #74d7ff;
+    outline: 2px solid var(--dlg-accent);
     outline-offset: 2px;
   }
   .cn-dialog-icon {
@@ -338,46 +377,46 @@
     align-items: center;
     justify-content: center;
     border-radius: 12px;
-    border: 1px solid rgb(116 215 255 / 0.35);
-    background: rgb(116 215 255 / 0.1);
-    color: #74d7ff;
+    border: 1px solid color-mix(in srgb, var(--dlg-accent) 35%, transparent);
+    background: var(--dlg-accent-soft);
+    color: var(--dlg-accent);
   }
   .cn-dialog-icon[data-tone='perigo'] {
-    border-color: rgb(255 92 133 / 0.45);
-    background: rgb(255 92 133 / 0.12);
-    color: #ff8aa6;
+    border-color: color-mix(in srgb, var(--color-live-400) 45%, transparent);
+    background: color-mix(in srgb, var(--color-live-400) 12%, transparent);
+    color: var(--color-live-300);
   }
   .cn-dialog-icon[data-tone='aviso'] {
-    border-color: rgb(255 198 92 / 0.45);
-    background: rgb(255 198 92 / 0.1);
-    color: #ffc65c;
+    border-color: color-mix(in srgb, var(--color-warn-400) 45%, transparent);
+    background: color-mix(in srgb, var(--color-warn-400) 10%, transparent);
+    color: var(--color-warn-400);
   }
   .cn-dialog-icon[data-tone='ok'] {
-    border-color: rgb(69 226 131 / 0.45);
-    background: rgb(69 226 131 / 0.1);
-    color: #45e283;
+    border-color: color-mix(in srgb, var(--color-ok-400) 45%, transparent);
+    background: color-mix(in srgb, var(--color-ok-400) 10%, transparent);
+    color: var(--color-ok-400);
   }
   .cn-dialog-item {
-    color: #74d7ff;
+    color: var(--dlg-accent);
     font-weight: 800;
     overflow-wrap: anywhere;
   }
   .cn-dialog-input {
     width: 100%;
     border-radius: 12px;
-    border: 1px solid #2a2f45;
-    background: #07090d;
+    border: 1px solid var(--dlg-input-border);
+    background: var(--dlg-input-bg);
     padding: 10px 12px;
-    color: #f4f8ff;
+    color: var(--dlg-text);
     font-size: 15px;
     transition: border-color 150ms, box-shadow 150ms;
   }
   .cn-dialog-input:focus {
-    border-color: #74d7ff;
-    box-shadow: 0 0 0 3px rgb(116 215 255 / 0.18);
+    border-color: var(--dlg-accent);
+    box-shadow: 0 0 0 3px var(--dlg-accent-soft);
   }
   .cn-dialog-input[aria-invalid='true'] {
-    border-color: #ff5c85;
+    border-color: var(--color-live-400);
   }
   .cn-dialog-btn {
     display: inline-flex;
@@ -416,13 +455,13 @@
     filter: brightness(1.1);
   }
   .cn-dialog-secondary {
-    color: #f4f8ff;
-    border: 1px solid #4b348e;
-    background: rgb(75 52 142 / 0.14);
+    color: var(--dlg-text);
+    border: 1px solid var(--dlg-secondary-border);
+    background: var(--dlg-secondary-bg);
   }
   .cn-dialog-secondary:hover:not(:disabled) {
-    border-color: #6c4dff;
-    background: rgb(108 77 255 / 0.18);
+    border-color: var(--color-brand-500);
+    background: color-mix(in srgb, var(--color-brand-500) 18%, transparent);
   }
   @keyframes cn-dialog-in {
     from {

@@ -539,7 +539,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                             {name}
                           </span>
                         </UserTrigger>
-                        {message.author.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-white">BOT</span>}
+                        {message.author.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-on-accent">BOT</span>}
                         <time className="shrink-0 text-xs text-fog-500" dateTime={message.createdAt}>
                           {stamp(message.createdAt)}
                         </time>

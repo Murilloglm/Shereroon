@@ -1,4 +1,4 @@
-import { Accessibility, Bell, Download, LogOut, Mic, Power, Search, ShieldCheck, UserPen, UserRound, Users, X } from 'lucide-react';
+import { Accessibility, Bell, Check, Download, LogOut, Mic, Palette, Power, Search, ShieldCheck, UserPen, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { appearance, setAppearance, type MotionChoice } from '../../lib/appearance.ts';
 import { desktop } from '../../lib/desktop.ts';
@@ -6,6 +6,7 @@ import { dialogs } from '../../lib/dialogs.ts';
 import { alertPrefs, allowDesktopAlerts, desktopAlertsSupported } from '../../lib/groups/alerts.ts';
 import { groups, type Account } from '../../lib/groups/client.ts';
 import { closeSettings, openSettings, settingsScreen, type SettingsSection } from '../../lib/settings-screen.ts';
+import { THEME_IDS, THEMES } from '../../lib/themes.ts';
 import { social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { AutostartSettings } from '../AutostartSettings.tsx';
@@ -34,6 +35,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'perfil', group: 'Conta', title: 'Editar perfil', keywords: 'foto avatar banner bio status nome imagem', icon: UserPen, needsAccount: true, render: (account) => account && <ProfileEditor userId={account.id} /> },
   { id: 'privacidade', group: 'Conta', title: 'Privacidade e segurança', keywords: 'quem pode ver perfil mensagem privada', icon: ShieldCheck, needsAccount: true, render: (account) => account && <PrivacySettings account={account} /> },
   { id: 'amigos', group: 'Conta', title: 'Amigos e bloqueios', keywords: 'amizade bloquear desbloquear pedidos', icon: Users, needsAccount: true, render: () => <FriendsSettings /> },
+  { id: 'aparencia', group: 'Experiência', title: 'Aparência e temas', keywords: 'tema claro escuro cores cosmic night visual', icon: Palette, render: () => <AppearanceSettings /> },
   { id: 'notificacoes', group: 'Experiência', title: 'Notificações', keywords: 'som aviso alerta mensagem', icon: Bell, render: () => <NotificationSettings /> },
   { id: 'acessibilidade', group: 'Experiência', title: 'Acessibilidade', keywords: 'animações movimento reduzir gif', icon: Accessibility, render: () => <AccessibilitySettings /> },
   { id: 'voz', group: 'Voz e vídeo', title: 'Voz, vídeo e transmissão', keywords: 'microfone saída fone áudio ruído eco codec qualidade volume transmissão tela', icon: Mic, render: () => <VoiceSettings /> },
@@ -378,6 +380,61 @@ function NotificationSettings() {
         <Toggle on={prefs.sound} label="Som de mensagem" onChange={(sound) => save({ sound })} />
       </Row>
       <p className="text-[13px] leading-snug text-fog-500">Quais mensagens avisam (todas, só menções ou nenhuma) você escolhe em cada grupo e em cada canal, pelo sino.</p>
+    </Block>
+  );
+}
+
+/**
+ * Temas: cada cartão é uma miniatura da interface pintada com as variáveis daquele tema (aplicadas só no cartão),
+ * então a prévia é a real. Escolher aplica na hora em todas as telas, menus e diálogos, e fica guardado.
+ */
+function AppearanceSettings() {
+  const theme = useStore(appearance, (state) => state.theme);
+  return (
+    <Block title="Tema">
+      <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Tema">
+        {THEME_IDS.map((id) => {
+          const def = THEMES[id];
+          const selected = theme === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => setAppearance({ theme: id })}
+              className={cx('group grid gap-2 rounded-2xl border-2 p-2 text-left transition-colors', selected ? 'border-brand-400' : 'border-transparent hover:border-ink-600')}
+              data-testid={`theme-${id}`}
+            >
+              <div style={def.vars as React.CSSProperties} className="relative flex h-28 overflow-hidden rounded-xl bg-ink-950" aria-hidden="true">
+                <div className="flex w-9 flex-col items-center gap-1.5 bg-ink-900 py-2">
+                  <span className="size-5 rounded-lg bg-brand-500 shadow-glow" />
+                  <span className="size-5 rounded-lg bg-ink-700" />
+                  <span className="size-5 rounded-lg bg-ink-700" />
+                </div>
+                <div className="flex flex-1 flex-col gap-1.5 bg-ink-850 p-2">
+                  <span className="h-2 w-2/3 rounded-full bg-fog-100/80" />
+                  <span className="h-1.5 w-11/12 rounded-full bg-fog-400/60" />
+                  <span className="h-1.5 w-3/4 rounded-full bg-fog-400/60" />
+                  <span className="mt-auto flex items-center gap-1.5">
+                    <span className="h-4 w-10 rounded-md bg-linear-to-b from-brand-500 to-brand-700" />
+                    <span className="size-2 rounded-full bg-neon-400" />
+                    <span className="size-2 rounded-full bg-ok-400" />
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 px-1">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold">{def.name}</p>
+                  <p className="text-xs leading-snug text-fog-400">{def.description}</p>
+                </div>
+                {selected && <Check className="mt-0.5 size-4 shrink-0 text-neon-300" aria-hidden="true" />}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[13px] leading-snug text-fog-500">O tema vale neste aparelho e muda na hora, sem reiniciar.</p>
     </Block>
   );
 }

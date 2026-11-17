@@ -56,7 +56,7 @@ export function TitleBar() {
         </button>
         <button
           type="button"
-          className={cx(button, 'hover:bg-live-500 hover:text-white focus-visible:bg-live-500 focus-visible:text-white')}
+          className={cx(button, 'hover:bg-live-500 hover:text-on-accent focus-visible:bg-live-500 focus-visible:text-on-accent')}
           aria-label="Fechar"
           title="Fechar"
           onClick={() => void controls.close()}

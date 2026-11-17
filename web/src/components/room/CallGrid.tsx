@@ -39,14 +39,14 @@ function CallCard({
         person.speaking ? 'shadow-[0_0_0_2px_var(--color-ok-400),0_0_28px_-6px_var(--color-ok-400)] duration-75' : 'shadow-[0_0_0_1px_rgb(255_255_255/0.06)] duration-500',
         'transition-shadow motion-reduce:transition-none',
       )}
-      style={{ width, height, background: `radial-gradient(120% 120% at 50% 35%, hsl(${hue} 42% 20%), var(--color-ink-900) 72%)` }}
+      style={{ width, height, background: `radial-gradient(120% 120% at 50% 35%, hsl(${hue} var(--call-card-s) var(--call-card-l)), var(--color-ink-900) 72%)` }}
       data-testid="call-card"
       data-identity={person.identity}
       data-speaking={person.speaking ? 'true' : 'false'}
     >
       <Avatar id={person.identity} name={person.name} size={avatar} speaking={person.speaking} image={image} />
 
-      <div className={cx('absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-black/50 font-semibold backdrop-blur-sm', compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm')}>
+      <div className={cx('absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-ink-950/70 font-semibold text-fog-100 backdrop-blur-sm', compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm')}>
         {!person.micOn && <MicOff className="size-3.5 shrink-0 text-live-300" aria-label="Microfone desligado" data-testid="call-card-mic-off" />}
         <span className="truncate" data-testid="call-card-name">
           {person.isLocal ? `${person.name} (você)` : person.name}
@@ -54,7 +54,7 @@ function CallCard({
       </div>
 
       {person.sharing && (
-        <span className="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-live-500 px-1.5 py-0.5 text-[11px] font-extrabold tracking-wide text-white uppercase" data-testid="call-card-live">
+        <span className="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-live-500 px-1.5 py-0.5 text-[11px] font-extrabold tracking-wide text-on-accent uppercase" data-testid="call-card-live">
           <Monitor className="size-3" aria-hidden="true" />
           Ao vivo
         </span>

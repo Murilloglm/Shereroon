@@ -309,7 +309,7 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
                               {memberName(member)}
                             </span>
                             {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
-                            {member.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-white" data-testid="member-bot-tag">BOT</span>}
+                            {member.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-on-accent" data-testid="member-bot-tag">BOT</span>}
                           </p>
                           <p className="flex items-center gap-1 truncate text-xs text-fog-500">
                             <span className={cx('size-1.5 shrink-0 rounded-full', !member.online ? 'bg-fog-500' : status === 'Em chamada' ? 'bg-neon-400' : 'bg-ok-400')} />
@@ -356,7 +356,7 @@ function VoiceBar({ view, voice, onLeave }: { view: GroupView | null; voice: Voi
         </p>
         <p className="truncate text-xs text-fog-400">{channel?.name ?? 'em outro grupo'}</p>
       </button>
-      <IconButton label="Sair do canal de voz" className="bg-live-600/25 text-live-300 hover:bg-live-600 hover:text-white" onClick={onLeave} data-testid="voice-bar-leave">
+      <IconButton label="Sair do canal de voz" className="bg-live-600/25 text-live-300 hover:bg-live-600 hover:text-on-accent" onClick={onLeave} data-testid="voice-bar-leave">
         <PhoneOff className="size-5" />
       </IconButton>
     </div>
@@ -416,7 +416,7 @@ function VoicePeopleList({ people, live, session, channel }: { people: MemberVie
                 <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
               </UserTrigger>
             )}
-            {state?.sharing && <span className="shrink-0 rounded bg-live-500 px-1 text-[10px] font-extrabold text-white">AO VIVO</span>}
+            {state?.sharing && <span className="shrink-0 rounded bg-live-500 px-1 text-[10px] font-extrabold text-on-accent">AO VIVO</span>}
             {state && !state.micOn && <MicOff className="size-3.5 shrink-0 text-fog-500" aria-label="Microfone desligado" />}
           </li>
         );
@@ -567,7 +567,7 @@ function ChannelList({ view, selected, voice, onPick, onModal, onOpenChat }: {
             <span className="truncate">{channel.name}</span>
           </button>
           {news.mentions > 0 && (
-            <span className="mr-2 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-extrabold text-white shadow-glow" data-testid="channel-mentions" aria-label={`${news.mentions} menções`}>
+            <span className="mr-2 flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 px-1.5 text-xs font-extrabold text-on-accent shadow-glow" data-testid="channel-mentions" aria-label={`${news.mentions} menções`}>
               {news.mentions > 99 ? '99+' : news.mentions}
             </span>
           )}
@@ -896,7 +896,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
                 <MessageSquare className="size-5" />
               </IconButton>
               {dmUnread > 0 && (
-                <span className="pointer-events-none absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-ink-900 bg-live-500 px-1 text-[11px] font-extrabold text-white" data-testid="rail-dm-unread">
+                <span className="pointer-events-none absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-ink-900 bg-live-500 px-1 text-[11px] font-extrabold text-on-accent" data-testid="rail-dm-unread">
                   {dmUnread > 99 ? '99+' : dmUnread}
                 </span>
               )}
@@ -914,7 +914,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
                     <GroupIcon group={group} active={group.id === groupId} />
                   </button>
                   {(group.mentions ?? 0) > 0 && (
-                    <span className="pointer-events-none absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-ink-900 bg-live-500 px-1 text-[11px] font-extrabold text-white" data-testid="rail-mentions">
+                    <span className="pointer-events-none absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-ink-900 bg-live-500 px-1 text-[11px] font-extrabold text-on-accent" data-testid="rail-mentions">
                       {group.mentions! > 99 ? '99+' : group.mentions}
                     </span>
                   )}

@@ -122,7 +122,7 @@ function MediaAttachment({ file, kind }: { file: Attachment; kind: 'video' | 'au
         onClick={() => setWanted(true)}
         disabled={wanted}
         aria-label={`Tocar ${file.name}`}
-        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-linear-to-b from-brand-500 to-brand-700 text-white shadow-glow disabled:opacity-60"
+        className="flex size-11 shrink-0 items-center justify-center rounded-full bg-linear-to-b from-brand-500 to-brand-700 text-on-accent shadow-glow disabled:opacity-60"
       >
         <Play className={cx('size-5', wanted && 'animate-pulse')} aria-hidden="true" />
       </button>

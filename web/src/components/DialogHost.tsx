@@ -222,7 +222,7 @@ function DialogView({ request }: { request: DialogRequest }) {
         <p>
           Você está prestes a excluir <strong className="cn-dialog-item" data-testid="dialog-item">{remove.item}</strong>.
         </p>
-        {options.message && <div className="mt-2 text-[#b9c3d9]">{options.message}</div>}
+        {options.message && <div className="mt-2 text-fog-300">{options.message}</div>}
       </>
     );
   }
@@ -272,7 +272,7 @@ function DialogView({ request }: { request: DialogRequest }) {
                 {options.title}
               </h2>
               {body && (
-                <div id={messageId} className="mt-1.5 text-[15px] leading-relaxed break-words text-[#c9d2e6]" data-testid="dialog-message">
+                <div id={messageId} className="mt-1.5 text-[15px] leading-relaxed break-words text-fog-300" data-testid="dialog-message">
                   {body}
                 </div>
               )}
@@ -280,8 +280,8 @@ function DialogView({ request }: { request: DialogRequest }) {
           </div>
 
           {kind === 'erro' && request.options.details && (
-            <details className="mt-4 rounded-xl border border-[#2a2f45] bg-[#07090D] px-3 py-2 text-sm text-[#b9c3d9]">
-              <summary className="cursor-pointer font-bold text-[#F4F8FF]">Detalhes técnicos</summary>
+            <details className="mt-4 rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-fog-300">
+              <summary className="cursor-pointer font-bold text-fog-100">Detalhes técnicos</summary>
               <pre className="mt-2 max-h-40 overflow-auto font-mono text-xs whitespace-pre-wrap" data-testid="dialog-details">
                 {request.options.details}
               </pre>
@@ -290,7 +290,7 @@ function DialogView({ request }: { request: DialogRequest }) {
 
           {(prompt || typed) && (
             <div className="mt-4">
-              <label htmlFor={fieldId} className="mb-1.5 block text-sm font-bold text-[#dfe6f5]">
+              <label htmlFor={fieldId} className="mb-1.5 block text-sm font-bold text-fog-100">
                 {prompt ? prompt.label : (
                   <>
                     Para confirmar, digite <span className="cn-dialog-item">{remove!.item}</span>
@@ -313,7 +313,7 @@ function DialogView({ request }: { request: DialogRequest }) {
                 data-testid="dialog-input"
               />
               {prompt && touched && fieldError && (
-                <p id={`${fieldId}-erro`} className="mt-1.5 text-sm font-semibold text-[#ff8aa6]" data-testid="dialog-field-error">
+                <p id={`${fieldId}-erro`} className="mt-1.5 text-sm font-semibold text-live-300" data-testid="dialog-field-error">
                   {fieldError}
                 </p>
               )}
@@ -321,7 +321,7 @@ function DialogView({ request }: { request: DialogRequest }) {
           )}
 
           {failure && (
-            <p className="mt-4 rounded-xl border border-[#ff5c85]/40 bg-[#ff5c85]/10 px-3 py-2 text-sm font-semibold text-[#ff8aa6]" role="alert" data-testid="dialog-error">
+            <p className="mt-4 rounded-xl border border-live-400/40 bg-live-400/10 px-3 py-2 text-sm font-semibold text-live-300" role="alert" data-testid="dialog-error">
               {failure}
             </p>
           )}

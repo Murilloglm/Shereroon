@@ -36,7 +36,7 @@ test('abre em tela própria, com as categorias na barra lateral e a conta em des
   assert.equal(await screen().getAttribute('data-section'), 'conta');
   assert.match(await page.getByTestId('account-settings').textContent(), /@config/);
   // No site não há opções do aplicativo de Windows.
-  assert.deepEqual(await navIds(), ['conta', 'perfil', 'privacidade', 'amigos', 'notificacoes', 'acessibilidade', 'voz']);
+  assert.deepEqual(await navIds(), ['conta', 'perfil', 'privacidade', 'amigos', 'aparencia', 'notificacoes', 'acessibilidade', 'voz']);
   // Ocupa a janela inteira, não uma janelinha sobre o chat.
   const box = await screen().boundingBox();
   assert.ok(box.width >= 1390 && box.height >= 890, `tamanho: ${JSON.stringify(box)}`);
@@ -77,6 +77,43 @@ test('acessibilidade: reduzir animações vale na hora e continua depois de reca
   await page.getByTestId('account-settings-open').click();
   await page.getByTestId('settings-nav-acessibilidade').click();
   await page.getByTestId('motion-sistema').click();
+});
+
+test('temas: Claro e Escuro mudam na hora em telas e diálogos, ficam guardados, e o Cosmic Night volta', async () => {
+  const colors = () =>
+    page.evaluate(() => ({
+      theme: document.documentElement.dataset.theme,
+      body: getComputedStyle(document.body).backgroundColor,
+      text: getComputedStyle(document.body).color,
+      panel: getComputedStyle(document.querySelector('[data-testid="settings-screen"]')).backgroundColor,
+    }));
+  await page.getByTestId('settings-nav-aparencia').click();
+  assert.equal(await page.getByTestId('theme-cosmic').getAttribute('aria-checked'), 'true');
+  const cosmic = await colors();
+  assert.deepEqual(cosmic, { theme: 'cosmic', body: 'rgb(6, 7, 18)', text: 'rgb(239, 240, 251)', panel: 'rgb(3, 4, 11)' });
+
+  await page.getByTestId('theme-claro').click();
+  assert.deepEqual(await colors(), { theme: 'claro', body: 'rgb(243, 244, 249)', text: 'rgb(23, 26, 43)', panel: 'rgb(231, 233, 241)' });
+  // Os diálogos também mudam (sem cores fixas).
+  await page.getByTestId('account-logout').click();
+  const dialog = page.locator('.cn-dialog');
+  await dialog.waitFor();
+  assert.equal(await dialog.evaluate((element) => getComputedStyle(element).color), 'rgb(23, 26, 43)');
+  await page.getByTestId('dialog-cancel').click();
+  await waitFor(async () => (await page.getByTestId('dialog').count()) === 0, 'o diálogo fechar');
+
+  // Continua depois de recarregar, já na primeira pintura.
+  await page.reload();
+  await page.getByTestId('account-settings-open').waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'claro');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(243, 244, 249)');
+
+  await page.getByTestId('account-settings-open').click();
+  await page.getByTestId('settings-nav-aparencia').click();
+  await page.getByTestId('theme-escuro').click();
+  assert.equal((await colors()).body, 'rgb(14, 15, 18)');
+  await page.getByTestId('theme-cosmic').click();
+  assert.deepEqual(await colors(), cosmic);
 });
 
 test('voz e vídeo fora de uma chamada explica onde ajustar; Esc volta para o aplicativo', async () => {
