@@ -73,6 +73,8 @@ after(async () => {
 });
 
 test('a interface roda de dentro do aplicativo, isolada do sistema', { skip }, async () => {
+  // O aplicativo abre nos grupos; as salas por link ficam a um clique, sem conta.
+  await page.getByTestId('auth-rooms').click();
   await page.getByTestId('home-user-name').waitFor();
   assert.match(page.url(), /^app:\/\/shareroom\//);
   const facts = await page.evaluate(() => ({
@@ -101,7 +103,8 @@ test('janela sem a moldura do Windows: o cabeçalho próprio arrasta; os botões
     const [outer, inner] = [win.getBounds(), win.getContentBounds()];
     return { frameless: outer.width === inner.width && outer.height === inner.height, resizable: win.isResizable(), movable: win.isMovable(), title: win.getTitle() };
   });
-  assert.deepEqual(frame, { frameless: true, resizable: true, movable: true, title: 'Cosmic Night' });
+  assert.deepEqual({ ...frame, title: undefined }, { frameless: true, resizable: true, movable: true, title: undefined });
+  assert.match(frame.title, /Cosmic Night$/, 'o título continua para o Alt+Tab e a barra de tarefas');
   // O conteúdo começa logo abaixo do cabeçalho, sem ficar escondido atrás dele.
   assert.equal(await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById('root')).paddingTop)), 32);
 
@@ -234,7 +237,11 @@ test('fechar a janela dentro de uma sala só esconde: o aplicativo segue na band
 });
 
 test('configurações mostram a versão e o estado real da atualização', { skip }, async () => {
+  // A engrenagem da chamada abre as Configurações em tela própria (em Voz e vídeo); Atualizações fica na barra lateral.
   await page.getByTestId('dock-settings').click();
+  assert.equal(await page.getByTestId('settings-screen').getAttribute('data-section'), 'voz');
+  await page.getByTestId('settings-voice').waitFor();
+  await page.getByTestId('settings-nav-atualizacoes').click();
   const update = page.getByTestId('app-update');
   await update.waitFor();
   await waitFor(async () => (await update.getAttribute('data-state')) === 'indisponivel', 'o estado da atualização aparecer');

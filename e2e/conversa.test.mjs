@@ -64,7 +64,6 @@ before(async () => {
   beto = await (await betoBrowser.newContext({ viewport: { width: 1500, height: 900 }, acceptDownloads: true })).newPage();
 
   await ana.goto(BASE_URL);
-  await ana.getByTestId('home-groups').click();
   await signUp(ana, 'ana', 'Ana');
   await ana.getByTestId('rail-create').click();
   await ana.getByTestId('group-name').fill('Cosmic Crew');

@@ -60,7 +60,7 @@ before(async () => {
   viewerBrowser = await launchChrome({ headless });
 
   host = await enter(hostBrowser, 'Ana', 'sr-tela-ana', 880);
-  await host.goto(BASE_URL);
+  await host.goto(`${BASE_URL}/#/salas`);
   await host.getByTestId('home-user-name').fill('Ana');
   await host.getByTestId('home-room-name').fill('Transmissões');
   await host.getByTestId('home-create').click();

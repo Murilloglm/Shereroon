@@ -107,6 +107,16 @@
     padding-top: var(--titlebar-h);
   }
 
+  /* Configurações → Acessibilidade → Reduzir animações (ou o sistema pedindo menos movimento). */
+  :root[data-motion='reduzida'] *,
+  :root[data-motion='reduzida'] *::before,
+  :root[data-motion='reduzida'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
   body {
     margin: 0;
     background: var(--color-ink-900);

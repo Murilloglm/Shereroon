@@ -50,7 +50,6 @@ after(async () => {
 });
 
 test('foto de perfil enviada aparece dentro do aplicativo, inclusive de um formato que precisa ser convertido', { skip }, async () => {
-  await page.getByTestId('home-groups').click();
   await page.getByTestId('auth-tab-criar').click();
   await page.getByTestId('auth-username').fill('fotografa');
   await page.getByTestId('auth-display-name').fill('Fotógrafa');

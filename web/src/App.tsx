@@ -3,6 +3,7 @@ import { DialogHost } from './components/DialogHost.tsx';
 import { desktop } from './lib/desktop.ts';
 import { HomePage } from './components/HomePage.tsx';
 import { RoomGate } from './components/RoomGate.tsx';
+import { SettingsScreen } from './components/settings/SettingsScreen.tsx';
 import { TitleBar } from './components/TitleBar.tsx';
 import { Backdrop } from './components/ui.tsx';
 
@@ -27,7 +28,10 @@ function parseRoute(hash: string): Route {
   if (dm) return { page: 'grupos', dm: dm[1] ?? 'inicio' };
   const invite = new RegExp(`^#/convite/(${ID})/?$`).exec(hash);
   if (invite) return { page: 'grupos', invite: invite[1] };
-  return { page: 'inicio' };
+  // Salas por link (sem conta): criar uma sala ou entrar com um convite.
+  if (/^#\/salas\/?$/.test(hash)) return { page: 'inicio' };
+  // A tela inicial é a dos grupos e mensagens (quem não entrou na conta vê o login, com atalho para as salas).
+  return { page: 'grupos' };
 }
 
 export function navigate(hash: string): void {
@@ -68,6 +72,7 @@ export function App() {
       ) : (
         <HomePage />
       )}
+      <SettingsScreen />
       <DialogHost />
     </>
   );

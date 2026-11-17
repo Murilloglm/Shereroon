@@ -85,7 +85,7 @@ before(async () => {
   await context.addInitScript((port) => localStorage.setItem('shareroom:auxiliar-porta', String(port)), PORT);
   await (await context.newPage()).setContent(sourcePageHtml('sr-fonte-ruido', 880));
   host = await context.newPage();
-  await host.goto(BASE_URL);
+  await host.goto(`${BASE_URL}/#/salas`);
   await host.getByTestId('home-user-name').fill('Murillo');
   await host.getByTestId('home-create').click();
   await host.getByTestId('room').waitFor();

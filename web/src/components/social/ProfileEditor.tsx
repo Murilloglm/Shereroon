@@ -6,7 +6,7 @@ import { prepareProfileImage } from '../../lib/images.ts';
 import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, DEFAULT_AVATARS, TextInput } from '../ui.tsx';
-import { errorText, fieldLabel, selectClass } from '../groups/common.tsx';
+import { errorText, fieldLabel } from '../groups/common.tsx';
 
 const BANNER_COLORS = ['#6c4dff', '#4b348e', '#74d7ff', '#14c2f0', '#1d2142', '#e23a66', '#45e283', '#ffc65c'];
 // Qualquer imagem; as extensões entram porque o Windows nem sempre diz que HEIC, AVIF ou JFIF são imagens.
@@ -27,7 +27,7 @@ export function ProfileEditor({ userId }: { userId: string }) {
     void social.profile(userId, true).catch(() => undefined);
   }, [userId]);
   useEffect(() => {
-    if (saved && !draft) setDraft({ displayName: saved.displayName, bio: saved.bio ?? '', status: saved.status ?? '', avatar: saved.avatar, banner: saved.banner, profilePrivacy: saved.profilePrivacy, dmPrivacy: saved.dmPrivacy });
+    if (saved && !draft) setDraft({ displayName: saved.displayName, bio: saved.bio ?? '', status: saved.status ?? '', avatar: saved.avatar, banner: saved.banner });
   }, [saved, draft]);
   useEffect(
     () => () => {
@@ -38,7 +38,7 @@ export function ProfileEditor({ userId }: { userId: string }) {
 
   if (!saved || !draft) return <p className="text-sm text-fog-400">Carregando o perfil…</p>;
   const set = (patch: Partial<Profile>) => setDraft((current) => ({ ...current, ...patch }));
-  const dirty = (['displayName', 'bio', 'status', 'avatar', 'banner', 'profilePrivacy', 'dmPrivacy'] as const).some((key) => (draft[key] ?? null) !== ((key === 'bio' || key === 'status' ? (saved[key] ?? '') : saved[key]) ?? null));
+  const dirty = (['displayName', 'bio', 'status', 'avatar', 'banner'] as const).some((key) => (draft[key] ?? null) !== ((key === 'bio' || key === 'status' ? (saved[key] ?? '') : saved[key]) ?? null));
 
   const pick = async (kind: 'avatar' | 'banner', file: File | undefined) => {
     if (!file) return;
@@ -76,10 +76,8 @@ export function ProfileEditor({ userId }: { userId: string }) {
         status: draft.status,
         avatar: draft.avatar?.startsWith('arquivo:') ? undefined : draft.avatar,
         banner: draft.banner?.startsWith('arquivo:') ? undefined : draft.banner,
-        profilePrivacy: draft.profilePrivacy,
-        dmPrivacy: draft.dmPrivacy,
       });
-      setDraft({ displayName: profile.displayName, bio: profile.bio ?? '', status: profile.status ?? '', avatar: profile.avatar, banner: profile.banner, profilePrivacy: profile.profilePrivacy, dmPrivacy: profile.dmPrivacy });
+      setDraft({ displayName: profile.displayName, bio: profile.bio ?? '', status: profile.status ?? '', avatar: profile.avatar, banner: profile.banner });
       groups.notify('Perfil salvo.');
     } catch (error) {
       await dialogs.alert({ kind: 'erro', title: 'Não foi possível salvar', message: errorText(error) });
@@ -164,23 +162,6 @@ export function ProfileEditor({ userId }: { userId: string }) {
         Sobre você <span className="font-normal text-fog-500">(pode ficar vazio • {(draft.bio ?? '').length}/190)</span>
         <textarea value={draft.bio ?? ''} maxLength={190} rows={3} onChange={(event) => set({ bio: event.target.value })} className="resize-none rounded-xl border border-ink-600 bg-ink-850 px-3 py-2 text-[15px] outline-none focus:border-neon-400" data-testid="profile-bio-input" />
       </label>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className={fieldLabel}>
-          Quem vê bio, status e grupos em comum
-          <select className={selectClass} value={draft.profilePrivacy ?? 'membros'} onChange={(event) => set({ profilePrivacy: event.target.value as Profile['profilePrivacy'] })} data-testid="profile-privacy">
-            <option value="todos">Qualquer pessoa que me encontrar</option>
-            <option value="membros">Quem divide um grupo comigo</option>
-            <option value="amigos">Só amigos</option>
-          </select>
-        </label>
-        <label className={fieldLabel}>
-          Quem pode mandar mensagem privada
-          <select className={selectClass} value={draft.dmPrivacy ?? 'membros'} onChange={(event) => set({ dmPrivacy: event.target.value as Profile['dmPrivacy'] })} data-testid="dm-privacy">
-            <option value="membros">Amigos e quem divide um grupo</option>
-            <option value="amigos">Só amigos</option>
-          </select>
-        </label>
-      </div>
       <div className="flex gap-2">
         <Button variant="primary" disabled={busy || !dirty || !(draft.displayName ?? '').trim()} onClick={() => void save()} data-testid="profile-save">
           {busy ? 'Salvando…' : 'Salvar perfil'}

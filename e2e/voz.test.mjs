@@ -176,7 +176,7 @@ before(async () => {
     args: [`--use-file-for-fake-audio-capture=${writeWav('tom-continuo.wav', 8, () => 1)}`],
   });
   host = await (await hostBrowser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
-  await host.goto(BASE_URL);
+  await host.goto(`${BASE_URL}/#/salas`);
   await host.getByTestId('home-user-name').fill('Murillo');
   await host.getByTestId('home-room-name').fill('Voz');
   await host.getByTestId('home-create').click();

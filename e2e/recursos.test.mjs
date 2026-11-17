@@ -49,7 +49,7 @@ before(async () => {
   const context = await hostBrowser.newContext({ viewport: { width: 1600, height: 900 } });
   await (await context.newPage()).setContent(sourcePageHtml('sr-fonte-do-dono', 880));
   host = await context.newPage();
-  await host.goto(BASE_URL);
+  await host.goto(`${BASE_URL}/#/salas`);
   await host.getByTestId('home-user-name').fill('Murillo');
   await host.getByTestId('home-room-name').fill('Sala de testes');
   await host.getByTestId('home-create').click();

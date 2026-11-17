@@ -881,7 +881,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
       {showList && (
         <>
           <nav className="cn-panel flex w-[4.5rem] shrink-0 flex-col items-center gap-2 py-2.5" aria-label="Seus grupos" data-testid="group-rail">
-            <button type="button" title="Início do Cosmic Night" aria-label="Voltar para o início do Cosmic Night" className="rounded-2xl p-0.5 transition-shadow hover:shadow-glow" onClick={() => navigate('#/')} data-testid="rail-home">
+            <button type="button" title="Mensagens e amigos" aria-label="Mensagens privadas e amigos" className="rounded-2xl p-0.5 transition-shadow hover:shadow-glow" onClick={() => navigate('#/mensagens')} data-testid="rail-home">
               <LogoMark size={48} />
             </button>
             <div className="relative">
@@ -926,6 +926,9 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
             </IconButton>
             <IconButton label="Entrar em um grupo" className="size-12 rounded-2xl border border-dashed border-brand-400/50 text-brand-300" onClick={() => setModal({ type: 'entrar' })} data-testid="rail-join">
               <Compass className="size-5" />
+            </IconButton>
+            <IconButton label="Salas por link (sem conta)" className="size-12 rounded-2xl border border-dashed border-brand-400/50 text-brand-300" onClick={() => navigate('#/salas')} data-testid="rail-rooms">
+              <Link2 className="size-5" />
             </IconButton>
             {wide && (
               <div className="mt-1 flex flex-col gap-1 border-t border-brand-500/20 pt-2">
@@ -1077,8 +1080,8 @@ export function GroupsPage({ groupId, channelId, invite, dm }: { groupId?: strin
             Os grupos não estão disponíveis neste servidor agora. Eles precisam de um banco de dados configurado no backend. As salas por link continuam funcionando.
           </Notice>
           <div className="flex gap-2">
-            <Button variant="primary" onClick={() => navigate('#/')}>
-              Voltar para o início
+            <Button variant="primary" onClick={() => navigate('#/salas')}>
+              Usar uma sala por link
             </Button>
             <Button onClick={() => void groups.start()}>Tentar de novo</Button>
           </div>

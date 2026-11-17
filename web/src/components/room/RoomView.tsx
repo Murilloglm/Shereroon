@@ -5,13 +5,13 @@ import { desktop as app } from '../../lib/desktop.ts';
 import { AppMixer, SYSTEM_KEY } from '../../lib/helper/mixer.ts';
 import { NoiseControl } from '../../lib/noise-control.ts';
 import type { RoomSession } from '../../lib/session.ts';
+import { openSettings as openSettingsScreen, registerCall } from '../../lib/settings-screen.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Card, cx, Notice, Toast } from '../ui.tsx';
 import { Dock, MobileActions } from './Dock.tsx';
 import { Header } from './Header.tsx';
 import { MixerPanel } from './MixerPanel.tsx';
 import { QualityCard } from './QualityCard.tsx';
-import { SettingsModal } from './SettingsModal.tsx';
 import { ParticipantsCard, RoomCard } from './Sidebar.tsx';
 import { SourcePicker } from './SourcePicker.tsx';
 import type { PersonLookup } from './CallGrid.tsx';
@@ -76,7 +76,6 @@ export function RoomView({
   const desktop = useIsDesktop();
   const [cinemaWanted, setCinema] = useState(false);
   const [mixerOpen, setMixerOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const stage = useRef<StageHandle>(null);
   const mixerRef = useRef<AppMixer | null>(null);
   mixerRef.current ??= new AppMixer(session);
@@ -84,6 +83,12 @@ export function RoomView({
   const noiseRef = useRef<NoiseControl | null>(null);
   noiseRef.current ??= new NoiseControl(session, mixer);
   const noise = noiseRef.current;
+  // A seção de voz e vídeo das Configurações mostra esta chamada enquanto ela existir.
+  useEffect(() => {
+    registerCall({ session, noise });
+    return () => registerCall(null);
+  }, [session, noise]);
+
   // Saiu da sala: os filtros de ruído param e o app auxiliar é solto, e com isso toda captura de aplicativo para.
   useEffect(
     () => () => {
@@ -134,7 +139,8 @@ export function RoomView({
   const shareBlockedReason = captureUnavailableReason();
   const clearNotice = useCallback(() => session.clearNotice(), [session]);
   const fullscreen = () => stage.current?.toggleFullscreen();
-  const openSettings = () => setSettingsOpen(true);
+  // A engrenagem abre a tela de Configurações em Voz e vídeo, com esta chamada.
+  const openSettings = () => openSettingsScreen('voz');
 
   const player = (
     <Stage ref={stage} session={session} cinema={cinema} onToggleCinema={() => setCinema((value) => !value)} canShare={canShare} allowCinema={desktop} lookup={lookup} />
@@ -216,7 +222,6 @@ export function RoomView({
       )}
 
       {app && <SourcePicker mixer={mixer} />}
-      {settingsOpen && <SettingsModal session={session} noise={noise} onClose={() => setSettingsOpen(false)} />}
       <Toast message={notice} onDone={clearNotice} />
     </div>
   );

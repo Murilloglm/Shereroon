@@ -37,7 +37,6 @@ before(async () => {
   stack = await startStack();
   [ana, beto, caio] = [await open(), await open(), await open()];
   await ana.goto(BASE_URL);
-  await ana.getByTestId('home-groups').click();
   await signUp(ana, 'ana');
   await ana.getByTestId('rail-create').click();
   await ana.getByTestId('group-name').fill('Os Amigos');
@@ -85,7 +84,7 @@ test('perfil: bio, status e foto enviada com prévia; os outros veem no cartão 
     await waitFor(async () => (await photo.getAttribute('src')) !== before && (await imageShows(photo)), `a foto nova (${file.split(/[\\/]/).pop()}) aparecer`);
   }
   assert.equal(await ana.getByTestId('dialog').count(), 0, 'nenhuma imagem foi recusada');
-  await ana.getByRole('dialog', { name: 'Sua conta' }).getByRole('button', { name: 'Fechar' }).first().click();
+  await ana.getByRole('dialog', { name: 'Configurações' }).getByRole('button', { name: 'Fechar' }).first().click();
 
   await waitFor(async () => (await member(beto, 'ana').locator('[data-avatar="foto"]').count()) === 1, 'o Beto ver a foto da Ana na lista');
   await memberTrigger(beto, 'ana').click();

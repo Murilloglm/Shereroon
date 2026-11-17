@@ -76,7 +76,6 @@ async function newAccount(context, username) {
     void native.dismiss();
   });
   await tab.goto(BASE_URL);
-  await tab.getByTestId('home-groups').click();
   await tab.getByTestId('auth-tab-criar').click();
   await tab.getByTestId('auth-username').fill(username);
   await tab.getByTestId('auth-display-name').fill(username);
@@ -96,6 +95,7 @@ before(async () => {
   await context.addInitScript(FAKE_BRIDGE, { apiUrl: BASE_URL, supported: true });
   page = await newAccount(context, 'upd');
   await page.getByTestId('account-settings-open').click();
+  await page.getByTestId('settings-nav-atualizacoes').click();
   await updates().waitFor();
 });
 
@@ -175,6 +175,7 @@ test('cópia antiga sem canal: explica o motivo e aponta a página de downloads'
   await context.addInitScript(FAKE_BRIDGE, { apiUrl: BASE_URL, supported: false });
   const old = await newAccount(context, 'antigo');
   await old.getByTestId('account-settings-open').click();
+  await old.getByTestId('settings-nav-atualizacoes').click();
   await old.getByTestId('update-reason').waitFor();
   assert.match(await old.getByTestId('update-reason').textContent(), /sem canal de atualização/);
   assert.equal(await old.getByTestId('update-reason').locator('a').getAttribute('href'), 'https://murilloglm.github.io/Shereroon/');

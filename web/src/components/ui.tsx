@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { meterPosition } from '../lib/audio.ts';
 import { API_BASE } from '../lib/api.ts';
+import { reducedMotion as appearanceReducesMotion } from '../lib/appearance.ts';
 import { hueFor, initials } from '../lib/format.ts';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -326,7 +327,8 @@ export const DEFAULT_AVATARS: [string, string][] = [
   ['#d6c8ff', '#2b305e'],
 ];
 
-const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+// Segue a escolha em Configurações → Acessibilidade (ou a do sistema, por padrão).
+const prefersReducedMotion = () => appearanceReducesMotion();
 
 /** Endereço público de um emoji do grupo. */
 export const emojiUrl = (id: string): string => `${API_BASE}/api/emojis/${id}`;

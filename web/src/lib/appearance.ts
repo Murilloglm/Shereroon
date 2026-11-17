@@ -1,0 +1,42 @@
+// Aparência e acessibilidade, guardadas neste aparelho e aplicadas na hora (sem recarregar): o atributo no <html>
+// é o que o CSS lê. "sistema" segue a preferência do Windows/navegador.
+import { storage } from './storage.ts';
+import { Store } from './store.ts';
+
+export type MotionChoice = 'sistema' | 'reduzir' | 'normal';
+
+export interface AppearancePrefs {
+  motion: MotionChoice;
+}
+
+const KEY = 'cosmic:aparencia';
+const DEFAULTS: AppearancePrefs = { motion: 'sistema' };
+
+function load(): AppearancePrefs {
+  const saved = storage.get<Partial<AppearancePrefs>>(KEY, {});
+  const motion = saved && ['sistema', 'reduzir', 'normal'].includes(String(saved.motion)) ? (saved.motion as MotionChoice) : DEFAULTS.motion;
+  return { motion };
+}
+
+const systemReduces = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+export const appearance = new Store<AppearancePrefs>(load());
+
+/** Animações reduzidas agora? (escolha da pessoa, ou a do sistema quando ela deixou em "sistema"). */
+export function reducedMotion(prefs: AppearancePrefs = appearance.get()): boolean {
+  return prefs.motion === 'reduzir' || (prefs.motion === 'sistema' && systemReduces());
+}
+
+function apply(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.dataset.motion = reducedMotion() ? 'reduzida' : 'normal';
+}
+
+export function setAppearance(patch: Partial<AppearancePrefs>): void {
+  appearance.set(patch);
+  storage.set(KEY, appearance.get());
+  apply();
+}
+
+apply();
+if (typeof window !== 'undefined') window.matchMedia?.('(prefers-reduced-motion: reduce)').addEventListener?.('change', apply);

@@ -31,9 +31,9 @@ export function AuthPage({ invite }: { invite?: string }) {
 
   return (
     <div className="mx-auto flex min-h-(--app-h) max-w-md flex-col justify-center px-5 py-10">
-      <button type="button" className="mb-8 self-start" onClick={() => navigate('#/')} aria-label="Voltar para o início">
+      <div className="mb-8 self-start">
         <Logo />
-      </button>
+      </div>
       {invite && (preview || inviteError) && (
         <div className="mb-4 animate-rise">
           {preview ? (
@@ -123,6 +123,9 @@ export function AuthPage({ invite }: { invite?: string }) {
           </Button>
         </form>
       </Card>
+      <button type="button" className="mt-4 self-center text-sm font-semibold text-fog-400 underline-offset-4 hover:text-neon-300 hover:underline" onClick={() => navigate('#/salas')} data-testid="auth-rooms">
+        Usar uma sala por link, sem conta
+      </button>
     </div>
   );
 }

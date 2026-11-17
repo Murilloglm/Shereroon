@@ -36,7 +36,7 @@ test('o dono cria uma sala com senha e entra direto', async () => {
   await source.setContent(sourcePageHtml(SOURCE_TITLE));
 
   host = await context.newPage();
-  await host.goto(BASE_URL);
+  await host.goto(`${BASE_URL}/#/salas`);
   await host.getByTestId('home-user-name').fill('Murillo');
   await host.getByTestId('home-room-name').fill('Jogatina com a galera');
   await host.getByTestId('home-password').fill(PASSWORD);

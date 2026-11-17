@@ -44,7 +44,6 @@ before(async () => {
     if (request.method() === 'DELETE' && /\/api\/channels\//.test(request.url())) deletes.push(request.url());
   });
   await page.goto(BASE_URL);
-  await page.getByTestId('home-groups').click();
   await page.getByTestId('auth-tab-criar').click();
   await page.getByTestId('auth-username').fill('dora');
   await page.getByTestId('auth-display-name').fill('Dora');
@@ -148,7 +147,6 @@ test('preferência de menos movimento: o diálogo abre sem animação', async ()
   const reduced = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 900, height: 700 } });
   const other = await reduced.newPage();
   await other.goto(BASE_URL);
-  await other.getByTestId('home-groups').click();
   await other.getByTestId('auth-tab-criar').click();
   await other.getByTestId('auth-username').fill('eli');
   await other.getByTestId('auth-display-name').fill('Eli');

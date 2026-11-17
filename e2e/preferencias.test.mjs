@@ -171,7 +171,6 @@ before(async () => {
   await caio.context().grantPermissions(['microphone'], { origin: BASE_URL });
 
   await ana.goto(BASE_URL);
-  await ana.getByTestId('home-groups').click();
   await signUp(ana, 'ana');
   await ana.getByTestId('rail-create').click();
   await ana.getByTestId('group-name').fill('Preferências');

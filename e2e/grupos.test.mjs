@@ -48,7 +48,6 @@ after(async () => {
 
 test('conta e primeiro grupo: nasce com canais e a dona aparece online', async () => {
   await ana.goto(BASE_URL);
-  await ana.getByTestId('home-groups').click();
   await signUp(ana, 'ana', 'Ana');
   await ana.getByTestId('groups').waitFor();
   await ana.getByTestId('rail-create').click();

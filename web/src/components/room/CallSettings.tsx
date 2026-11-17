@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
-import { desktop } from '../../lib/desktop.ts';
 import { codecHint, type CodecHint } from '../../lib/capture.ts';
 import { formatBitrate } from '../../lib/format.ts';
 import { presetBitrateKbps, TOP_TARGET, type Codec, type CodecChoice, type ContentKind, type Target } from '../../lib/quality.ts';
 import { MIC_KEY, type NoiseControl } from '../../lib/noise-control.ts';
 import type { RoomSession } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
-import { Button, cx, LevelMeter, Modal, Notice, Slider, Toggle } from '../ui.tsx';
+import { Button, cx, LevelMeter, Notice, Slider, Toggle } from '../ui.tsx';
 import { NoiseButton } from './NoiseModal.tsx';
 import { PersonVolume } from './PersonVolume.tsx';
-import { AutostartSettings } from '../AutostartSettings.tsx';
-import { UpdateSettings } from '../UpdateSettings.tsx';
 
 const CODEC_INFO: Record<Codec, { name: string; about: string }> = {
   h264: { name: 'H.264', about: 'O mais compatível. Costuma usar a placa de vídeo para codificar e decodificar, inclusive em celulares.' },
@@ -54,27 +51,11 @@ function Option({ title, about, children }: { title: string; about?: string; chi
   );
 }
 
-/** Atualizações e inicialização do aplicativo de Windows. */
-function AppSection() {
-  if (!desktop) return null;
-  return (
-    <>
-      <Section title="Atualizações">
-        <UpdateSettings />
-      </Section>
-      {desktop.autostart && (
-        <Section title="Inicialização">
-          <AutostartSettings />
-        </Section>
-      )}
-    </>
-  );
-}
-
 const selectClass =
   'h-10 w-full rounded-xl border border-ink-600 bg-ink-900/70 px-3 text-sm text-fog-100 focus:border-brand-400 focus:outline-none';
 
-export function SettingsModal({ session, noise, onClose }: { session: RoomSession; noise: NoiseControl; onClose: () => void }) {
+/** Vídeo da transmissão, microfone e o que você escuta, na chamada em que você está. */
+export function CallSettings({ session, noise }: { session: RoomSession; noise: NoiseControl }) {
   const micAi = useStore(noise.store, (state) => state.settings[MIC_KEY]?.on === true);
   const quality = useStore(session.store, (state) => state.quality);
   const codecs = useStore(session.store, (state) => state.codecs);
@@ -108,7 +89,7 @@ export function SettingsModal({ session, noise, onClose }: { session: RoomSessio
   const canPickOutput = 'setSinkId' in HTMLMediaElement.prototype;
 
   return (
-    <Modal title="Configurações" onClose={onClose} wide>
+    <>
       <Section title="Vídeo da transmissão">
         <div className="grid gap-2" role="radiogroup" aria-label="Codec de vídeo">
           {(['auto', ...codecs] as CodecChoice[]).map((choice) => {
@@ -284,9 +265,7 @@ export function SettingsModal({ session, noise, onClose }: { session: RoomSessio
         </div>
         <PeopleVolumes session={session} />
       </Section>
-
-      <AppSection />
-    </Modal>
+    </>
   );
 }
 

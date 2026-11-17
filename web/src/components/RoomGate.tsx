@@ -110,7 +110,7 @@ export function RoomGate({ invite }: { invite: string }) {
   return (
     <div className="mx-auto flex min-h-(--app-h) max-w-lg flex-col px-5 pb-16">
       <header className="flex items-center justify-between py-6">
-        <button type="button" onClick={() => navigate('#/')} className="rounded-lg" aria-label="Voltar ao início">
+        <button type="button" onClick={() => navigate('#/salas')} className="rounded-lg" aria-label="Voltar ao início">
           <Logo />
         </button>
       </header>
@@ -157,7 +157,7 @@ export function RoomGate({ invite }: { invite: string }) {
                     Voltar para a sala
                   </Button>
                 )}
-                <Button onClick={() => navigate('#/')}>Ir para o início</Button>
+                <Button onClick={() => navigate('#/salas')}>Ir para o início</Button>
               </div>
               {error && (
                 <Notice tone="aviso" className="mt-4">
@@ -226,7 +226,7 @@ export function RoomGate({ invite }: { invite: string }) {
 
 function BackHome() {
   return (
-    <Button className="mt-6" onClick={() => navigate('#/')}>
+    <Button className="mt-6" onClick={() => navigate('#/salas')}>
       <ArrowLeft className="size-4" aria-hidden="true" />
       Ir para o início
     </Button>
