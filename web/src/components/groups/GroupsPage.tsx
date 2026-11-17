@@ -12,6 +12,9 @@ import { storage } from '../../lib/storage.ts';
 import { useStore } from '../../lib/store.ts';
 import { RoomView } from '../room/RoomView.tsx';
 import { StreamHover } from '../room/StreamHover.tsx';
+import { UserInteractions, UserTrigger } from '../social/UserInteractions.tsx';
+import { DmChat, FriendsHome, SocialSidebar } from '../social/Messages.tsx';
+import { social } from '../../lib/social/client.ts';
 import { AppLinks, inviteValidity, type InvitePreview } from './InviteCard.tsx';
 import { Avatar, Button, Card, cx, IconButton, Logo, LogoMark, Menu, MenuItem, MenuLabel, Modal, Notice, TextInput, Toast, Toggle } from '../ui.tsx';
 import { AuthPage } from './AuthPage.tsx';
@@ -231,10 +234,11 @@ function InviteModal({ view, onClose }: { view: GroupView; onClose: () => void }
 }
 
 /** Novidade de um canal para esta conta, já descontado o que ela silenciou. */
-function unreadOf(view: GroupView, channelId: string): { unread: boolean; mentions: number; muted: boolean } {
+function unreadOf(view: GroupView, channelId: string): { unread: boolean; mentions: number; muted: boolean; count: number } {
   const state = view.unread[channelId];
   const muted = (view.notify.channels[channelId] ?? view.notify.level) === 'nada';
-  return { muted, mentions: muted ? 0 : (state?.mentions ?? 0), unread: !muted && state !== undefined && Number(state.last ?? 0) > Number(state.read ?? 0) };
+  const unread = !muted && state !== undefined && Number(state.last ?? 0) > Number(state.read ?? 0);
+  return { muted, mentions: muted ? 0 : (state?.mentions ?? 0), unread, count: unread ? (state?.count ?? 0) : 0 };
 }
 
 /** Membros agrupados como no restante do app: dono, depois cada cargo (do mais alto ao mais baixo), online sem cargo e offline. */
@@ -242,7 +246,12 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const inVoice = new Set(Object.values(view.voice).flat());
   const byName = (a: MemberView, b: MemberView) => memberName(a).localeCompare(memberName(b));
-  const online = view.members.filter((member) => member.online).sort(byName);
+  // Bots: junto dos membros, numa categoria própria ou fora da lista (só aparência; dá para abrir no fim).
+  const [showHidden, setShowHidden] = useState(false);
+  const hiddenBots = view.members.filter((member) => member.bot && member.botList === 'ocultar').sort(byName);
+  const categorized = view.members.filter((member) => member.bot && (member.botList ?? 'categoria') === 'categoria').sort(byName);
+  const listed = view.members.filter((member) => !member.bot || member.botList === 'mostrar');
+  const online = listed.filter((member) => member.online).sort(byName);
   const owner = online.filter((member) => member.userId === view.group.ownerId);
   const rest = online.filter((member) => member.userId !== view.group.ownerId);
   const sections: { id: string; title: string; color?: string; icon?: ReactNode; members: MemberView[] }[] = [
@@ -252,7 +261,9 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
       .sort((a, b) => b.position - a.position)
       .map((role) => ({ id: role.id, title: role.name, color: role.color ?? undefined, members: rest.filter((member) => topRole(view, member)?.id === role.id) })),
     { id: 'online', title: 'Online', members: rest.filter((member) => !topRole(view, member)) },
-    { id: 'offline', title: 'Offline', members: view.members.filter((member) => !member.online).sort(byName) },
+    { id: 'offline', title: 'Offline', members: listed.filter((member) => !member.online).sort(byName) },
+    { id: 'bots', title: 'Bots', members: categorized },
+    ...(showHidden ? [{ id: 'ocultos', title: 'Bots fora da lista', members: hiddenBots }] : []),
   ];
   const toggle = (id: string) =>
     setCollapsed((current) => {
@@ -289,14 +300,16 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
                     const role = topRole(view, member);
                     const status = !member.online ? 'Offline' : inVoice.has(member.userId) ? 'Em chamada' : 'Online';
                     return (
-                      <li key={member.userId} className={cx('flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
-                        <Avatar id={member.userId} name={memberName(member)} size={34} online={member.online} />
+                      <li key={member.userId} className={cx('rounded-lg hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
+                        <UserTrigger userId={member.userId} className="flex items-center gap-2.5 px-2 py-1.5">
+                        <Avatar id={member.userId} name={memberName(member)} size={34} online={member.online} image={member.avatar} />
                         <div className="min-w-0">
                           <p className="flex items-center gap-1 truncate text-sm font-bold text-neon-300" style={{ color: nameColor(view, member) }}>
                             <span className="truncate" data-testid="member-name">
                               {memberName(member)}
                             </span>
                             {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
+                            {member.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-white" data-testid="member-bot-tag">BOT</span>}
                           </p>
                           <p className="flex items-center gap-1 truncate text-xs text-fog-500">
                             <span className={cx('size-1.5 shrink-0 rounded-full', !member.online ? 'bg-fog-500' : status === 'Em chamada' ? 'bg-neon-400' : 'bg-ok-400')} />
@@ -311,6 +324,7 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
                             <span className="shrink-0">{status}</span>
                           </p>
                         </div>
+                        </UserTrigger>
                       </li>
                     );
                   })}
@@ -318,6 +332,11 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
               )}
             </section>
           ),
+      )}
+      {hiddenBots.length > 0 && (
+        <button type="button" className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-fog-500 hover:bg-white/5 hover:text-fog-300" onClick={() => setShowHidden((value) => !value)} aria-expanded={showHidden} data-testid="hidden-bots">
+          {showHidden ? 'Esconder' : 'Mostrar'} {hiddenBots.length === 1 ? '1 bot fora da lista' : `${hiddenBots.length} bots fora da lista`}
+        </button>
       )}
     </aside>
   );
@@ -386,14 +405,16 @@ function VoicePeopleList({ people, live, session, channel }: { people: MemberVie
           >
             {session ? (
               <StreamHover session={session} identity={member.userId} name={memberName(member)} enabled={state?.sharing === true} className="flex min-w-0 flex-1 items-center gap-2">
-                <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} />
-                <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+                <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
+                  <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
+                  <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+                </UserTrigger>
               </StreamHover>
             ) : (
-              <>
-                <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} />
+              <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
+                <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
                 <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
-              </>
+              </UserTrigger>
             )}
             {state?.sharing && <span className="shrink-0 rounded bg-live-500 px-1 text-[10px] font-extrabold text-white">AO VIVO</span>}
             {state && !state.micOn && <MicOff className="size-3.5 shrink-0 text-fog-500" aria-label="Microfone desligado" />}
@@ -550,6 +571,11 @@ function ChannelList({ view, selected, voice, onPick, onModal, onOpenChat }: {
               {news.mentions > 99 ? '99+' : news.mentions}
             </span>
           )}
+          {news.mentions === 0 && news.count > 0 && !active && (
+            <span className="mr-2 shrink-0 text-xs font-bold text-fog-400 tabular-nums" data-testid="channel-unread-count" aria-label={`${news.count} mensagens novas`}>
+              {news.count >= 100 ? '99+' : news.count}
+            </span>
+          )}
           {news.muted && <BellOff className="mr-2 size-3.5 shrink-0 text-fog-500" aria-label="Canal silenciado" />}
           {memberHere && !memberHere.allowed && <span className="mr-2 shrink-0 text-xs font-bold text-live-300">Sem permissão</span>}
           {channel.kind === 'voz' && (
@@ -685,7 +711,7 @@ function ChannelList({ view, selected, voice, onPick, onModal, onOpenChat }: {
   );
 }
 
-function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: string; invite?: string }) {
+function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId?: string; invite?: string; dm?: string }) {
   const account = useStore(groups.store, (state) => state.account)!;
   const list = useStore(groups.store, (state) => state.groups);
   const view = useStore(groups.store, (state) => state.view);
@@ -714,8 +740,8 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
     if (!groupId) {
       groups.closeGroup();
       openedFor.current = undefined;
-      // Sem grupo escolhido, abre o primeiro da lista.
-      if (list[0] && !invite) redirect(groupHash(list[0].id));
+      // Sem grupo escolhido (e fora das mensagens privadas), abre o primeiro da lista.
+      if (list[0] && !invite && !dm) redirect(groupHash(list[0].id));
       return;
     }
     if (openedFor.current === groupId) return;
@@ -725,7 +751,7 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
       openedFor.current = undefined;
       redirect(groupHash());
     });
-  }, [groupId, list, invite]);
+  }, [groupId, list, invite, dm]);
 
   const current = view && view.group.id === groupId ? view : null;
   const channel = current?.channels.find((item) => item.id === channelId && item.kind !== 'categoria');
@@ -766,11 +792,34 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
   }, [channelId]);
 
   // O título da janela mostra quantas menções esperam e se há algo não lido.
+  // Mensagem privada que chega: aviso e som (menos se a conversa está aberta e em foco, ou silenciada).
+  const conversations = useStore(social.store, (state) => state.conversations);
+  useStore(social.store, (state) => state.notes);
+  useEffect(() => {
+    if (social.store.get().conversations === null) void social.loadConversations().catch(() => undefined);
+    social.onIncoming = (message, conversation) => {
+      if (conversation?.notify === 'nada') return;
+      alertIncoming(
+        { groupId: '', message: { ...message, channelId: message.dmId, mentions: [], mentionEveryone: false } as never, mentioned: true, level: 'tudo' } as never,
+        {
+          title: social.nameFor(message.author.id ?? '', message.author.name),
+          watching: dm === message.dmId && document.visibilityState === 'visible' && document.hasFocus(),
+          open: () => navigate(`#/mensagens/${message.dmId}`),
+        },
+      );
+    };
+    return () => {
+      social.onIncoming = null;
+    };
+  }, [dm]);
+  const dmUnread = (conversations ?? []).reduce((total, item) => total + (item.notify === 'nada' ? 0 : item.unread), 0);
+
   const pendingMentions = list.reduce((total, group) => total + (group.mentions ?? 0), 0);
   const anyUnread = list.some((group) => group.unread);
   useEffect(() => {
-    document.title = `${pendingMentions > 0 ? `(${pendingMentions}) ` : anyUnread ? '• ' : ''}${current ? `${current.group.name} – ` : ''}Cosmic Night`;
-  }, [pendingMentions, anyUnread, current]);
+    const waiting = pendingMentions + dmUnread;
+    document.title = `${waiting > 0 ? `(${waiting}) ` : anyUnread ? '• ' : ''}${dm ? 'Mensagens – ' : current ? `${current.group.name} – ` : ''}Cosmic Night`;
+  }, [pendingMentions, anyUnread, current, dmUnread, dm]);
 
   // Movida para outro canal de voz (por um moderador) enquanto olhava a chamada: a tela acompanha.
   const lastVoiceChannel = useRef<string | null>(null);
@@ -823,10 +872,11 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
   const showContent = wide || pane === 'conteudo';
   const showList = wide || pane === 'lista';
   const showChannels = !wide || channelsPanel.open;
-  const showMembers = wide && current !== null && membersPanel.open;
+  const showMembers = wide && current !== null && membersPanel.open && !dm;
   const gap = <span className="w-2.5 shrink-0" aria-hidden="true" />;
 
   return (
+    <UserInteractions view={dm ? null : current} voice={voice ? { channelId: voice.channelId, session: voice.session } : null}>
     <div className="flex h-dvh overflow-hidden p-2 sm:p-2.5" data-testid="groups" data-live={live}>
       {showList && (
         <>
@@ -834,6 +884,23 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
             <button type="button" title="Início do Cosmic Night" aria-label="Voltar para o início do Cosmic Night" className="rounded-2xl p-0.5 transition-shadow hover:shadow-glow" onClick={() => navigate('#/')} data-testid="rail-home">
               <LogoMark size={48} />
             </button>
+            <div className="relative">
+              {dm && <span className="absolute top-1/2 -left-2.5 h-9 w-1 -translate-y-1/2 rounded-r-full bg-neon-400 shadow-neon" aria-hidden="true" />}
+              <IconButton
+                label="Mensagens privadas e amigos"
+                className={cx('size-12 rounded-2xl border', dm ? 'border-neon-400 bg-neon-500/20 text-white' : 'border-brand-400/40 text-neon-300')}
+                onClick={() => navigate('#/mensagens')}
+                aria-current={dm ? 'page' : undefined}
+                data-testid="rail-dms"
+              >
+                <MessageSquare className="size-5" />
+              </IconButton>
+              {dmUnread > 0 && (
+                <span className="pointer-events-none absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-ink-900 bg-live-500 px-1 text-[11px] font-extrabold text-white" data-testid="rail-dm-unread">
+                  {dmUnread > 99 ? '99+' : dmUnread}
+                </span>
+              )}
+            </div>
             <span className="h-px w-8 bg-brand-500/30" aria-hidden="true" />
             <ul className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto px-1 py-0.5">
               {list.map((group) => (
@@ -876,7 +943,9 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
             <>
               {gap}
               <div className={cx('cn-panel flex min-h-0 flex-col overflow-hidden', wide ? 'shrink-0' : 'min-w-0 flex-1')} style={wide ? { width: channelsPanel.width } : undefined} data-testid="channels-panel">
-                {current ? (
+                {dm ? (
+                  <SocialSidebar selected={dm} />
+                ) : current ? (
                   <ChannelList view={current} selected={channelId} voice={voice} onPick={pick} onModal={setModal} onOpenChat={openChat} />
                 ) : (
                   <div className="min-h-0 flex-1 p-4">
@@ -926,7 +995,8 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
             {inThisVoice && voiceChannel && voiceChatToggle(voiceChannel)}
           </div>
         )}
-        {!inThisVoice &&
+        {dm && (dm === 'inicio' ? <FriendsHome /> : <DmChat key={dm} dmId={dm} />)}
+        {!dm && !inThisVoice &&
           (current && channel ? (
             channel.kind === 'texto' ? (
               <Chat key={channel.id} view={current} channel={channel} membersOpen={membersPanel.open} onToggleMembers={wide ? membersPanel.toggle : undefined} />
@@ -973,11 +1043,12 @@ function Shell({ groupId, channelId, invite }: { groupId?: string; channelId?: s
         </Modal>
       )}
     </div>
+    </UserInteractions>
   );
 }
 
 /** Página dos grupos: conta, lista de grupos, canais, chat e voz. */
-export function GroupsPage({ groupId, channelId, invite }: { groupId?: string; channelId?: string; invite?: string }) {
+export function GroupsPage({ groupId, channelId, invite, dm }: { groupId?: string; channelId?: string; invite?: string; dm?: string }) {
   const status = useStore(groups.store, (state) => state.status);
   const notice = useStore(groups.store, (state) => state.notice);
   const clear = useCallback(() => groups.clearNotice(), []);
@@ -1005,7 +1076,7 @@ export function GroupsPage({ groupId, channelId, invite }: { groupId?: string; c
         </div>
       )}
       {status === 'fora' && <AuthPage invite={invite} />}
-      {status === 'dentro' && <Shell groupId={groupId} channelId={channelId} invite={invite} />}
+      {status === 'dentro' && <Shell groupId={groupId} channelId={channelId} invite={invite} dm={dm} />}
       <Toast message={notice} onDone={clear} />
     </>
   );

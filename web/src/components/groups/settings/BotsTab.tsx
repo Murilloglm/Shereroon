@@ -38,6 +38,7 @@ interface Installed {
   config: Record<string, unknown>;
   displayName: string | null;
   prefix: string;
+  memberList?: 'mostrar' | 'ocultar' | 'categoria';
   status: { state: 'ativo' | 'aviso' | 'erro' | 'desativado'; text: string };
 }
 
@@ -168,6 +169,26 @@ function InstalledBot({ view, bot, install, onChanged }: { view: GroupView; bot:
                 )}
             </section>
           ))}
+          <section className="grid gap-2">
+            <h4 className="text-xs font-extrabold tracking-wide text-fog-500 uppercase">Lista de membros</h4>
+            <label className={cx(fieldLabel, 'max-w-sm')}>
+              Como o bot aparece
+              <select
+                className={selectClass}
+                value={install.memberList ?? 'categoria'}
+                disabled={!configure || busy}
+                onChange={(event) => void change({ memberList: event.target.value }).then((done) => done && groups.notify('Visibilidade do bot salva.'))}
+                data-testid="bot-member-list"
+              >
+                <option value="categoria">Numa categoria própria (“Bots”)</option>
+                <option value="mostrar">Junto com os membros, com a marca BOT</option>
+                <option value="ocultar">Fora da lista</option>
+              </select>
+              <span className="text-[13px] leading-snug font-normal text-fog-400">
+                Só muda a aparência. O bot continua sujeito às permissões, as mensagens dele levam a marca BOT e as ações dele seguem nos registros. Quem quiser pode abrir os bots fora da lista no fim dela.
+              </span>
+            </label>
+          </section>
           {bot.commands.length > 0 && (
             <section className="grid gap-2">
               <h4 className="text-xs font-extrabold tracking-wide text-fog-500 uppercase">Comandos</h4>

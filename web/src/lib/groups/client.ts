@@ -35,6 +35,8 @@ export interface UnreadState {
   last: string | null;
   read: string | null;
   mentions: number;
+  /** Mensagens novas de outras pessoas (até 100). */
+  count?: number;
 }
 
 export interface Attachment {
@@ -86,6 +88,10 @@ export interface MemberView {
   online: boolean;
   /** Conta de bot instalada no grupo. */
   bot?: boolean;
+  /** 'padrao:<n>' ou 'arquivo:<id>' (null = iniciais). */
+  avatar?: string | null;
+  /** Só bots: como aparece na lista de membros. */
+  botList?: 'mostrar' | 'ocultar' | 'categoria';
 }
 
 export interface GroupView {
@@ -281,6 +287,13 @@ export class GroupsClient {
     await this.refreshView();
   }
 
+  /** Relê a conta (nome) e o grupo aberto depois de mudar o perfil por outra rota. */
+  async refreshAccount(): Promise<void> {
+    const { user } = await this.call<{ user: Account }>('GET', '/api/auth/me');
+    this.store.set({ account: user });
+    await this.refreshView().catch(() => undefined);
+  }
+
   /** Troca a senha. O servidor encerra as outras sessões e devolve uma nova para este aparelho. */
   async changePassword(current: string, next: string): Promise<void> {
     const { token } = await this.call<{ token: string }>('POST', '/api/auth/password', { current, next });
@@ -421,18 +434,23 @@ export class GroupsClient {
 
   /** Envia um arquivo para o canal. Ele só aparece para os outros quando a mensagem for enviada. */
   upload(channelId: string, file: File, size: { width: number; height: number } | null, onProgress: (fraction: number) => void): { done: Promise<Attachment>; cancel: () => void } {
+    const query = new URLSearchParams({ name: file.name, ...(size ? { w: String(size.width), h: String(size.height) } : {}) });
+    return this.uploadTo<Attachment>(`/api/channels/${channelId}/files?${query}`, file, onProgress);
+  }
+
+  /** Envia um arquivo cru (com progresso) para uma rota que responde `{ file }` (ou `{ profile }`). */
+  uploadTo<T>(path: string, file: File, onProgress: (fraction: number) => void, key: 'file' | 'profile' = 'file'): { done: Promise<T>; cancel: () => void } {
     const xhr = new XMLHttpRequest();
-    const done = new Promise<Attachment>((resolve, reject) => {
-      const query = new URLSearchParams({ name: file.name, ...(size ? { w: String(size.width), h: String(size.height) } : {}) });
-      xhr.open('POST', `${API_BASE}/api/channels/${channelId}/files?${query}`);
+    const done = new Promise<T>((resolve, reject) => {
+      xhr.open('POST', `${API_BASE}${path}`);
       xhr.setRequestHeader('authorization', `Bearer ${this.#token ?? ''}`);
       xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
       xhr.responseType = 'json';
       xhr.timeout = 10 * 60_000;
       xhr.upload.onprogress = (event) => event.lengthComputable && onProgress(event.loaded / event.total);
       xhr.onload = () => {
-        const data = xhr.response as { file?: Attachment; error?: { code?: string; message?: string } } | null;
-        if (xhr.status === 200 && data?.file) return resolve(data.file);
+        const data = xhr.response as ({ error?: { code?: string; message?: string } } & Record<string, unknown>) | null;
+        if (xhr.status === 200 && data?.[key]) return resolve(data[key] as T);
         if (data?.error?.code === 'sessao_invalida') this.#signedOut();
         reject(new ApiError(data?.error?.code ?? 'erro', data?.error?.message ?? `O servidor respondeu com erro ${xhr.status}.`, xhr.status));
       };
@@ -449,17 +467,30 @@ export class GroupsClient {
    * servidor confere a permissão a cada leitura; o resultado fica guardado enquanto a página estiver aberta.
    */
   fileUrl(fileId: string): Promise<string> {
-    let pending = this.#fileUrls.get(fileId);
+    return this.blobUrl(`/api/files/${fileId}`);
+  }
+
+  /** Endereço local (blob:) de qualquer arquivo baixado com a sessão da conta, guardado enquanto a página está aberta. */
+  blobUrl(path: string): Promise<string> {
+    let pending = this.#fileUrls.get(path);
     if (!pending) {
       pending = (async () => {
-        const response = await fetch(`${API_BASE}/api/files/${fileId}`, { headers: { authorization: `Bearer ${this.#token ?? ''}` }, credentials: 'omit' });
+        const response = await fetch(`${API_BASE}${path}`, { headers: { authorization: `Bearer ${this.#token ?? ''}` }, credentials: 'omit' });
         if (!response.ok) throw new ApiError('arquivo_inexistente', 'Este arquivo não está mais disponível.', response.status);
         return URL.createObjectURL(await response.blob());
       })();
-      this.#fileUrls.set(fileId, pending);
-      pending.catch(() => this.#fileUrls.delete(fileId));
+      this.#fileUrls.set(path, pending);
+      pending.catch(() => this.#fileUrls.delete(path));
     }
     return pending;
+  }
+
+  readonly #eventListeners = new Set<(event: Record<string, any>) => void>();
+
+  /** Recebe todos os eventos de tempo real (amizades e mensagens privadas são tratadas fora daqui). */
+  onEvent(listener: (event: Record<string, any>) => void): () => void {
+    this.#eventListeners.add(listener);
+    return () => this.#eventListeners.delete(listener);
   }
 
   #forgetFiles(): void {
@@ -476,7 +507,7 @@ export class GroupsClient {
     if (!view || !messageId || (this.#reading.get(channelId) ?? state?.read ?? '0') === messageId) return;
     if (Number(messageId) <= Number(this.#reading.get(channelId) ?? state?.read ?? 0)) return;
     this.#reading.set(channelId, messageId);
-    this.store.set({ view: { ...view, unread: { ...view.unread, [channelId]: { last: state?.last ?? messageId, read: messageId, mentions: 0 } } } });
+    this.store.set({ view: { ...view, unread: { ...view.unread, [channelId]: { last: state?.last ?? messageId, read: messageId, mentions: 0, count: 0 } } } });
     void this.call('POST', `/api/channels/${channelId}/read`, { messageId })
       .then(() => this.#scheduleGroups())
       .catch(() => this.#reading.delete(channelId));
@@ -510,11 +541,11 @@ export class GroupsClient {
     const mentioned = !own && (message.mentionEveryone || (me !== undefined && message.mentions.includes(me)));
     const view = state.view;
     if (view && view.group.id === groupId && view.channels.some((channel) => channel.id === message.channelId)) {
-      const before = view.unread[message.channelId] ?? { last: null, read: null, mentions: 0 };
+      const before = view.unread[message.channelId] ?? { last: null, read: null, mentions: 0, count: 0 };
       if (Number(message.id) > Number(before.last ?? 0)) {
         if (own) this.#reading.set(message.channelId, message.id);
         this.store.set({
-          view: { ...view, unread: { ...view.unread, [message.channelId]: { last: message.id, read: own ? message.id : before.read, mentions: own ? 0 : before.mentions + (mentioned ? 1 : 0) } } },
+          view: { ...view, unread: { ...view.unread, [message.channelId]: { last: message.id, read: own ? message.id : before.read, mentions: own ? 0 : before.mentions + (mentioned ? 1 : 0), count: own ? 0 : Math.min(100, (before.count ?? 0) + 1) } } },
         });
       }
     }
@@ -600,6 +631,13 @@ export class GroupsClient {
   }
 
   #onEvent(event: Record<string, any>): void {
+    for (const listener of this.#eventListeners) {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error(error);
+      }
+    }
     const view = this.store.get().view;
     switch (event.t) {
       case 'ready': {

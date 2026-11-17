@@ -312,6 +312,18 @@ test('bots: a dona instala um bot da biblioteca, ele entra como membro, e ela de
   assert.match(await installed.getByTestId('bot-status').getAttribute('data-state'), /^(ativo|aviso)$/);
   // O bot é um membro do grupo: aparece na lista de membros do Beto sem recarregar.
   await waitFor(async () => (await beto.getByTestId('member').count()) === 3, 'o bot aparecer como membro para o Beto');
+  await waitFor(async () => (await beto.getByTestId('member-section').and(beto.locator('[data-section="Bots"]')).count()) === 1, 'o bot aparecer na categoria Bots');
+
+  // Fora da lista: some da lista do Beto, mas continua acessível no fim dela (só aparência).
+  await installed.getByTestId('bot-configure').click();
+  await installed.getByTestId('bot-member-list').selectOption('ocultar');
+  await waitFor(async () => (await beto.getByTestId('member').count()) === 2, 'o bot sair da lista do Beto');
+  await beto.getByTestId('hidden-bots').click();
+  await waitFor(async () => (await beto.getByTestId('member').count()) === 3, 'o bot aparecer ao abrir os bots fora da lista');
+  assert.equal(await beto.getByTestId('member-bot-tag').count(), 1, 'com a marca BOT');
+  await beto.getByTestId('hidden-bots').click();
+  await installed.getByTestId('bot-member-list').selectOption('categoria');
+  await installed.getByTestId('bot-configure').click();
 
   await installed.getByRole('switch').click();
   await waitFor(async () => (await installed.getByTestId('bot-status').getAttribute('data-state')) === 'desativado', 'o bot ser desligado');

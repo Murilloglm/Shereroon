@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { has } from '../../../../shared/permissions.ts';
 import { ApiError } from '../../lib/api.ts';
 import { groups, type GroupSummary, type GroupView, type MemberView, type RoleView } from '../../lib/groups/client.ts';
+import { social } from '../../lib/social/client.ts';
 import { cx } from '../ui.tsx';
 
 export const errorText = (error: unknown, fallback = 'Não foi possível concluir a ação.'): string =>
@@ -12,7 +13,11 @@ export const groupHash = (groupId?: string, channelId?: string): string => `#/gr
 /** A conta tem esta permissão no grupo? Só serve para mostrar ou esconder controles; quem decide é o backend. */
 export const can = (view: GroupView, permission: bigint): boolean => has(view.me.permissions, permission);
 
-export const memberName = (member: Pick<MemberView, 'nickname' | 'displayName'>): string => member.nickname || member.displayName;
+/** Nome que esta conta vê: o apelido pessoal que ela deu (só ela vê), senão o apelido no grupo, senão o nome. */
+export const memberName = (member: Pick<MemberView, 'nickname' | 'displayName'> & { userId?: string }): string => {
+  const base = member.nickname || member.displayName;
+  return member.userId ? social.nameFor(member.userId, base) : base;
+};
 
 /** Cargo mais alto com cor: é ele que pinta o nome da pessoa no chat e na lista. */
 export function topRole(view: GroupView, member: Pick<MemberView, 'roleIds'>): RoleView | null {

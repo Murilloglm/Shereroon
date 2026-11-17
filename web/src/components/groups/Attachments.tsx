@@ -1,10 +1,15 @@
 import { Download, File as FileIcon, FileArchive, FileAudio, FileText, FileVideo, Play, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { groups, type Attachment } from '../../lib/groups/client.ts';
 import { cx, IconButton } from '../ui.tsx';
 import { errorText } from './common.tsx';
 
 export type FileKind = 'imagem' | 'video' | 'audio' | 'arquivo';
+
+/** De onde vêm os arquivos: do chat dos grupos (padrão) ou das mensagens privadas. */
+export type FileSource = (fileId: string) => Promise<string>;
+const SourceContext = createContext<FileSource>((fileId) => groups.fileUrl(fileId));
+export const FileSourceProvider = SourceContext.Provider;
 
 const IMAGES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif']);
 const VIDEOS = new Set(['video/mp4', 'video/webm']);
@@ -22,10 +27,10 @@ export function formatBytes(bytes: number): string {
 }
 
 /** Baixa o arquivo (com a sessão da conta) e entrega ao navegador para salvar com o nome original. */
-export async function saveFile(file: Pick<Attachment, 'id' | 'name'>): Promise<void> {
+export async function saveFile(file: Pick<Attachment, 'id' | 'name'>, source: FileSource = (fileId) => groups.fileUrl(fileId)): Promise<void> {
   try {
     const link = document.createElement('a');
-    link.href = await groups.fileUrl(file.id);
+    link.href = await source(file.id);
     link.download = file.name;
     link.rel = 'noopener';
     document.body.append(link);
@@ -37,22 +42,24 @@ export async function saveFile(file: Pick<Attachment, 'id' | 'name'>): Promise<v
 }
 
 function useFileUrl(fileId: string, enabled: boolean): { url: string | null; failed: boolean } {
+  const source = useContext(SourceContext);
   const [state, setState] = useState<{ url: string | null; failed: boolean }>({ url: null, failed: false });
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    groups.fileUrl(fileId).then(
+    source(fileId).then(
       (url) => alive && setState({ url, failed: false }),
       () => alive && setState({ url: null, failed: true }),
     );
     return () => {
       alive = false;
     };
-  }, [fileId, enabled]);
+  }, [fileId, enabled, source]);
   return state;
 }
 
 function FileCard({ file, icon }: { file: Attachment; icon?: 'video' | 'audio' }) {
+  const source = useContext(SourceContext);
   const lower = file.name.toLowerCase();
   const Icon =
     icon === 'video' ? FileVideo : icon === 'audio' ? FileAudio : /\.(zip|rar|7z|tar|gz)$/.test(lower) ? FileArchive : /\.(txt|md|pdf|docx?|odt|rtf|csv|xlsx?|pptx?)$/.test(lower) ? FileText : FileIcon;
@@ -65,7 +72,7 @@ function FileCard({ file, icon }: { file: Attachment; icon?: 'video' | 'audio' }
         <p className="truncate text-sm font-bold text-fog-100">{file.name}</p>
         <p className="text-xs text-fog-500">{formatBytes(file.size)}</p>
       </div>
-      <IconButton label={`Baixar ${file.name}`} className="border border-ink-600 bg-ink-750" onClick={() => void saveFile(file)} data-testid="attachment-download">
+      <IconButton label={`Baixar ${file.name}`} className="border border-ink-600 bg-ink-750" onClick={() => void saveFile(file, source)} data-testid="attachment-download">
         <Download className="size-4.5" />
       </IconButton>
     </div>
@@ -96,6 +103,7 @@ function ImageAttachment({ file, onOpen }: { file: Attachment; onOpen: (url: str
 
 /** Vídeo e áudio só são baixados quando a pessoa pede para tocar. */
 function MediaAttachment({ file, kind }: { file: Attachment; kind: 'video' | 'audio' }) {
+  const source = useContext(SourceContext);
   const [wanted, setWanted] = useState(false);
   const { url, failed } = useFileUrl(file.id, wanted);
   if (failed) return <FileCard file={file} icon={kind} />;
@@ -123,7 +131,7 @@ function MediaAttachment({ file, kind }: { file: Attachment; kind: 'video' | 'au
           {kind === 'video' ? 'Vídeo' : 'Áudio'} • {formatBytes(file.size)}
         </p>
       </div>
-      <IconButton label={`Baixar ${file.name}`} className="border border-ink-600 bg-ink-750" onClick={() => void saveFile(file)}>
+      <IconButton label={`Baixar ${file.name}`} className="border border-ink-600 bg-ink-750" onClick={() => void saveFile(file, source)}>
         <Download className="size-4.5" />
       </IconButton>
     </div>
@@ -132,6 +140,7 @@ function MediaAttachment({ file, kind }: { file: Attachment; kind: 'video' | 'au
 
 /** Os anexos de uma mensagem: imagens em miniatura (clicar amplia), vídeo e áudio com player, o resto para baixar. */
 export function Attachments({ files }: { files: Attachment[] }) {
+  const source = useContext(SourceContext);
   const [open, setOpen] = useState<{ file: Attachment; url: string } | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -162,7 +171,7 @@ export function Attachments({ files }: { files: Attachment[] }) {
           <div className="flex items-center gap-2 rounded-xl border border-ink-600 bg-ink-850 px-3 py-1.5">
             <span className="max-w-[50vw] truncate text-sm font-semibold">{open.file.name}</span>
             <span className="text-xs text-fog-500">{formatBytes(open.file.size)}</span>
-            <IconButton label="Baixar" onClick={() => void saveFile(open.file)}>
+            <IconButton label="Baixar" onClick={() => void saveFile(open.file, source)}>
               <Download className="size-4.5" />
             </IconButton>
             <IconButton label="Fechar" onClick={() => setOpen(null)}>

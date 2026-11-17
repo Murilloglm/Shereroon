@@ -2,6 +2,7 @@ import { Bell, BellOff, CornerUpLeft, Hash, Lock, Pencil, Pin, PinOff, Plus, Rep
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
 import { groups, type Attachment, type ChannelView, type ChatMessage, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
+import { UserTrigger } from '../social/UserInteractions.tsx';
 import { dialogs } from '../../lib/dialogs.ts';
 import { applyMention, insertAt, mentionQuery, splitMessage } from '../../lib/groups/text.ts';
 import { useStore } from '../../lib/store.ts';
@@ -140,6 +141,17 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
   const maxFileBytes = useStore(groups.store, (store) => store.maxFileBytes);
   const items = state?.items ?? [];
   const [draft, setDraft] = useState('');
+  // "Mencionar" no menu de uma pessoa: põe @usuario na caixa de mensagem deste canal.
+  useEffect(() => {
+    const onMention = (event: Event) => {
+      const username = (event as CustomEvent<string>).detail;
+      if (typeof username !== 'string') return;
+      setDraft((current) => `${current}${current && !current.endsWith(' ') ? ' ' : ''}@${username} `);
+      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('[data-testid="chat-input"]')?.focus());
+    };
+    window.addEventListener('cn:mention', onMention);
+    return () => window.removeEventListener('cn:mention', onMention);
+  }, []);
   const [caret, setCaret] = useState(0);
   const [suggestion, setSuggestion] = useState(0);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
@@ -187,7 +199,10 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
   }, [channel.id]);
 
   const markRead = useCallback(() => {
-    if (stick.current && document.visibilityState === 'visible' && document.hasFocus()) groups.markRead(channel.id, lastId);
+    // Só conta como lido o que está de fato na tela: conversa no fim, janela em foco e o chat visível (não
+    // escondido atrás da lista de canais no celular, nem numa aba de fundo).
+    const visible = (list.current?.getClientRects().length ?? 0) > 0;
+    if (stick.current && visible && document.visibilityState === 'visible' && document.hasFocus()) groups.markRead(channel.id, lastId);
   }, [channel.id, lastId]);
 
   // Com a conversa no fim e a janela em foco, o que chega já conta como lido.
@@ -498,7 +513,9 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                       <span className="hidden text-[11px] leading-6 text-fog-500 group-hover:block">{clock(message.createdAt)}</span>
                     ) : (
                       <span className={cx('block', message.reply && 'mt-5')}>
-                        <Avatar id={message.author.id ?? message.author.name} name={name} size={40} />
+                        <UserTrigger userId={message.author.id}>
+                          <Avatar id={message.author.id ?? message.author.name} name={name} size={40} image={member?.avatar} />
+                        </UserTrigger>
                       </span>
                     )}
                   </div>
@@ -512,9 +529,11 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                     )}
                     {!grouped && (
                       <p className="flex items-baseline gap-2">
-                        <span className="truncate font-bold text-neon-300" style={{ color: member ? nameColor(view, member) : undefined }} data-testid="chat-author">
-                          {name}
-                        </span>
+                        <UserTrigger userId={message.author.id} className="min-w-0 truncate">
+                          <span className="truncate font-bold text-neon-300 hover:underline" style={{ color: member ? nameColor(view, member) : undefined }} data-testid="chat-author">
+                            {name}
+                          </span>
+                        </UserTrigger>
                         {message.author.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-white">BOT</span>}
                         <time className="shrink-0 text-xs text-fog-500" dateTime={message.createdAt}>
                           {stamp(message.createdAt)}

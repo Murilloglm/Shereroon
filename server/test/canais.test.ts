@@ -86,5 +86,8 @@ describe('chat do canal de voz', () => {
     await w.ok('POST', `/api/channels/${sala}/messages`, beto.token, { content: 'alguém na call?' });
     const unread = (await w.view(caio, groupId)).unread[sala];
     expect(Number(unread.last)).toBeGreaterThan(Number(unread.read ?? 0));
+    expect(unread.count).toBe(1);
+    // Quem escreveu não tem a própria mensagem como nova.
+    expect((await w.view(beto, groupId)).unread[sala].count).toBe(0);
   });
 });

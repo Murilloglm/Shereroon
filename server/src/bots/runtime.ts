@@ -38,6 +38,7 @@ const toInstall = (row: Row): Install => {
     displayName: row.display_name === null ? null : String(row.display_name),
     prefix: String(row.prefix),
     lastError: row.last_error === null ? null : String(row.last_error),
+    memberList: row.member_list === 'mostrar' || row.member_list === 'ocultar' ? row.member_list : 'categoria',
   };
 };
 
@@ -262,11 +263,16 @@ export class BotRuntime {
       next.prefix = input.prefix;
       changes.prefixo = [install.prefix, input.prefix];
     }
+    if (input.memberList !== undefined) {
+      if (input.memberList !== 'mostrar' && input.memberList !== 'ocultar' && input.memberList !== 'categoria') throw new ApiError(400, 'config_invalida', 'Escolha mostrar, ocultar ou categoria própria.');
+      next.memberList = input.memberList;
+      changes.lista_de_membros = [install.memberList, input.memberList];
+    }
     if (Object.keys(changes).length === 0) return;
     await this.#db.query(
-      `UPDATE bot_installs SET enabled = $3, config = $4::jsonb, channels = $5::jsonb, command_roles = $6::jsonb, display_name = $7, prefix = $8, last_error = CASE WHEN $3 THEN last_error ELSE NULL END
+      `UPDATE bot_installs SET enabled = $3, config = $4::jsonb, channels = $5::jsonb, command_roles = $6::jsonb, display_name = $7, prefix = $8, member_list = $9, last_error = CASE WHEN $3 THEN last_error ELSE NULL END
         WHERE group_id = $1 AND bot_id = $2`,
-      [groupId, botId, next.enabled, JSON.stringify(next.config), next.channels && JSON.stringify(next.channels), next.commandRoles && JSON.stringify(next.commandRoles), next.displayName, next.prefix],
+      [groupId, botId, next.enabled, JSON.stringify(next.config), next.channels && JSON.stringify(next.channels), next.commandRoles && JSON.stringify(next.commandRoles), next.displayName, next.prefix, next.memberList],
     );
     // O nome de exibição também vale na lista de membros.
     await this.#db.query('UPDATE users SET display_name = $2 WHERE id = $1 AND is_bot', [install.userId, next.displayName ?? module.name]);
@@ -299,6 +305,7 @@ export class BotRuntime {
         commandRoles: install.commandRoles,
         displayName: install.displayName,
         prefix: install.prefix,
+        memberList: install.memberList,
         status: !install.enabled
           ? { state: 'desativado', text: 'Desativado. Não reage a nada até ser ligado de novo.' }
           : install.lastError

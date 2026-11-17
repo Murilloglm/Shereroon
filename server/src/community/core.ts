@@ -78,6 +78,8 @@ export interface Member {
   roleIds: Set<string>;
   /** Conta de um bot instalado no grupo. */
   bot: boolean;
+  /** 'padrao:<n>' ou 'arquivo:<id>' (null = iniciais). */
+  avatar: string | null;
 }
 
 /** Tudo de um grupo que as regras de permissão precisam, carregado de uma vez e guardado até a próxima mudança. */
@@ -135,6 +137,8 @@ export interface UnreadState {
   read: string | null;
   /** Menções a ela depois disso. */
   mentions: number;
+  /** Mensagens novas de outras pessoas (até 100). */
+  count: number;
 }
 
 /** Complementos de uma mensagem de bot. Um botão, ao ser clicado, envia `command` como se a pessoa tivesse digitado. */
@@ -373,7 +377,7 @@ export class Community {
       this.#db.query('SELECT * FROM channels WHERE group_id = $1 ORDER BY position, created_at', [groupId]),
       this.#db.query('SELECT o.* FROM overrides o JOIN channels c ON c.id = o.channel_id WHERE c.group_id = $1', [groupId]),
       this.#db.query(
-        'SELECT m.*, u.username, u.display_name, u.is_bot FROM members m JOIN users u ON u.id = m.user_id WHERE m.group_id = $1 ORDER BY m.joined_at',
+        'SELECT m.*, u.username, u.display_name, u.is_bot, u.avatar FROM members m JOIN users u ON u.id = m.user_id WHERE m.group_id = $1 ORDER BY m.joined_at',
         [groupId],
       ),
       this.#db.query('SELECT user_id, role_id FROM member_roles WHERE group_id = $1', [groupId]),
@@ -428,6 +432,7 @@ export class Community {
         timeoutUntil: isoOrNull(row.timeout_until),
         roleIds: new Set(),
         bot: row.is_bot === true,
+        avatar: row.avatar === null || row.avatar === undefined ? null : String(row.avatar),
       });
     }
     for (const row of memberRoleRows) members.get(String(row.user_id))?.roleIds.add(String(row.role_id));
@@ -562,7 +567,9 @@ export class Community {
               (SELECT max(m.id) FROM messages m WHERE m.channel_id = c.id) AS last,
               (SELECT count(*) FROM messages m
                 WHERE m.channel_id = c.id AND m.id > coalesce(r.last_read_id, 0) AND m.author_id IS DISTINCT FROM $1
-                  AND (m.mention_everyone OR m.mentions @> $2::jsonb)) AS mentions
+                  AND (m.mention_everyone OR m.mentions @> $2::jsonb)) AS mentions,
+              (SELECT count(*) FROM (SELECT 1 FROM messages m
+                WHERE m.channel_id = c.id AND m.id > coalesce(r.last_read_id, 0) AND m.author_id IS DISTINCT FROM $1 LIMIT 100) AS novas) AS fresh
          FROM channels c LEFT JOIN read_states r ON r.channel_id = c.id AND r.user_id = $1
         WHERE c.group_id = ANY($3::text[]) AND c.kind IN ('texto', 'voz')`,
       [userId, JSON.stringify([userId]), groupIds],
@@ -574,6 +581,7 @@ export class Community {
         last: row.last === null || row.last === undefined ? null : String(row.last),
         read: row.read === null || row.read === undefined ? null : String(row.read),
         mentions: num(row.mentions),
+        count: num(row.fresh),
       });
     }
     return result;
@@ -743,7 +751,13 @@ export class Community {
       }));
 
     const top = topPosition(subject, snap.roles);
-    const [unread, notify] = await Promise.all([this.#unread(user.id, [groupId]), this.#notify(user.id, groupId)]);
+    const [unread, notify, botRows] = await Promise.all([
+      this.#unread(user.id, [groupId]),
+      this.#notify(user.id, groupId),
+      this.#db.query('SELECT user_id, member_list FROM bot_installs WHERE group_id = $1', [groupId]),
+    ]);
+    // Como cada bot aparece na lista de membros (aparência escolhida pelos administradores).
+    const botList = Object.fromEntries(botRows.map((row) => [String(row.user_id), String(row.member_list)]));
     const settings = notify.get(groupId) ?? { level: 'tudo' as NotifyLevel, channels: {} };
     return {
       group: snap.group,
@@ -779,6 +793,8 @@ export class Community {
         timeoutUntil: member.timeoutUntil,
         online: online.has(member.userId) || member.bot,
         bot: member.bot,
+        avatar: member.avatar,
+        ...(member.bot ? { botList: botList[member.userId] ?? 'categoria' } : {}),
       })),
       voice: Object.fromEntries(Object.entries(voice).filter(([channelId]) => visible.has(channelId))),
     };

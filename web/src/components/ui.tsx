@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { meterPosition } from '../lib/audio.ts';
+import { API_BASE } from '../lib/api.ts';
 import { hueFor, initials } from '../lib/format.ts';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -309,36 +310,94 @@ export function SignalBars({ level, className }: { level: number; className?: st
 
 // --- Pessoas -----------------------------------------------------------------
 
+/** Avatares padrão: pares de cores do céu do Cosmic Night (o índice vem de 'padrao:<n>'). */
+export const DEFAULT_AVATARS: [string, string][] = [
+  ['#74d7ff', '#4b348e'],
+  ['#6c4dff', '#1b1446'],
+  ['#3fdcff', '#0b4f6c'],
+  ['#b79dff', '#4f26c0'],
+  ['#ff8aa6', '#4b348e'],
+  ['#45e283', '#0f3d3a'],
+  ['#ffc65c', '#7a2e4f'],
+  ['#82e9ff', '#6c4dff'],
+  ['#9873ff', '#07090d'],
+  ['#14c2f0', '#3a1b95'],
+  ['#ff5c85', '#1d2142'],
+  ['#d6c8ff', '#2b305e'],
+];
+
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+/** Foto enviada. Com "reduzir movimento" ligado, um GIF animado aparece parado no primeiro quadro. */
+function AvatarImage({ src, alt }: { src: string; alt: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [still, setStill] = useState(false);
+  const reduce = prefersReducedMotion();
+  return (
+    <>
+      <img
+        src={src}
+        alt={alt}
+        className={cx('size-full rounded-full object-cover', still && 'hidden')}
+        draggable={false}
+        crossOrigin={reduce ? "anonymous" : undefined}
+        onLoad={(event) => {
+          if (!reduce || !canvasRef.current) return;
+          const image = event.currentTarget;
+          const canvas = canvasRef.current;
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          try {
+            canvas.getContext('2d')?.drawImage(image, 0, 0);
+            setStill(true);
+          } catch {
+            // sem permissão para desenhar: mostra a imagem normal
+          }
+        }}
+      />
+      {reduce && <canvas ref={canvasRef} className={cx('size-full rounded-full object-cover', !still && 'hidden')} aria-hidden="true" />}
+    </>
+  );
+}
+
 export function Avatar({
   id,
   name,
   size = 40,
   online,
   speaking,
+  image,
 }: {
   id: string;
   name: string;
   size?: number;
   online?: boolean;
   speaking?: boolean;
+  /** 'padrao:<n>' (avatar padrão) ou 'arquivo:<id>' (foto enviada); sem isso, as iniciais. */
+  image?: string | null;
 }) {
   const hue = hueFor(id);
+  const preset = image?.startsWith('padrao:') ? DEFAULT_AVATARS[Number(image.slice(7))] : undefined;
+  const photo = image?.startsWith('arquivo:') && /^[A-Za-z0-9_-]{8,40}$/.test(image.slice(8)) ? `${API_BASE}/api/media/${image.slice(8)}` : null;
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       <span
         className={cx(
-          'flex size-full items-center justify-center rounded-full font-extrabold text-white transition-shadow',
+          'flex size-full items-center justify-center overflow-hidden rounded-full font-extrabold text-white transition-shadow',
           // Acende quase na hora (o atraso já foi medido no detector) e apaga devagar, sem piscar.
           speaking ? 'shadow-[0_0_0_2px_var(--color-ok-400)] duration-[40ms]' : 'shadow-[0_0_0_1px_rgb(255_255_255/0.12)] duration-300',
         )}
         data-speaking={speaking ? 'true' : undefined}
+        data-avatar={photo ? 'foto' : preset ? 'padrao' : 'iniciais'}
         style={{
           fontSize: size * 0.36,
-          background: `linear-gradient(140deg, hsl(${hue} 72% 58%), hsl(${hue + 35} 68% 30%))`,
+          background: preset
+            ? `radial-gradient(circle at 30% 25%, ${preset[0]}, ${preset[1]} 72%)`
+            : `linear-gradient(140deg, hsl(${hue} 72% 58%), hsl(${hue + 35} 68% 30%))`,
         }}
         aria-hidden="true"
       >
-        {initials(name)}
+        {photo ? <AvatarImage src={photo} alt="" /> : initials(name)}
       </span>
       {online && (
         <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-ink-850 bg-ok-400" />

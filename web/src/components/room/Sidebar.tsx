@@ -7,6 +7,7 @@ import type { ParticipantView, RoomSession } from '../../lib/session.ts';
 import { storage } from '../../lib/storage.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, Card, cx, IconButton, Toggle } from '../ui.tsx';
+import { UserTrigger } from '../social/UserInteractions.tsx';
 import { StreamHover } from './StreamHover.tsx';
 
 export function copyInvite(session: RoomSession, invite: string): void {
@@ -168,6 +169,7 @@ export function ParticipantsCard({
             className="group flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink-800"
           >
             <StreamHover session={session} identity={person.identity} name={person.name} enabled={person.sharing} className="flex min-w-0 flex-1 items-center gap-3">
+            <UserTrigger userId={person.isLocal ? null : person.identity} className="flex min-w-0 flex-1 items-center gap-3">
             <Avatar id={person.identity} name={person.name} online speaking={person.speaking} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate font-bold">
@@ -183,6 +185,7 @@ export function ParticipantsCard({
               </p>
               <p className="truncate text-sm text-fog-400">{status(person)}</p>
             </div>
+            </UserTrigger>
             </StreamHover>
             {person.sharing && <Monitor className="size-[18px] shrink-0 text-brand-300" aria-label="Compartilhando a tela" />}
             {!person.micOn && <MicOff className="size-[18px] shrink-0 text-fog-500" aria-label="Microfone desligado" data-testid="mic-off" />}

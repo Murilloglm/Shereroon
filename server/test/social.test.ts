@@ -197,3 +197,17 @@ describe('painel de moderação', () => {
     expect((await w.ok('GET', `/api/groups/${groupId}/members/${dono.id}/details`, dono.token)).member.joinedVia).toMatchObject({ kind: 'criador' });
   });
 });
+
+describe('bots na lista de membros', () => {
+  it('quem configura bots escolhe como o bot aparece; é só aparência e o valor é conferido', async () => {
+    await w.ok('POST', `/api/groups/${groupId}/bots`, dono.token, { botId: 'lembretes' });
+    const botOf = async () => ((await w.view(beto, groupId)).members as { bot?: boolean; botList?: string }[]).find((item) => item.bot)!;
+    expect((await botOf()).botList).toBe('categoria');
+    await w.ok('PATCH', `/api/groups/${groupId}/bots/lembretes`, dono.token, { memberList: 'ocultar' });
+    expect((await botOf()).botList).toBe('ocultar');
+    expect(await code('PATCH', `/api/groups/${groupId}/bots/lembretes`, dono, { memberList: 'invisivel' })).toBe('config_invalida');
+    expect(await code('PATCH', `/api/groups/${groupId}/bots/lembretes`, beto, { memberList: 'mostrar' })).toBe('sem_permissao');
+    // Oculto da lista continua membro (e sujeito às regras): aparece na visão do grupo para quem quiser abrir.
+    expect((await w.view(caio, groupId)).members.some((item: { bot?: boolean }) => item.bot)).toBe(true);
+  });
+});

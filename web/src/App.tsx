@@ -11,7 +11,7 @@ const GroupsPage = lazy(() => import('./components/groups/GroupsPage.tsx').then(
 type Route =
   | { page: 'inicio' }
   | { page: 'sala'; invite: string }
-  | { page: 'grupos'; groupId?: string; channelId?: string; invite?: string };
+  | { page: 'grupos'; groupId?: string; channelId?: string; invite?: string; dm?: string };
 
 const ID = '[A-Za-z0-9_-]{8,40}';
 
@@ -21,6 +21,9 @@ function parseRoute(hash: string): Route {
   if (room) return { page: 'sala', invite: room[1]! };
   const group = new RegExp(`^#/grupos(?:/(${ID}))?(?:/(${ID}))?/?$`).exec(hash);
   if (group) return { page: 'grupos', groupId: group[1], channelId: group[2] };
+  // Mensagens privadas e amigos: #/mensagens (amigos) ou #/mensagens/<conversa>.
+  const dm = new RegExp(`^#/mensagens(?:/(${ID}))?/?$`).exec(hash);
+  if (dm) return { page: 'grupos', dm: dm[1] ?? 'inicio' };
   const invite = new RegExp(`^#/convite/(${ID})/?$`).exec(hash);
   if (invite) return { page: 'grupos', invite: invite[1] };
   return { page: 'inicio' };
@@ -58,7 +61,7 @@ export function App() {
         <RoomGate key={route.invite} invite={route.invite} />
       ) : route.page === 'grupos' ? (
         <Suspense fallback={<div className="flex min-h-dvh items-center justify-center text-fog-400">Carregando…</div>}>
-          <GroupsPage groupId={route.groupId} channelId={route.channelId} invite={route.invite} />
+          <GroupsPage groupId={route.groupId} channelId={route.channelId} invite={route.invite} dm={route.dm} />
         </Suspense>
       ) : (
         <HomePage />

@@ -7,6 +7,7 @@ import type { RoomSession } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, IconButton, Modal, TextInput, Toggle } from '../ui.tsx';
 import { fieldLabel, useAction } from './common.tsx';
+import { ProfileEditor } from '../social/ProfileEditor.tsx';
 
 /** Microfone e som recebido da chamada em que a pessoa está. */
 function VoiceToggles({ session }: { session: RoomSession }) {
@@ -27,7 +28,6 @@ function VoiceToggles({ session }: { session: RoomSession }) {
 }
 
 function AccountSettings({ account, onClose }: { account: Account; onClose: () => void }) {
-  const [displayName, setDisplayName] = useState(account.displayName);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [prefs, setPrefs] = useState(alertPrefs.get);
@@ -37,14 +37,6 @@ function AccountSettings({ account, onClose }: { account: Account; onClose: () =
     const value = { ...prefs, ...patch };
     setPrefs(value);
     alertPrefs.set(value);
-  };
-
-  const profile = (event: FormEvent) => {
-    event.preventDefault();
-    void run(async () => {
-      await groups.updateProfile(displayName);
-      groups.notify('Nome atualizado.');
-    });
   };
 
   const password = (event: FormEvent) => {
@@ -60,22 +52,10 @@ function AccountSettings({ account, onClose }: { account: Account; onClose: () =
   return (
     <Modal title="Sua conta" onClose={onClose}>
       <div className="grid gap-6" data-testid="account-settings">
-        <form className="grid gap-3" onSubmit={profile}>
-          <div className="flex items-center gap-3">
-            <Avatar id={account.id} name={displayName || account.displayName} size={56} />
-            <div className="min-w-0">
-              <p className="truncate text-lg font-extrabold">{account.displayName}</p>
-              <p className="truncate text-sm text-fog-400">@{account.username}</p>
-            </div>
-          </div>
-          <label className={fieldLabel}>
-            Nome que aparece para os outros
-            <TextInput value={displayName} maxLength={32} required onChange={(event) => setDisplayName(event.target.value)} data-testid="account-display-name" />
-          </label>
-          <Button type="submit" variant="primary" className="justify-self-start" disabled={busy || !displayName.trim() || displayName.trim() === account.displayName}>
-            Salvar nome
-          </Button>
-        </form>
+        <section className="grid gap-3">
+          <h3 className="font-extrabold">Perfil</h3>
+          <ProfileEditor userId={account.id} />
+        </section>
 
         <section className="grid gap-3 border-t border-ink-700 pt-5">
           <h3 className="font-extrabold">Avisos neste aparelho</h3>

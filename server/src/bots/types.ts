@@ -35,6 +35,8 @@ export interface Install {
   displayName: string | null;
   prefix: string;
   lastError: string | null;
+  /** Como aparece na lista de membros (só aparência: permissões e registros não mudam). */
+  memberList: 'mostrar' | 'ocultar' | 'categoria';
 }
 
 export interface BotData {
