@@ -18,10 +18,10 @@ export const SPECTRAL_DELAY = 480;
 
 /**
  * Quanto do som original sobra em cada intensidade.
- *  - `dry`: nas pausas (sem voz): o ruído cai, no máximo, `limitDb`.
- *  - `voiceDry`: enquanto há voz. Em barulho forte a rede neural às vezes confunde a fala com ruído e a
- *    apagaria; misturar esta parte do original garante que a voz nunca caia mais que isso. É a proteção que
- *    prioriza entender a fala antes de tirar todo o ruído.
+ *  - `dry`: a mistura fixa do original: o ruído cai, no máximo, `limitDb`.
+ *  - `voiceDry`: piso da voz. Em barulho forte a rede neural às vezes confunde a fala com ruído e a apagaria;
+ *    enquanto há voz, a saída nunca fica mais que isso abaixo do som original. O original só volta quando a rede
+ *    de fato apagou parte da fala; se ela manteve a voz, nada é acrescentado e o ruído continua fora.
  *  - `sensitive`: detecção de voz mais sensível e que demora mais para fechar (modo "Voz prioritária").
  */
 export const MODES = {
@@ -38,8 +38,11 @@ export const MODES = {
  * o começo e o fim das palavras não são cortados.
  */
 export const PRESENCE = {
-  normal: { smooth: 0.4, margin: 0.12, span: 0.22, hold: 8, release: 0.15 },
-  sensitive: { smooth: 0.4, margin: 0.07, span: 0.16, hold: 12, release: 0.12 },
+  // `full`: presença a partir da qual o piso da voz vale inteiro. Nos modos normais chega lá com meia certeza, para
+  // proteger o começo das palavras; em "Voz prioritária" (que já antecipa 40 ms) sobe aos poucos, para o ruído
+  // não voltar nas pausas entre as palavras.
+  normal: { smooth: 0.4, margin: 0.12, span: 0.22, hold: 8, release: 0.15, full: 0.5 },
+  sensitive: { smooth: 0.4, margin: 0.07, span: 0.16, hold: 12, release: 0.12, full: 1 },
 };
 
 /**
@@ -276,6 +279,8 @@ export class Denoiser {
     this.bypass = false;
     this.dryGain = 1; // começa no original e desliza até a intensidade pedida
     this.voicePresence = new VoicePresence();
+    /** Energia do último quadro original, para o piso da voz não pular com estalos curtos. */
+    this.lastDryPower = null;
     /** Quadros guardados para a antecipação do modo "Voz prioritária" (null nos outros modos). */
     this.ahead = null;
     /** Liga e desliga a proteção da voz (os testes comparam com o filtro sem proteção). */
@@ -371,8 +376,7 @@ export class Denoiser {
     } else {
       this.ahead = null;
     }
-    const mode = MODES[this.mode];
-    const dryShare = mode.dry + (mode.voiceDry - mode.dry) * presence;
+    const dryShare = this.#dryShare(dry, wet, presence, MODES[this.mode]);
     const target = this.bypass ? 1 : dryShare;
     const step = (target - this.dryGain) / FRAME;
     let gain = this.dryGain;
@@ -424,6 +428,37 @@ export class Denoiser {
     stats.voice += voice;
     stats.presence += presence;
     if (inPower > 1e-9) stats.peakReductionDb = Math.max(stats.peakReductionDb, toDb(inPower) - toDb(outPower));
+  }
+
+  /**
+   * Quanto do original misturar neste quadro. Sem voz, a mistura fixa do modo. Com voz, só o necessário para a saída
+   * não ficar mais de `voiceDry` abaixo do quadro original. Se a rede neural manteve a voz (ruído moderado), a saída
+   * já passa do piso e a mistura continua a fixa: falar não traz o ruído de volta. Se ela apagou parte da fala
+   * (barulho no nível da voz ou acima), o original volta até esse piso.
+   */
+  #dryShare(dry, wet, presence, mode) {
+    let wetPower = 0;
+    let dryPower = 0;
+    let diffPower = 0;
+    let cross = 0;
+    for (let i = 0; i < FRAME; i++) {
+      const diff = dry[i] - wet[i];
+      wetPower += wet[i] * wet[i];
+      dryPower += dry[i] * dry[i];
+      diffPower += diff * diff;
+      cross += wet[i] * diff;
+    }
+    // O piso acompanha o original, mas sobe no máximo 6 dB por quadro: um estalo curto no meio da fala (tecla, clique)
+    // que a rede tirou não vira "voz apagada" a devolver. A fala sobe mais devagar que isso e não é afetada.
+    const previous = this.lastDryPower ?? dryPower;
+    this.lastDryPower = dryPower;
+    if (presence <= 0 || diffPower <= 1e-12) return mode.dry;
+    const floor = mode.voiceDry * Math.min(1, presence / (mode.sensitive ? PRESENCE.sensitive : PRESENCE.normal).full);
+    const need = floor * floor * Math.min(dryPower, previous * 4);
+    // Energia da saída com uma mistura g: |wet + g·(dry − wet)|² = wetPower + 2g·cross + g²·diffPower.
+    if (wetPower + 2 * mode.dry * cross + mode.dry * mode.dry * diffPower >= need) return mode.dry;
+    const g = (-cross + Math.sqrt(Math.max(0, cross * cross - diffPower * (wetPower - need)))) / diffPower;
+    return Math.min(1, Math.max(mode.dry, g));
   }
 
   /**

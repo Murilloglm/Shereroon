@@ -117,6 +117,26 @@ function run(engine: 'ia' | 'convencional', mode: Mode, input: Float32Array, eac
   return { output, elapsedMs, stats, delay };
 }
 
+/**
+ * Quanto do ruído original volta na saída durante a fala (dB em relação ao ruído original), pela parte do original
+ * que o filtro mistura de volta. Mede exatamente o que a proteção da voz acrescenta de ruído.
+ */
+function noiseBackInSpeech(input: Float32Array, noise: Float32Array, mode: Mode) {
+  const gains = new Float32Array(input.length);
+  const { delay } = run('ia', mode, input, (denoiser, block) => gains.fill(denoiser.dryGain as number, block * 128, block * 128 + 128));
+  let back = 0;
+  let original = 0;
+  for (let frame = 100; frame < spoken.length - 3 - Math.ceil(delay / FRAME); frame++) {
+    if (spoken[frame] !== true) continue;
+    const from = frame * FRAME;
+    for (let i = 0; i < FRAME; i++) {
+      back += (gains[from + delay + i]! * noise[from + i]!) ** 2;
+      original += noise[from + i]! ** 2;
+    }
+  }
+  return db(back) - db(original);
+}
+
 /** Atraso (em amostras) que melhor alinha a saída com a entrada. */
 function bestLag(input: Float32Array, output: Float32Array): number {
   let best = 0;
@@ -292,7 +312,10 @@ describe('ambiente barulhento (ruído no nível da voz ou acima dela)', () => {
           reductions[mode] = before.pauseDb - after.pauseDb;
           line.push(`${mode} −${reductions[mode]!.toFixed(1)} dB (voz ${after.voiceChangeDb.toFixed(1)} dB, cortes ${after.cutsPct.toFixed(1)}%)`);
           expect(after.cutsPct, `${mode}: trechos de voz cortados`).toBeLessThan(maxCuts[snr]![mode]);
-          expect(after.voiceChangeDb, `${mode}: nível da voz`).toBeGreaterThan(-2.5);
+          // O Forte com o ruído acima da voz é o único que baixa mais o nível: ele só devolve o original até 9 dB abaixo
+          // (os outros, até 6, 3 e 1,5). A 0.3.1 dava −1,4 dB aqui porque devolvia o ruído o tempo todo, e esse ruído
+          // entrava na conta como se fosse voz; os cortes de agora são os mesmos dela.
+          expect(after.voiceChangeDb, `${mode}: nível da voz`).toBeGreaterThan(mode === 'forte' && snr === -5 ? -4.5 : -2.5);
         }
         console.log(`  ${name}, voz ${snr} dB: ${line.join(' | ')}`);
         expect(reductions.equilibrado!).toBeGreaterThan(minimum);
@@ -302,6 +325,25 @@ describe('ambiente barulhento (ruído no nível da voz ou acima dela)', () => {
       });
     }
   }
+
+  it('com ruído moderado, falar não traz o ruído de volta: a proteção só age quando a voz está sendo apagada', () => {
+    // O defeito da 0.3.1: a proteção misturava o original (−3/−6/−9 dB) sempre que havia fala, mesmo quando a rede
+    // neural mantinha a voz inteira. O ruído "respirava": sumia nas pausas e voltava junto com a fala.
+    for (const [make, level] of [[fan, -32], [ambience, -36], [keyboard, -34], [hiss, -38]] as const) {
+      const noise = scaleTo(make(voice.length), level);
+      const noisy = add(voice, noise);
+      const line: string[] = [];
+      for (const mode of ['leve', 'equilibrado', 'forte'] as const) {
+        const back = noiseBackInSpeech(noisy, noise, mode);
+        line.push(`${mode} ${back.toFixed(1)} dB`);
+        // No máximo 3 dB acima da mistura fixa de cada modo (−12, −24 e, no Forte, nada). A 0.3.1 dava −3, −6 e −9.
+        // O teclado testa os estalos no meio da fala: a rede os tira, e a proteção não pode devolvê-los.
+        const limit = mode === 'forte' ? -28 : 20 * Math.log10(MODES[mode].dry) + 3;
+        expect(back, `${make.name}, ${mode}: ruído devolvido durante a fala`).toBeLessThan(limit);
+      }
+      console.log(`  ${make.name} moderado, ruído devolvido durante a fala: ${line.join(' | ')}`);
+    }
+  });
 
   it('a proteção da voz é o que evita os cortes: sem ela, o mesmo filtro corta muito mais', () => {
     for (const make of [fan, ambience]) {

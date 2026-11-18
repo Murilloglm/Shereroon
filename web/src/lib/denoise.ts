@@ -8,12 +8,13 @@ export type NoiseMode = 'off' | 'leve' | 'equilibrado' | 'forte' | 'voz';
 export type NoiseLevel = Exclude<NoiseMode, 'off'>;
 export type NoiseEngine = 'ia' | 'convencional';
 
-// Em todos os modos, enquanto há fala parte do som original é mantida: em barulho forte a rede neural às vezes
-// confunde voz com ruído, e a proteção impede que a fala seja apagada junto (veja public/worklets/denoiser.js).
+// Em barulho forte a rede neural às vezes confunde voz com ruído. Em todos os modos, quando isso acontece com
+// alguém falando, a proteção devolve só o som original necessário para a fala não ser apagada; com ruído moderado
+// ela não age e o ruído fica fora também durante a fala (veja public/worklets/denoiser.js).
 export const NOISE_LEVELS: { value: NoiseLevel; name: string; about: string }[] = [
   { value: 'leve', name: 'Leve', about: 'Baixa o ruído em até 12 dB e quase não mexe na voz. É o mais natural.' },
-  { value: 'equilibrado', name: 'Equilibrado', about: 'Baixa o ruído em até 24 dB nas pausas, priorizando manter a voz inteira.' },
-  { value: 'forte', name: 'Forte', about: 'Supressão mais intensa: tira quase todo o ruído das pausas. Com muito barulho, pode perder um pouco do começo das falas.' },
+  { value: 'equilibrado', name: 'Equilibrado', about: 'Baixa o ruído em até 24 dB. Se o barulho for tão alto que a voz começa a sumir, devolve só o necessário para ela continuar inteira.' },
+  { value: 'forte', name: 'Forte', about: 'Supressão mais intensa: tira quase todo o ruído. Com barulho muito alto, pode perder um pouco da voz.' },
   {
     value: 'voz',
     name: 'Voz prioritária',

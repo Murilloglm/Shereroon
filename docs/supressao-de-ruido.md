@@ -37,6 +37,34 @@ Resultado com o ruído mais alto que a voz (−5 dB):
 
 Com ruído moderado, todos os modos continuam com a mesma redução de antes: ~12, ~23 e 30–38 dB nas pausas, sem cortes. Os testes ficam em `web/test/denoiser.test.ts`, no bloco "ambiente barulhento". Um deles compara o mesmo filtro com e sem a proteção, para provar que é ela que evita os cortes.
 
+## Correção da 0.3.2: a proteção só age quando precisa
+
+Na 0.3.1 a proteção misturava o original sempre que havia fala, mesmo com ruído moderado, quando a rede neural mantinha a voz inteira. O ruído "respirava": sumia nas pausas e voltava junto com a fala. A tabela mostra quanto do ruído original voltava durante a fala:
+
+| Ruído moderado | 0.3.0 | 0.3.1 | 0.3.2 |
+| --- | --- | --- | --- |
+| Leve | −12 dB | −3 dB | −11 a −12 dB |
+| Equilibrado | −24 dB | −6 dB | −21 a −24 dB |
+| Forte | nada | −9 dB | −31 dB ou menos |
+| Voz prioritária | — | −1,5 dB | −8 a −25 dB |
+| Teclado no meio da fala (Equilibrado) | −24 dB | −6 dB | −24 dB |
+
+Agora `voiceDry` é um **piso**, não uma mistura fixa (`Denoiser#dryShare`). Enquanto há voz, a saída não pode ficar mais que esse valor abaixo do som original. A cada quadro, o filtro calcula a menor mistura que cumpre o piso:
+
+- Se a rede manteve a voz, a saída já passa do piso e nada é devolvido.
+- Se a rede apagou parte da fala, o original volta só até o piso.
+- O piso sobe no máximo 6 dB por quadro. Um estalo curto no meio da fala (tecla, clique), que a rede tirou, não conta como voz apagada.
+- Nos modos normais, o piso vale inteiro a partir de meia certeza de voz, para proteger o começo das palavras. Em "Voz prioritária", que já antecipa 40 ms, ele sobe aos poucos, para o ruído não voltar entre as palavras.
+
+Com o ruído acima da voz (−5 dB), os cortes ficam como na 0.3.1, deixando passar menos ruído:
+
+| | Equilibrado | Forte | Voz prioritária |
+| --- | --- | --- | --- |
+| Ventilador | 3,4% cortados (0.3.1: 3,6%) | 5,7% (5,9%) | 0,9% (0,7%) |
+| Vozes ao fundo | 4,1% (4,1%) | 6,3% (6,6%) | 1,4% (0,9%) |
+
+No Forte com o ruído acima da voz, o nível medido da voz cai mais (−3,6 dB, contra −1,4 dB na 0.3.1). Os cortes são os mesmos: a diferença é o ruído que a 0.3.1 devolvia e que entrava na conta como se fosse voz.
+
 **Limite honesto.** Vozes de outras pessoas e TV ao fundo não somem por completo. Sons de voz sobrepostos são os mais difíceis de separar, e o filtro prefere manter a fala de quem usa o microfone a arriscar cortá-la.
 
 ## Outros pontos investigados
