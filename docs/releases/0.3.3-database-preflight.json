@@ -1,0 +1,53 @@
+{
+  "ok": true,
+  "databaseFingerprint": "680329f3ddf7",
+  "mode": "before-deploy",
+  "read_only": "on",
+  "postgres_version": "180007",
+  "applied": [
+    {
+      "id": 1,
+      "name": "contas, grupos, cargos, canais, mensagens e auditoria"
+    },
+    {
+      "id": 2,
+      "name": "bots: instalações, registros, dados e tarefas agendadas"
+    },
+    {
+      "id": 3,
+      "name": "chat: anexos, respostas, menções, reações, não lidas e notificações"
+    },
+    {
+      "id": 4,
+      "name": "perfis, amizades, mensagens privadas, notas pessoais, entrada no grupo, bots na lista, chat de voz e emojis"
+    },
+    {
+      "id": 5,
+      "name": "atividades: jogos vinculados, atividade atual e recentes, privacidade das atividades"
+    },
+    {
+      "id": 6,
+      "name": "cosmic points, loja, inventário e itens equipados"
+    }
+  ],
+  "pending": [
+    {
+      "id": 7,
+      "name": "administração global, MFA, códigos promocionais e presentes"
+    }
+  ],
+  "expectedSchema": 6,
+  "missingBaseline": [],
+  "collisions": [],
+  "missingTables": [],
+  "columnCollisions": [],
+  "missingColumns": [],
+  "mg": [],
+  "admins": [],
+  "bootstrapRequired": true,
+  "appSecretConfiguredInThisProcess": false,
+  "appSecretProductionValueRead": false,
+  "wroteDatabase": false,
+  "renderBindingConfirmedByUser": true,
+  "checkedAt": "2026-11-18T02:53:04.500Z"
+}

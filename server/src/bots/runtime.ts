@@ -8,6 +8,7 @@
  */
 import { GROUP_WIDE, has, P, PERMISSIONS } from '../../../shared/permissions.ts';
 import { cleanText, newId, type User } from '../community/auth.ts';
+import { adminAudit, isCosmicAdmin } from '../community/global-admin.ts';
 import type { Community, CommunityEvent, MessageMeta, Snapshot } from '../community/core.ts';
 import { iso, num, type Db, type Row } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
@@ -158,6 +159,10 @@ export class BotRuntime {
   }
 
   async #audit(groupId: string, actor: User, action: string, module: BotModule, detail: Record<string, unknown> = {}): Promise<void> {
+    if (await isCosmicAdmin(this.#db, actor.id)) {
+      detail = { ...detail, cosmicAdmin: true };
+      await adminAudit(this.#db, actor.id, action, module.id, 'Gerenciamento global de bot', { groupId, ...detail });
+    }
     await this.#db.query(
       `INSERT INTO audit_log (group_id, actor_id, actor_name, action, target_kind, target_id, target_name, detail) VALUES ($1, $2, $3, $4, 'bot', $5, $6, $7::jsonb)`,
       [groupId, actor.id, actor.displayName, action, module.id, module.name, JSON.stringify(detail)],

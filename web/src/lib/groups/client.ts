@@ -6,6 +6,8 @@ import { API_BASE, ApiError, request } from '../api.ts';
 import { Store } from '../store.ts';
 
 export interface Account {
+  cosmicAdmin?: boolean;
+  adminVerified?: boolean;
   id: string;
   username: string;
   displayName: string;
@@ -78,6 +80,7 @@ export interface ChannelView {
 }
 
 export interface MemberView {
+  cosmicAdmin?: boolean;
   userId: string;
   username: string;
   displayName: string;
@@ -96,7 +99,7 @@ export interface MemberView {
 
 export interface GroupView {
   group: GroupSummary;
-  me: { userId: string; isOwner: boolean; roleIds: string[]; permissions: bigint; top: number | null; timeoutUntil: string | null };
+  me: { userId: string; isOwner: boolean; isCosmicAdmin?: boolean; roleIds: string[]; permissions: bigint; top: number | null; timeoutUntil: string | null };
   roles: RoleView[];
   channels: ChannelView[];
   members: MemberView[];

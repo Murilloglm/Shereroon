@@ -31,11 +31,11 @@ if (Test-Path -LiteralPath $uninstallerEvidence -PathType Leaf) {
 }
 
 $installers = @($files | Where-Object {
-    $_.DirectoryName -eq $releaseRoot -and $_.Name -match '^ShareRoom-Setup-.*\.exe$' -and
+    $_.DirectoryName -eq $releaseRoot -and $_.Name -match '^CosmicNight-Setup-.*\.exe$' -and
     $_.Name -notmatch '__uninstaller\.exe$'
 })
 if ($installers.Count -ne 1) {
-    $issues.Add("Expected exactly one ShareRoom-Setup-*.exe; found $($installers.Count).")
+    $issues.Add("Expected exactly one CosmicNight-Setup-*.exe; found $($installers.Count).")
 }
 foreach ($required in @('win-unpacked/CosmicNight.exe', 'win-unpacked/resources/helper/ShareRoomAudio.exe')) {
     if (-not (Test-Path -LiteralPath (Join-Path $releaseRoot $required) -PathType Leaf)) {

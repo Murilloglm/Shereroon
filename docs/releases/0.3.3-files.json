@@ -1,0 +1,339 @@
+{
+  "version": "0.3.3",
+  "baseCommit": "7b3af325d6ad5ccc9c04fd8570c808cd1e1cf55f",
+  "branch": "release/cosmic-0.3.3",
+  "fileCount": 51,
+  "hashRepresentation": "Git staged content (normalized by Git attributes). Manifest self-hash omitted to avoid a circular checksum.",
+  "files": [
+    {
+      "path": ".env.example",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "78000df15e91baa91437c52cf69e522b3490e02bb30b22f47ccc45253a3eaea7"
+    },
+    {
+      "path": "desktop/package-lock.json",
+      "status": "M",
+      "category": "release-preparation",
+      "sha256": "57d1e451a0cfc6f4771d423c43c93ee877257c9638a1b13fa06c3d82981a3b73"
+    },
+    {
+      "path": "desktop/package.json",
+      "status": "M",
+      "category": "release-preparation",
+      "sha256": "3d44e830a8b6a19d9b62946f724b897005b2d7bf0e734001e25663dbfa073af1"
+    },
+    {
+      "path": "desktop/scripts/audit-signatures.ps1",
+      "status": "M",
+      "category": "release-preparation",
+      "sha256": "5ae3900f1a80166b9d38a2f7ec8637c181dc5ed765c13b8b888a089693180106"
+    },
+    {
+      "path": "docs/cosmic-admin.md",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "1b5398442b5611c1fabbe43bdc8f4be62a231bf6d33d8762b5ed813063f5b756"
+    },
+    {
+      "path": "docs/releases/0.3.3-artifacts.json",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "70d72fdabe483f19161eb707c6e6522132053a6bd720ce31a2f58bd2622168ce"
+    },
+    {
+      "path": "docs/releases/0.3.3-database-preflight.json",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "e19067f287333f7daf0d902bbb3f9a098d57dc116711775bbab6170acfacba07"
+    },
+    {
+      "path": "docs/releases/0.3.3-files.json",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": null
+    },
+    {
+      "path": "docs/releases/0.3.3-notes.md",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "6176954d062eb1b4cea769b102adf9123067b55ff9ea2ad77f50d5a8e25e77c5"
+    },
+    {
+      "path": "docs/releases/0.3.3-previous-release.json",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "db56ab1472b3f79537cbf51cdb23b6d36ecb4766c3577c95b310107720c7ba6f"
+    },
+    {
+      "path": "docs/releases/0.3.3-scope.json",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "4fef1e5ff6cf30c9de89b5fa7e27e5221b94b43c237b22beefe05e8e8837bb7a"
+    },
+    {
+      "path": "docs/releases/0.3.3-validation.json",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "1fb4b4dab54a0ee11f53a30ce68fb2a18a3efa412fbb9f09d724768cca85d1ff"
+    },
+    {
+      "path": "docs/releases/0.3.3.md",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "a9647dcf680fc05f7b8ac5b7cd0bf5e8887004c34424b8d31290a8af8fb3941c"
+    },
+    {
+      "path": "e2e/harness.mjs",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "3a16519f1ab619c2d34a83494e0c462bf397e7d1cf1ee5becc2a6e3484db0928"
+    },
+    {
+      "path": "e2e/platform.test.mjs",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "77a99265cabf71235cbfdc0743101b0f94f5943933fcdb7ae857de75a5afa51a"
+    },
+    {
+      "path": "server/scripts/bootstrap-admin.ts",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "cbbf9492a43e070311cda20616e9cbcd4808b3177c3b6c589f5d09891feacf6f"
+    },
+    {
+      "path": "server/scripts/preflight-production.ts",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "6df7ed0e56ba4e1704e62ad8e05d09206e2c557810c783fc76ed9571a2e9f2a3"
+    },
+    {
+      "path": "server/scripts/recover-admin.ts",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "e0a13f905ac10c9cf79dca78c5dee764012d259b528bb21f99250d9e555a1bf8"
+    },
+    {
+      "path": "server/src/bots/runtime.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "2e9ee171d86c9a7a14ac60e78918c8b7c1f19180301d4bba659ebf5f087a734b"
+    },
+    {
+      "path": "server/src/community/admin-routes.ts",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "8939ec0aa631b39ffdcbb09b144a6b907b3de66210d4d02c8dbe96b76403373c"
+    },
+    {
+      "path": "server/src/community/auth.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "581158eb2f719cf3ac1485756bcc8c36b19d0cab6394afa9b0adf06982325802"
+    },
+    {
+      "path": "server/src/community/commerce.ts",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "9ea4552da6b57b15d378cd23dd4def61d24980dc965f25eb354e5729104227a9"
+    },
+    {
+      "path": "server/src/community/core.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "67b7531e7261e780259088bb2f6a4f29c985f26a5eeb62da93ba58fe5576c946"
+    },
+    {
+      "path": "server/src/community/economy.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "00017cd3256a766be5903fe022fc3dedebbdfd7bbed3f3ad7380c43625274998"
+    },
+    {
+      "path": "server/src/community/gateway.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "9a0b16981b527ead78263d684c4a04d5561f01f77fde61c5bafc9a0686985260"
+    },
+    {
+      "path": "server/src/community/global-admin.ts",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "85f8d4e94cb157315c999d29dcf0172462441adaf70995f19d147f7b6cfad63d"
+    },
+    {
+      "path": "server/src/community/routes.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "4fb6e2fb7400871d6e7249540551961816db72400e167cde63e9c46a57b4d5f7"
+    },
+    {
+      "path": "server/src/community/social.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "7f924d2ff00cfb37c36263b315618412c5ea60315f36d3d714179b54fb946b01"
+    },
+    {
+      "path": "server/src/db/schema.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "ed7aa7546f800aef17fcc4a1dd76677d1c47304d02426b7fdaf0261e8b867fea"
+    },
+    {
+      "path": "server/src/node.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "f4f4cab5318b65618cefd210da8f389975c0690b6cbd705d5eb5dc71b553ae41"
+    },
+    {
+      "path": "server/test/bootstrap-cli.test.ts",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "5f26667037542ffec48af8f327973c8bb2b2e2b2286d18afd6578443bf5557d1"
+    },
+    {
+      "path": "server/test/platform.test.ts",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "ea81ff3f804b865f91d4a5d42801abd393ebae303119fce7d8f4546a2f821247"
+    },
+    {
+      "path": "server/test/release-migration.test.ts",
+      "status": "A",
+      "category": "release-preparation",
+      "sha256": "acbfe53d68a6454518fc79d411004f97268cc40f27835fce45726e11ea0fd18c"
+    },
+    {
+      "path": "server/test/world.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "62cc4edacd9e56b04e03224caa90989c819679322717cf3024ede946d6abee8e"
+    },
+    {
+      "path": "server/tsconfig.json",
+      "status": "M",
+      "category": "release-preparation",
+      "sha256": "5efe2ce93fae26d386c734ac00c1641b9d88a95d717fbc4198e966c5adba72e2"
+    },
+    {
+      "path": "shared/permissions.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "74a6ed4066ab64d0db8d5f08cb39a70e68f20d8e0778b619431eb0d84e8c8200"
+    },
+    {
+      "path": "web/src/components/groups/AuthPage.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "60d411d17429fb4ed4de35d9788efad1eac06993f8cb9fa1fb9d834a4338d9dd"
+    },
+    {
+      "path": "web/src/components/groups/GroupsPage.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "0e2c09eb44f7613e53090c246afcad9f8c4f72b382c0648d251fa88b1f85b056"
+    },
+    {
+      "path": "web/src/components/groups/UserPanel.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "ccfb453f6cd45a68273db4bed54d8bb99d09b18834134daec7ca2eb56ca086ca"
+    },
+    {
+      "path": "web/src/components/groups/settings/GroupSettings.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "1739b510f6e27235a020debf877cd6b4acaa400791c0fd587c8c95b8f986a7e8"
+    },
+    {
+      "path": "web/src/components/groups/settings/MembersTab.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "bbf1880ec142f11460845838542cef654296d3032f170cb9472c12987736ff33"
+    },
+    {
+      "path": "web/src/components/groups/settings/RolesTab.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "28b64c44367523541fd7504cc2d2abb384333076886e0a2e007354933d7d2483"
+    },
+    {
+      "path": "web/src/components/settings/CosmicAdminSettings.tsx",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "06c0c7cb474a30fd409010a416d7640d7a4fa2bec696f3c7a48b5567354284a4"
+    },
+    {
+      "path": "web/src/components/settings/GiftsSettings.tsx",
+      "status": "A",
+      "category": "feature-new",
+      "sha256": "5c2962bb9e3b41bd2c60cffbf938c1ebc16c9ffd298b05a2676a633ca08a30c9"
+    },
+    {
+      "path": "web/src/components/settings/PersonalizationSettings.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "2bed0985107d9da64ccba0228bb4f5e9728a0cbc044e09ebd1fb64775b22b887"
+    },
+    {
+      "path": "web/src/components/settings/SettingsScreen.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "e93cbebfe03f4e78299cd49fe93a590096b89949ab056d55116f3ab1cfb2c398"
+    },
+    {
+      "path": "web/src/components/social/UserInteractions.tsx",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "0ea98ed4d077b8261ae67bcf65aedd285b485806f3968f1566866ed937f1739b"
+    },
+    {
+      "path": "web/src/lib/cosmetics.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "5f8d6fd748b6eb6646a5df22e593409b2bc341623eefb1164a73e6387c57d7b3"
+    },
+    {
+      "path": "web/src/lib/groups/client.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "e5f92a960542f2489a20828f6e1d154c3f4e82a5dc153143d336a56df202e848"
+    },
+    {
+      "path": "web/src/lib/settings-screen.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "838c9609f9b523734afdcedb02176027ec4cd565d0cfb931d547e740e86bd66f"
+    },
+    {
+      "path": "web/src/lib/social/client.ts",
+      "status": "M",
+      "category": "feature-modified",
+      "sha256": "dc0085b66fe41de7b04fea7dd56586e8c6f57c3ffac4612cc7aa25a35fac1829"
+    }
+  ],
+  "excluded": {
+    "tracked": [
+      "package.json",
+      "package-lock.json"
+    ],
+    "untracked": [
+      ".claude/",
+      "neon.ts",
+      "skills-lock.json"
+    ],
+    "private": [
+      ".env.local",
+      ".neon",
+      "server/.data/"
+    ]
+  },
+  "releaseAssets": [
+    "CosmicNight-Setup-0.3.3.exe",
+    "CosmicNight-Setup-0.3.3.exe.sha256",
+    "CosmicNight-Setup-0.3.3.exe.blockmap",
+    "latest.yml",
+    "SHA256SUMS.txt",
+    "signature-report.json"
+  ]
+}

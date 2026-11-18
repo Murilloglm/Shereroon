@@ -11,6 +11,7 @@ export type UserCosmetics = Partial<Record<ItemKind, Equipped>>;
 
 export interface PointsInfo {
   points: number;
+  unlimited?: boolean;
   earnedToday: number;
   rules: Record<string, number>;
   history: { delta: number; reason: string; detail: string; at: string }[];
@@ -18,14 +19,24 @@ export interface PointsInfo {
 
 export interface ShopItem extends CosmeticItem {
   owned: boolean;
+  active?: boolean;
+  transferable?: boolean;
 }
 
 export interface Inventory {
-  items: { id: string; price: number; acquiredAt: string }[];
+  items: { id: string; price: number; acquiredAt: string; adminGrant?: boolean; transferable?: boolean }[];
   equipped: UserCosmetics;
 }
 
+export interface Gift {
+  id: string; senderId: string; senderName: string; recipientId: string; recipientName: string;
+  itemId: string; kind: string; message: string; price: number; at: string; unread: boolean;
+}
+
 interface CosmeticsState {
+  gifts: Gift[] | null;
+  giftsPage: number;
+  giftsHasMore: boolean;
   byUser: Record<string, UserCosmetics>;
   points: PointsInfo | null;
   shop: ShopItem[] | null;
@@ -35,14 +46,31 @@ interface CosmeticsState {
 const ACTIVE_PING_MS = 60_000;
 
 class CosmeticsClient {
-  readonly store = new Store<CosmeticsState>({ byUser: {}, points: null, shop: null, inventory: null });
+  readonly store = new Store<CosmeticsState>({ byUser: {}, points: null, shop: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
   readonly #wanted = new Set<string>();
   #batch: ReturnType<typeof setTimeout> | null = null;
   #lastInput = 0;
   #lastPing = 0;
 
   constructor() {
+    let accountId: string | null = null;
+    groups.store.subscribe(() => {
+      const next = groups.store.get().account?.id ?? null;
+      if (next === accountId) return;
+      accountId = next;
+      this.store.set({ byUser: {}, points: null, shop: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
+      if (next) void this.loadGifts().then(() => {
+        const unread = this.store.get().gifts?.filter((gift) => gift.unread).length ?? 0;
+        if (unread) groups.notify(`Você recebeu ${unread} presente(s). Abra Presentes nas configurações.`);
+      }).catch(() => undefined);
+    });
     groups.onEvent((event) => {
+      if (event.t === 'gift.received') {
+        groups.notify(`${String(event.senderName ?? 'Um amigo')} enviou um presente! Abra Presentes nas configurações.`);
+        void Promise.all([this.loadGifts(), this.loadInventory(), this.loadShop()]).catch(() => undefined);
+      }
+      if (event.t === 'points.changed') void this.loadPoints().catch(() => undefined);
+      if (event.t === 'inventory.changed') void this.loadInventory().catch(() => undefined);
       // Alguém trocou o que tem equipado: busca de novo só essa pessoa.
       if (event.t === 'profile.changed' && typeof event.userId === 'string' && this.store.get().byUser[event.userId]) {
         this.#forget(event.userId);
@@ -93,22 +121,44 @@ class CosmeticsClient {
   }
 
   async loadPoints(): Promise<void> {
-    this.store.set({ points: await groups.call<PointsInfo>('GET', '/api/me/points') });
+    const me = groups.store.get().account?.id;
+    const points = await groups.call<PointsInfo>('GET', '/api/me/points');
+    if (groups.store.get().account?.id === me) this.store.set({ points });
   }
 
   async loadShop(): Promise<void> {
+    const me = groups.store.get().account?.id;
     const { items } = await groups.call<{ items: ShopItem[] }>('GET', '/api/shop');
-    this.store.set({ shop: items });
+    if (groups.store.get().account?.id === me) this.store.set({ shop: items });
   }
 
   async loadInventory(): Promise<void> {
-    this.store.set({ inventory: await groups.call<Inventory>('GET', '/api/me/inventory') });
+    const me = groups.store.get().account?.id;
+    const inventory = await groups.call<Inventory>('GET', '/api/me/inventory');
+    if (groups.store.get().account?.id === me) this.store.set({ inventory });
   }
 
-  async buy(itemId: string): Promise<void> {
-    const inventory = await groups.call<Inventory>('POST', '/api/shop/buy', { itemId });
+  async buy(itemId: string, expectedPrice?: number): Promise<void> {
+    const inventory = await groups.call<Inventory>('POST', '/api/shop/buy', { itemId, expectedPrice });
     this.store.set({ inventory });
     await Promise.all([this.loadShop(), this.loadPoints()]);
+  }
+
+  async loadGifts(page = 0): Promise<void> {
+    const me = groups.store.get().account?.id;
+    const { gifts } = await groups.call<{ gifts: Gift[] }>('GET', `/api/me/gifts?page=${page}`);
+    if (groups.store.get().account?.id === me) this.store.set((state) => ({ gifts: page === 0 ? gifts : [...new Map([...(state.gifts ?? []), ...gifts].map((gift) => [gift.id, gift])).values()], giftsPage: page, giftsHasMore: gifts.length === 100 }));
+  }
+
+  async redeem(code: string, requestId: string): Promise<{ reward: { kind: string; points?: number; itemId?: string } }> {
+    const result = await groups.call<{ reward: { kind: string; points?: number; itemId?: string } }>('POST', '/api/shop/redeem', { code, requestId });
+    await Promise.all([this.loadPoints(), this.loadInventory(), this.loadShop()]);
+    return result;
+  }
+
+  async gift(input: { recipientId: string; itemId: string; message: string; kind: string; expectedPrice: number; requestId: string }): Promise<void> {
+    await groups.call('POST', '/api/shop/gifts', { ...input, confirm: true });
+    await Promise.all([this.loadGifts(), this.loadPoints(), this.loadInventory(), this.loadShop()]);
   }
 
   async equip(slot: ItemKind, itemId: string | null, variant?: string): Promise<void> {

@@ -159,6 +159,7 @@ export interface OverrideLike {
 export interface Subject {
   userId: string;
   isOwner: boolean;
+  isCosmicAdmin?: boolean;
   /** Cargos que o membro tem (o @everyone não precisa estar na lista: vale para todos). */
   roleIds: ReadonlySet<string>;
   /** Membro em castigo (timeout): continua lendo, mas não escreve, não fala e não transmite. */
@@ -167,7 +168,7 @@ export interface Subject {
 
 /** Permissões que valem para o grupo inteiro: a soma de todos os cargos da pessoa. O dono tem todas. */
 export function basePermissions(subject: Subject, roles: readonly RoleLike[]): bigint {
-  if (subject.isOwner) return ALL_PERMISSIONS;
+  if (subject.isOwner || subject.isCosmicAdmin) return ALL_PERMISSIONS;
   let set = 0n;
   for (const role of roles) {
     if (role.isEveryone || subject.roleIds.has(role.id)) set |= role.permissions;
@@ -185,7 +186,7 @@ const TIMEOUT_BLOCKED = P.SEND_MESSAGES | P.ATTACH_FILES | P.ADD_REACTIONS | P.M
  */
 export function channelPermissions(subject: Subject, roles: readonly RoleLike[], layers: readonly (readonly OverrideLike[])[]): bigint {
   const base = basePermissions(subject, roles);
-  if (subject.isOwner || has(base, P.ADMINISTRATOR)) return ALL_PERMISSIONS;
+  if (subject.isOwner || subject.isCosmicAdmin || has(base, P.ADMINISTRATOR)) return ALL_PERMISSIONS;
   const everyoneId = roles.find((role) => role.isEveryone)?.id;
   let set = base;
   for (const layer of layers) {
@@ -217,7 +218,7 @@ export const GROUP_WIDE: bigint =
 
 /** Posição do cargo mais alto da pessoa. O dono fica acima de qualquer cargo. */
 export function topPosition(subject: Subject, roles: readonly RoleLike[]): number {
-  if (subject.isOwner) return Number.POSITIVE_INFINITY;
+  if (subject.isOwner || subject.isCosmicAdmin) return Number.POSITIVE_INFINITY;
   let top = 0;
   for (const role of roles) {
     if (subject.roleIds.has(role.id) && role.position > top) top = role.position;
@@ -227,12 +228,14 @@ export function topPosition(subject: Subject, roles: readonly RoleLike[]): numbe
 
 /** Só se mexe em cargo abaixo do seu cargo mais alto. Ter o mesmo cargo não basta. */
 export function canManageRole(actor: Subject, roles: readonly RoleLike[], role: RoleLike): boolean {
-  return actor.isOwner || role.position < topPosition(actor, roles);
+  return actor.isCosmicAdmin || actor.isOwner || role.position < topPosition(actor, roles);
 }
 
-/** Só se pune, edita ou move quem está abaixo na hierarquia. Ninguém age sobre o dono, nem sobre si mesmo. */
+/** Cosmic Admin protege a administração oficial e pode moderar o dono; cargos locais só agem abaixo de si. */
 export function canActOnMember(actor: Subject, target: Subject, roles: readonly RoleLike[]): boolean {
-  if (actor.userId === target.userId || target.isOwner) return false;
+  if (actor.userId === target.userId || target.isCosmicAdmin) return false;
+  if (actor.isCosmicAdmin) return true;
+  if (target.isOwner) return false;
   return actor.isOwner || topPosition(target, roles) < topPosition(actor, roles);
 }
 

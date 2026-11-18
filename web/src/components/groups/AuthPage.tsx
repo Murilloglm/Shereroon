@@ -91,7 +91,7 @@ export function AuthPage({ invite }: { invite?: string }) {
               required
               data-testid="auth-username"
             />
-            {mode === 'criar' && <span className="text-xs font-normal text-fog-500">De 3 a 24 caracteres: letras sem acento, números, ponto ou sublinhado.</span>}
+            {mode === 'criar' && <span className="text-xs font-normal text-fog-500">De 2 a 24 caracteres: letras sem acento, números, ponto ou sublinhado.</span>}
           </label>
           {mode === 'criar' && (
             <label className={fieldLabel}>

@@ -1,0 +1,98 @@
+{
+  "version": "0.3.3",
+  "branch": "release/cosmic-0.3.3",
+  "baseCommit": "7b3af325d6ad5ccc9c04fd8570c808cd1e1cf55f",
+  "tests": {
+    "server": {
+      "passed": 252,
+      "files": 17
+    },
+    "web": {
+      "passed": 170,
+      "files": 19
+    },
+    "desktop": {
+      "passed": 39
+    },
+    "e2e": {
+      "passed": 11,
+      "files": [
+        "e2e/platform.test.mjs",
+        "e2e/personalizacao.test.mjs"
+      ]
+    },
+    "totalPassed": 472,
+    "failed": 0
+  },
+  "checks": {
+    "cleanInstallFromUnmodifiedRootLockfile": true,
+    "typecheckIncludingAdminScripts": true,
+    "webProductionBuild": true,
+    "csharpHelperBuild": true,
+    "nsisBuild": true,
+    "productionReadOnlyPreflight": true,
+    "migration6To7PreservesExistingData": true,
+    "migrationFailureRollsBack": true,
+    "bootstrapLookupDoesNotMigrate": true,
+    "bootstrapNoProductionLocalFallback": true,
+    "bootstrapDoesNotPrintPassword": true,
+    "mfaRequiredAndSessionBound": true,
+    "sha256": true,
+    "sha512": true,
+    "updateEd25519": true,
+    "securityFuses": true,
+    "cloudBackendConfiguration": true,
+    "release032Unchanged": true
+  },
+  "production": {
+    "databaseReadOnly": true,
+    "appliedMigrationIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "pendingMigrationIds": [
+      7
+    ],
+    "mgExists": false,
+    "bootstrapExecuted": false,
+    "migrationExecuted": false,
+    "backupExecuted": false,
+    "appSecretRead": false,
+    "backendHealthStatus": 200,
+    "backendFeaturesStatus": 200
+  },
+  "dependencyAudit": {
+    "production": {
+      "root": 0,
+      "desktop": 0
+    },
+    "developmentInherited": {
+      "root": {
+        "high": 6
+      },
+      "desktop": {
+        "moderate": 5,
+        "high": 6
+      }
+    },
+    "dependenciesUpdated": false
+  },
+  "limitations": [
+    "Instalador NSIS n?o executado ou instalado nesta prepara??o.",
+    "SQL da migra??o exercitado em PGlite; banco de produ??o inspecionado somente em leitura.",
+    "Backup e confirma??o das vari?veis do Render permanecem etapas operacionais antes do deploy autorizado.",
+    "Canal de pr?-vers?o sem certificado Authenticode, igual ao da 0.3.2."
+  ],
+  "publication": {
+    "pushed": false,
+    "tagCreated": false,
+    "releaseCreated": false,
+    "workflowDispatched": false,
+    "deployed": false,
+    "awaitingApproval": true
+  }
+}

@@ -83,8 +83,19 @@ export function attachGateway(server: Server, { accounts, community, allowedOrig
           const groupIds = await community.groupIdsOf(user.id);
           if (ws.readyState !== ws.OPEN) return;
           clearTimeout(authTimer);
+          let delivery = Promise.resolve();
           connection = community.hub.open(user.id, groupIds, {
-            send: (text) => ws.readyState === ws.OPEN && ws.send(text),
+            send: (text) => {
+              if (!user.cosmicAdmin) { if (ws.readyState === ws.OPEN) ws.send(text); return; }
+              // A prova pertence a esta sessão. Outra sessão verificada não libera eventos de servidor aqui.
+              delivery = delivery.then(async () => {
+                const current = await accounts.authenticate(message.token as string);
+                if (!current) { ws.close(4403, 'sessão encerrada'); return; }
+                const event = JSON.parse(text) as { groupId?: unknown };
+                if (current.cosmicAdmin && !current.adminVerified && typeof event.groupId === 'string') return;
+                if (ws.readyState === ws.OPEN) ws.send(text);
+              }).catch(() => { ws.close(1011, 'erro de autorização'); });
+            },
             close: () => ws.close(4403, 'sessão encerrada'),
           });
           ws.send(JSON.stringify({ t: 'ready', userId: user.id }));

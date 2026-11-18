@@ -82,7 +82,7 @@ try {
     });
     // Os bots rodam aqui, no backend: seguem funcionando com todo mundo offline.
     // Cosmic Points: recompensas por participação (a cada minuto confere quem está em chamada).
-    const economy = new Economy(database, community);
+    const economy = new Economy(database, community, { adminSecret: config.appSecret });
     economy.start();
     const bots = new BotRuntime(database, community, officialBots(), { economy });
     bots.start();

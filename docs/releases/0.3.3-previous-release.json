@@ -1,0 +1,46 @@
+{
+  "tag": "v0.3.2",
+  "commit": "7b3af325d6ad5ccc9c04fd8570c808cd1e1cf55f",
+  "url": "https://github.com/Murilloglm/Shereroon/releases/tag/v0.3.2",
+  "immutable": true,
+  "releaseId": 449451927,
+  "assets": [
+    {
+      "id": 761565294,
+      "name": "CosmicNight-Setup-0.3.2.exe",
+      "size": 123512851,
+      "digest": "sha256:8922c127759aa6935bbdf59047dcf78983d6eabaf89a0b4fe668514292bc2055"
+    },
+    {
+      "id": 761565293,
+      "name": "CosmicNight-Setup-0.3.2.exe.blockmap",
+      "size": 130054,
+      "digest": "sha256:81d6fc466ed627a7cd684fe0e34c637e6965b658a9afd93e0e5dc724a77dabce"
+    },
+    {
+      "id": 761565300,
+      "name": "CosmicNight-Setup-0.3.2.exe.sha256",
+      "size": 94,
+      "digest": "sha256:9c0b38266e4115c3b69b5e0110f47c6e766a12cd18875cde221a6a00aeb88282"
+    },
+    {
+      "id": 761565295,
+      "name": "latest.yml",
+      "size": 457,
+      "digest": "sha256:6a8c824b618ef9d7555a016922466f988e0341ae1dbeefec83ffd9e95c4cbc90"
+    },
+    {
+      "id": 761565298,
+      "name": "SHA256SUMS.txt",
+      "size": 362,
+      "digest": "sha256:500544df5aebb1f8e0d88e4446bb08f6dcc857bd5d2715c88574a8a1facdafca"
+    },
+    {
+      "id": 761565333,
+      "name": "signature-report.json",
+      "size": 7276,
+      "digest": "sha256:7e13d845e886e6253de4a4b1cc6101d898d815c38f971d724eaaeb460c1ea87d"
+    }
+  ],
+  "mutated": false
+}

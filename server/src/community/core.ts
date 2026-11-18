@@ -31,6 +31,7 @@ import { cleanText, newId, type User } from './auth.ts';
 import type { Hub } from './hub.ts';
 import { Social } from './social.ts';
 import { Activities } from './activities.ts';
+import { adminAudit, isCosmicAdmin } from './global-admin.ts';
 import { imageInfo } from '../../../shared/image-info.ts';
 
 export type ChannelKind = 'categoria' | 'texto' | 'voz';
@@ -72,6 +73,7 @@ export interface Override extends OverrideLike {
 
 export interface Member {
   userId: string;
+  cosmicAdmin?: boolean;
   username: string;
   displayName: string;
   nickname: string | null;
@@ -385,7 +387,7 @@ export class Community {
       this.#db.query('SELECT * FROM channels WHERE group_id = $1 ORDER BY position, created_at', [groupId]),
       this.#db.query('SELECT o.* FROM overrides o JOIN channels c ON c.id = o.channel_id WHERE c.group_id = $1', [groupId]),
       this.#db.query(
-        'SELECT m.*, u.username, u.display_name, u.is_bot, u.avatar FROM members m JOIN users u ON u.id = m.user_id WHERE m.group_id = $1 ORDER BY m.joined_at',
+        'SELECT m.*, u.username, u.display_name, u.is_bot, u.avatar, EXISTS (SELECT 1 FROM global_permissions gp WHERE gp.user_id = u.id) AS cosmic_admin FROM members m JOIN users u ON u.id = m.user_id WHERE m.group_id = $1 ORDER BY m.joined_at',
         [groupId],
       ),
       this.#db.query('SELECT user_id, role_id FROM member_roles WHERE group_id = $1', [groupId]),
@@ -433,6 +435,7 @@ export class Community {
     for (const row of memberRows) {
       members.set(String(row.user_id), {
         userId: String(row.user_id),
+        cosmicAdmin: row.cosmic_admin === true,
         username: String(row.username),
         displayName: String(row.display_name),
         nickname: row.nickname === null ? null : String(row.nickname),
@@ -457,6 +460,7 @@ export class Community {
     return {
       userId: member.userId,
       isOwner: snap.group.ownerId === member.userId,
+      isCosmicAdmin: member.cosmicAdmin === true,
       roleIds: member.roleIds,
       timedOut: member.timeoutUntil !== null && Date.parse(member.timeoutUntil) > Date.now(),
     };
@@ -470,6 +474,7 @@ export class Community {
   async canSee(groupId: string, channelId: string, userId: string): Promise<boolean> {
     const snap = await this.snapshot(groupId);
     const member = snap.members.get(userId);
+    if (member) member.cosmicAdmin = await isCosmicAdmin(this.#db, userId);
     const channel = snap.channels.get(channelId);
     return Boolean(member && channel) && has(this.permissionsIn(snap, this.subjectOf(snap, member!), channel!), P.VIEW_CHANNEL);
   }
@@ -480,9 +485,12 @@ export class Community {
 
   async #ctx(user: User, groupId: string): Promise<Ctx> {
     const snap = await this.snapshot(groupId);
+    const admins = new Set((await this.#db.query('SELECT user_id FROM global_permissions')).map((row) => String(row.user_id)));
+    for (const member of snap.members.values()) member.cosmicAdmin = admins.has(member.userId);
     const me = snap.members.get(user.id);
     // Quem não é membro recebe a mesma resposta de "grupo não existe": não dá para sondar grupos privados.
     if (!me) throw NOT_FOUND();
+    if (me.cosmicAdmin && !user.adminVerified) throw new ApiError(403, 'mfa_necessario', 'Confirme o segundo fator para acessar servidores como Cosmic Admin.');
     const subject = this.subjectOf(snap, me);
     return { user, snap, me, subject, base: basePermissions(subject, snap.roles) };
   }
@@ -493,6 +501,7 @@ export class Community {
   }
 
   #need(ctx: Ctx, permission: bigint, set = ctx.base): void {
+    if (ctx.subject.isCosmicAdmin && !ctx.user.adminVerified) throw new ApiError(403, 'mfa_necessario', 'Confirme o segundo fator em Administração Cosmic.');
     if (!has(set, permission)) {
       throw new ApiError(403, 'sem_permissao', `Você não tem a permissão “${permissionName(permission)}”.`);
     }
@@ -533,6 +542,11 @@ export class Community {
   }
 
   async #audit(db: Db, ctx: Ctx, action: string, target: { kind: string; id: string; name: string }, detail: Record<string, unknown> = {}): Promise<void> {
+    if (ctx.subject.isCosmicAdmin) {
+      if (!ctx.user.adminVerified) throw new ApiError(403, 'mfa_necessario', 'Confirme o segundo fator.');
+      detail = { ...detail, cosmicAdmin: true };
+      await adminAudit(db, ctx.user.id, action, target.id, 'Ação administrativa global em servidor', { groupId: ctx.snap.group.id, ...detail });
+    }
     await db.query(
       `INSERT INTO audit_log (group_id, actor_id, actor_name, action, target_kind, target_id, target_name, detail) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
       [ctx.snap.group.id, ctx.user.id, ctx.user.displayName, action, target.kind, target.id, target.name, JSON.stringify(detail)],
@@ -711,6 +725,7 @@ export class Community {
         `INSERT INTO audit_log (group_id, actor_id, actor_name, action, target_kind, target_id, target_name) VALUES ($1, $2, $3, 'grupo.criado', 'grupo', $1, $4)`,
         [id, user.id, user.displayName, name],
       );
+      if (await isCosmicAdmin(tx, user.id)) await adminAudit(tx, user.id, 'grupo.criado', id, 'Criação de servidor pela administração oficial', { name });
     });
     this.hub.subscribe(user.id, id);
     return (await this.snapshot(id)).group;
@@ -775,6 +790,7 @@ export class Community {
       me: {
         userId: user.id,
         isOwner: subject.isOwner,
+        isCosmicAdmin: subject.isCosmicAdmin === true,
         roleIds: [...ctx.me.roleIds],
         permissions: str(ctx.base),
         /** Posição do cargo mais alto (null para o dono, que está acima de todos). */
@@ -794,6 +810,7 @@ export class Community {
       channels,
       members: [...snap.members.values()].map((member) => ({
         userId: member.userId,
+        cosmicAdmin: member.cosmicAdmin === true,
         username: member.username,
         displayName: member.displayName,
         nickname: member.nickname,
@@ -835,8 +852,11 @@ export class Community {
 
   async deleteGroup(user: User, groupId: string): Promise<void> {
     const ctx = await this.#ctx(user, groupId);
-    if (!ctx.subject.isOwner) throw new ApiError(403, 'so_o_dono', 'Só o dono pode excluir o grupo.');
-    await this.#db.query('DELETE FROM groups WHERE id = $1', [groupId]);
+    if (!ctx.subject.isOwner && !ctx.subject.isCosmicAdmin) throw new ApiError(403, 'so_o_dono', 'Só o dono pode excluir o grupo.');
+    await this.#db.tx(async (tx) => {
+      await this.#audit(tx, ctx, 'grupo.excluido', { kind: 'grupo', id: groupId, name: ctx.snap.group.name });
+      await tx.query('DELETE FROM groups WHERE id = $1', [groupId]);
+    });
     this.#cache.delete(groupId);
     this.hub.publish(groupId, { t: 'group.removed', groupId, reason: 'excluido' });
     this.hub.dropGroup(groupId);
@@ -848,7 +868,7 @@ export class Community {
 
   async transferOwnership(user: User, groupId: string, targetId: unknown): Promise<void> {
     const ctx = await this.#ctx(user, groupId);
-    if (!ctx.subject.isOwner) throw new ApiError(403, 'so_o_dono', 'Só o dono pode passar o grupo para outra pessoa.');
+    if (!ctx.subject.isOwner && !ctx.subject.isCosmicAdmin) throw new ApiError(403, 'so_o_dono', 'Só o dono pode passar o grupo para outra pessoa.');
     const { member } = this.#targetMember(ctx, String(targetId));
     this.#human(member);
     if (member.userId === user.id) return;
@@ -867,7 +887,12 @@ export class Community {
     if (banned) throw new ApiError(403, 'banido', 'Você foi banido deste grupo.');
     const [count] = await db.query('SELECT count(*) AS total FROM members WHERE user_id = $1', [user.id]);
     if (num(count?.total) >= LIMITS.groupsPerUser) throw new ApiError(409, 'grupos_demais', `Cada conta participa de no máximo ${LIMITS.groupsPerUser} grupos.`);
-    await db.query('INSERT INTO members (group_id, user_id, joined_via, invited_by) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [groupId, user.id, via, invitedBy]);
+    const global = await isCosmicAdmin(db, user.id);
+    const inserted = await db.query('INSERT INTO members (group_id, user_id, joined_via, invited_by) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING user_id', [groupId, user.id, global ? 'cosmic_admin' : via, invitedBy]);
+    if (global && inserted.length) {
+      await db.query("INSERT INTO audit_log (group_id,actor_id,actor_name,action,target_kind,target_id,target_name,detail) VALUES ($1,$2,$3,'cosmic_admin.entrada','membro',$2,$3,$4::jsonb)", [groupId, user.id, user.displayName, JSON.stringify({ cosmicAdmin: true, via })]);
+      await adminAudit(db, user.id, 'servidor.entrada_global', groupId, 'Entrada oficial pela navegação de servidores', { via });
+    }
     // Quem entra agora não recebe o histórico inteiro como "não lido".
     await db.query(
       `INSERT INTO read_states (user_id, channel_id, last_read_id)
@@ -893,6 +918,20 @@ export class Community {
     }
   }
 
+  async joinAsAdmin(user: User, groupId: string, reason: string): Promise<Group> {
+    if (!(await isCosmicAdmin(this.#db, user.id)) || !user.adminVerified) throw new ApiError(403, 'mfa_necessario', 'Acesso global exige autenticação multifator.');
+    await this.#db.tx(async (tx) => {
+      const [group] = await tx.query('SELECT id FROM groups WHERE id = $1 FOR SHARE', [groupId]);
+      if (!group) throw NOT_FOUND();
+      await tx.query("INSERT INTO members (group_id, user_id, joined_via) VALUES ($1,$2,'cosmic_admin') ON CONFLICT (group_id,user_id) DO UPDATE SET joined_via = 'cosmic_admin', timeout_until = NULL", [groupId, user.id]);
+      await tx.query('DELETE FROM bans WHERE group_id = $1 AND user_id = $2', [groupId, user.id]);
+      await tx.query("INSERT INTO audit_log (group_id,actor_id,actor_name,action,target_kind,target_id,target_name,detail) VALUES ($1,$2,$3,'cosmic_admin.entrada','membro',$2,$3,$4::jsonb)", [groupId,user.id,user.displayName,JSON.stringify({ cosmicAdmin: true, reason })]);
+      await adminAudit(tx, user.id, 'servidor.entrada_global', groupId, reason);
+    });
+    this.#joined(groupId, user);
+    return (await this.snapshot(groupId)).group;
+  }
+
   async joinPublic(user: User, groupId: string): Promise<Group> {
     const snap = await this.snapshot(groupId);
     if (snap.members.has(user.id)) return snap.group;
@@ -904,7 +943,7 @@ export class Community {
 
   async leave(user: User, groupId: string): Promise<void> {
     const ctx = await this.#ctx(user, groupId);
-    if (ctx.subject.isOwner) throw new ApiError(409, 'dono_nao_sai', 'O dono não pode sair do grupo. Passe o grupo para outra pessoa ou exclua-o.');
+    if (ctx.snap.group.ownerId === user.id) throw new ApiError(409, 'dono_nao_sai', 'O dono não pode sair do grupo. Passe o grupo para outra pessoa ou exclua-o.');
     await this.#db.tx((tx) => this.#removeMember(tx, ctx.snap, user.id));
     this.#afterRemoval(groupId, user.id, 'saiu');
   }
@@ -1157,7 +1196,7 @@ export class Community {
       // Só entram canais que quem pergunta também pode ver.
       if (has(this.permissionsIn(ctx.snap, ctx.subject, channel), P.VIEW_CHANNEL)) channels[channel.id] = str(this.permissionsIn(ctx.snap, subject, channel));
     }
-    return { userId: targetId, isOwner: subject.isOwner, timedOut: subject.timedOut === true, base: str(basePermissions(subject, ctx.snap.roles)), channels };
+    return { userId: targetId, isOwner: subject.isOwner, isCosmicAdmin: subject.isCosmicAdmin === true, timedOut: subject.timedOut === true, base: str(basePermissions(subject, ctx.snap.roles)), channels };
   }
 
   // --- Cargos -----------------------------------------------------------------------------
@@ -1828,6 +1867,7 @@ export class Community {
     return {
       member: {
         userId: member.userId,
+        cosmicAdmin: member.cosmicAdmin === true,
         username: member.username,
         displayName: member.displayName,
         nickname: member.nickname,
@@ -1837,6 +1877,7 @@ export class Community {
         roleIds: [...member.roleIds],
         bot: member.bot,
         isOwner: subject.isOwner,
+        isCosmicAdmin: subject.isCosmicAdmin === true,
       },
       permissions: str(basePermissions(subject, ctx.snap.roles)),
       canAct: {

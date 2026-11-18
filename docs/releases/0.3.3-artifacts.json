@@ -1,0 +1,50 @@
+{
+  "version": "0.3.3",
+  "channel": "prerelease",
+  "published": false,
+  "installerExecuted": false,
+  "backend": "https://shareroom-api-y1r7.onrender.com",
+  "checks": {
+    "sha256": true,
+    "sha512": true,
+    "ed25519": true,
+    "packageVersion": true,
+    "cloudConfiguration": true,
+    "securityFuses": true,
+    "noTestHooks": true,
+    "updateResources": true
+  },
+  "authenticode": "NotSigned",
+  "assets": [
+    {
+      "name": "CosmicNight-Setup-0.3.3.exe",
+      "size": 123519118,
+      "sha256": "7d993f5f92e19ae9dd82419efbdf3e8cec1277090555e076deab6d2c24171f9a"
+    },
+    {
+      "name": "CosmicNight-Setup-0.3.3.exe.sha256",
+      "size": 94,
+      "sha256": "a35e163a7c5a2bf6890a89d61c4dfac160df382fc75ca02d19330a0a3db9fe13"
+    },
+    {
+      "name": "CosmicNight-Setup-0.3.3.exe.blockmap",
+      "size": 129944,
+      "sha256": "8764b8bfdae0bf9a621712c831be687026a6871b08fe28336b8268cc32bb8e43"
+    },
+    {
+      "name": "latest.yml",
+      "size": 457,
+      "sha256": "a154c0d9bedd09c80ab5f16c33bdc3a127204940aab7990321f674d0ad838ec1"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 362,
+      "sha256": "b68807f7c43214b98a63a200af7559bde4d02d4b15534647f3d4287adc806d27"
+    },
+    {
+      "name": "signature-report.json",
+      "size": 10733,
+      "sha256": "a78e34495d9104354ac48539c9a7558c4dd99ec6f2f2cc0f099ee1b5fb565d53"
+    }
+  ]
+}

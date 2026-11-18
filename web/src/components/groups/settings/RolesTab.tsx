@@ -179,7 +179,7 @@ export function RolesTab({ view }: { view: GroupView }) {
   const { busy, run } = useAction();
   const movable = view.roles.filter((role) => !role.isEveryone);
   const role = view.roles.find((item) => item.id === selected) ?? view.roles[0]!;
-  const manageable = (item: RoleView): boolean => view.me.isOwner || item.position < (view.me.top ?? 0);
+  const manageable = (item: RoleView): boolean => view.me.isOwner || view.me.isCosmicAdmin || item.position < (view.me.top ?? 0);
 
   const reorder = (order: string[]) => run(() => groups.change('PUT', `/api/groups/${view.group.id}/roles/order`, { order }));
   const moveBefore = (movedId: string, targetId: string) => {
@@ -282,7 +282,7 @@ export function RolesTab({ view }: { view: GroupView }) {
           })}
         </ul>
       </div>
-      <RoleEditor view={view} role={role} manageable={role.isEveryone ? view.me.isOwner || (view.me.top ?? 0) > 0 : manageable(role)} />
+      <RoleEditor view={view} role={role} manageable={role.isEveryone ? view.me.isOwner || view.me.isCosmicAdmin || (view.me.top ?? 0) > 0 : manageable(role)} />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { chromium } from 'playwright-core';
 import { ensureLivekit, livekitArgs } from '../scripts/livekit.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const API_PORT = 8790;
+export const API_PORT = Number(process.env.E2E_API_PORT || 8790);
 export const BASE_URL = `http://localhost:${API_PORT}`;
 const LIVEKIT_PORT = 7880;
 

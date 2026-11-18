@@ -7,7 +7,7 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { iso, type Db } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
 
-export const USERNAME_RULE = /^[A-Za-z0-9_.]{3,24}$/;
+export const USERNAME_RULE = /^[A-Za-z0-9_.]{2,24}$/;
 export const MIN_PASSWORD = 8;
 export const MAX_PASSWORD = 128;
 const SESSION_DAYS = 30;
@@ -24,6 +24,8 @@ export interface User {
   username: string;
   displayName: string;
   createdAt: string;
+  cosmicAdmin?: boolean;
+  adminVerified?: boolean;
 }
 
 function derive(password: string, salt: Buffer, cost: number): Promise<Buffer> {
@@ -58,6 +60,8 @@ const toUser = (row: Record<string, unknown>): User => ({
   username: String(row.username),
   displayName: String(row.display_name),
   createdAt: iso(row.created_at),
+  cosmicAdmin: row.cosmic_admin === true,
+  adminVerified: row.admin_verified_until != null && new Date(String(row.admin_verified_until)).getTime() > Date.now(),
 });
 
 export class Accounts {
@@ -74,7 +78,7 @@ export class Accounts {
   async register(input: { username: unknown; displayName: unknown; password: unknown }): Promise<{ user: User; token: string }> {
     const username = typeof input.username === 'string' ? input.username.trim() : '';
     if (!USERNAME_RULE.test(username)) {
-      throw new ApiError(400, 'usuario_invalido', 'O nome de usuário deve ter de 3 a 24 caracteres: letras sem acento, números, ponto ou sublinhado.');
+      throw new ApiError(400, 'usuario_invalido', 'O nome de usuário deve ter de 2 a 24 caracteres: letras sem acento, números, ponto ou sublinhado.');
     }
     const password = this.#checkPassword(input.password);
     const displayName = cleanText(input.displayName, 32) || username;
@@ -101,7 +105,7 @@ export class Accounts {
   async login(input: { username: unknown; password: unknown }): Promise<{ user: User; token: string }> {
     const username = typeof input.username === 'string' ? input.username.trim().toLowerCase() : '';
     const password = typeof input.password === 'string' ? input.password : '';
-    const [row] = await this.#db.query('SELECT * FROM users WHERE username_key = $1', [username]);
+    const [row] = await this.#db.query('SELECT u.*, EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id) AS cosmic_admin FROM users u WHERE username_key = $1', [username]);
     this.#decoy ??= hashPassword('senha que ninguém usa', this.#cost);
     const ok = password.length <= MAX_PASSWORD && (await verifyPassword(password, row ? String(row.password_hash) : await this.#decoy));
     // A mesma resposta para "conta não existe" e "senha errada": não dá para descobrir nomes de usuário por aqui.
@@ -114,7 +118,7 @@ export class Accounts {
     if (!token || token.length < 20 || token.length > 200) return null;
     const hash = hashToken(token);
     const [row] = await this.#db.query(
-      `SELECT u.*, s.last_seen_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()`,
+      `SELECT u.*, s.last_seen_at, s.admin_verified_until, EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id) AS cosmic_admin FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()`,
       [hash],
     );
     if (!row) return null;
@@ -154,12 +158,13 @@ export class Accounts {
   }
 
   async byId(id: string): Promise<User | null> {
-    const [row] = await this.#db.query('SELECT * FROM users WHERE id = $1', [id]);
+    const [row] = await this.#db.query('SELECT u.*, EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id) AS cosmic_admin FROM users u WHERE id = $1', [id]);
     return row ? toUser(row) : null;
   }
 
   async purgeExpired(): Promise<void> {
     await this.#db.query('DELETE FROM sessions WHERE expires_at <= now()');
+    await this.#db.query("DELETE FROM security_limits WHERE window_until < now() - interval '1 day'");
   }
 
   #checkPassword(value: unknown): string {

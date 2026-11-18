@@ -3,6 +3,7 @@
  * mensagens privadas. Nada daqui passa pelas regras de um grupo, e nenhuma rota de grupo lê estas tabelas:
  * administradores de servidores não enxergam conversas privadas.
  */
+import { isCosmicAdmin } from './global-admin.ts';
 import { iso, isoOrNull, num, type Db, type Row } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
 import { imageInfo } from '../../../shared/image-info.ts';
@@ -138,6 +139,7 @@ export class Social {
     const [note] = await this.#db.query('SELECT note, nickname FROM user_notes WHERE owner_id = $1 AND target_id = $2', [viewer.id, targetId]);
     return {
       ...card(target),
+      cosmicAdmin: await isCosmicAdmin(this.#db, targetId),
       createdAt: iso(target.created_at),
       bio: open ? String(target.bio) : null,
       status: open ? String(target.status_text) : null,

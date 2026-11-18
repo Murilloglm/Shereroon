@@ -45,7 +45,7 @@ export async function createWorld(limiter: RateLimiter = new Unlimited(), module
   const community = new Community(db, hub, sfu, { livekitUrl: config.livekitUrl, tokenTtlSeconds: 600 }, limiter);
   /** Relógio dos bots: os testes adiantam o tempo em vez de esperar. */
   const clock = { now: new Date('2026-11-16T15:00:00.000Z') };
-  const economy = new Economy(db, community, { now: () => clock.now });
+  const economy = new Economy(db, community, { now: () => clock.now, adminSecret: config.appSecret });
   const bots = new BotRuntime(db, community, modules, { now: () => clock.now, economy });
   const app = createApp({ config, sfu, limiter, groups: { accounts, community, bots, economy } });
 

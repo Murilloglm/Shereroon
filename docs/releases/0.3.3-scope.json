@@ -1,0 +1,78 @@
+{
+  "version": "0.3.3",
+  "base": "7b3af325d6ad5ccc9c04fd8570c808cd1e1cf55f",
+  "branch": "release/cosmic-0.3.3",
+  "modified": [
+    ".env.example",
+    "e2e/harness.mjs",
+    "server/src/bots/runtime.ts",
+    "server/src/community/auth.ts",
+    "server/src/community/core.ts",
+    "server/src/community/economy.ts",
+    "server/src/community/gateway.ts",
+    "server/src/community/routes.ts",
+    "server/src/community/social.ts",
+    "server/src/db/schema.ts",
+    "server/src/node.ts",
+    "server/test/world.ts",
+    "shared/permissions.ts",
+    "web/src/components/groups/AuthPage.tsx",
+    "web/src/components/groups/GroupsPage.tsx",
+    "web/src/components/groups/UserPanel.tsx",
+    "web/src/components/groups/settings/GroupSettings.tsx",
+    "web/src/components/groups/settings/MembersTab.tsx",
+    "web/src/components/groups/settings/RolesTab.tsx",
+    "web/src/components/settings/PersonalizationSettings.tsx",
+    "web/src/components/settings/SettingsScreen.tsx",
+    "web/src/components/social/UserInteractions.tsx",
+    "web/src/lib/cosmetics.ts",
+    "web/src/lib/groups/client.ts",
+    "web/src/lib/settings-screen.ts",
+    "web/src/lib/social/client.ts"
+  ],
+  "new": [
+    "docs/cosmic-admin.md",
+    "e2e/platform.test.mjs",
+    "server/scripts/bootstrap-admin.ts",
+    "server/scripts/recover-admin.ts",
+    "server/src/community/admin-routes.ts",
+    "server/src/community/commerce.ts",
+    "server/src/community/global-admin.ts",
+    "server/test/platform.test.ts",
+    "web/src/components/settings/CosmicAdminSettings.tsx",
+    "web/src/components/settings/GiftsSettings.tsx"
+  ],
+  "excludedTracked": [
+    "package.json",
+    "package-lock.json"
+  ],
+  "excludedUntracked": [
+    ".claude/",
+    "neon.ts",
+    "skills-lock.json"
+  ],
+  "neverShip": [
+    ".env.local",
+    ".neon",
+    "server/.data/"
+  ],
+  "initialTrackedCount": 28,
+  "preparation": [
+    "desktop/package.json",
+    "desktop/package-lock.json",
+    "desktop/scripts/audit-signatures.ps1",
+    "server/tsconfig.json",
+    "server/scripts/preflight-production.ts",
+    "server/test/release-migration.test.ts",
+    "server/test/bootstrap-cli.test.ts",
+    "docs/releases/0.3.3-scope.json",
+    "docs/releases/0.3.3-database-preflight.json",
+    "docs/releases/0.3.3-previous-release.json",
+    "docs/releases/0.3.3-notes.md",
+    "docs/releases/0.3.3.md",
+    "docs/releases/0.3.3-validation.json",
+    "docs/releases/0.3.3-artifacts.json",
+    "docs/releases/0.3.3-files.json"
+  ],
+  "initialTrackedExplanation": "28 no Git atual: 26 da atualiza??o e 2 de depend?ncias Neon em andamento. A contagem anterior de 27 n?o inclu?a todos os arquivos da prepara??o final."
+}

@@ -504,6 +504,102 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    id: 7,
+    name: 'administração global, MFA, códigos promocionais e presentes',
+    sql: `
+      CREATE TABLE global_permissions (
+        user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE RESTRICT,
+        role TEXT NOT NULL DEFAULT 'cosmic_admin' CHECK (role = 'cosmic_admin'),
+        unlimited_cosmetics BOOLEAN NOT NULL DEFAULT true,
+        is_primary BOOLEAN NOT NULL DEFAULT false,
+        mfa_secret TEXT,
+        mfa_pending TEXT,
+        mfa_last_step BIGINT NOT NULL DEFAULT -1,
+        recovery_hashes JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX one_primary_admin ON global_permissions(is_primary) WHERE is_primary;
+      ALTER TABLE sessions ADD COLUMN admin_verified_until TIMESTAMPTZ;
+      CREATE TABLE admin_audit (
+        id BIGSERIAL PRIMARY KEY,
+        actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        action TEXT NOT NULL,
+        target_id TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        detail JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX admin_audit_recent ON admin_audit(id DESC);
+      CREATE TABLE security_limits (
+        key TEXT PRIMARY KEY,
+        hits INTEGER NOT NULL,
+        window_until TIMESTAMPTZ NOT NULL
+      );
+      CREATE TABLE promo_codes (
+        id TEXT PRIMARY KEY,
+        code TEXT NOT NULL,
+        code_key TEXT NOT NULL UNIQUE,
+        reward_kind TEXT NOT NULL DEFAULT 'points' CHECK (reward_kind IN ('points', 'cosmetic')),
+        points INTEGER NOT NULL DEFAULT 0 CHECK (points BETWEEN 0 AND 1000000),
+        item_id TEXT,
+        expires_at TIMESTAMPTZ,
+        max_uses INTEGER CHECK (max_uses > 0),
+        per_user INTEGER NOT NULL DEFAULT 1 CHECK (per_user BETWEEN 1 AND 100),
+        uses INTEGER NOT NULL DEFAULT 0 CHECK (uses >= 0),
+        active BOOLEAN NOT NULL DEFAULT true,
+        revoked_at TIMESTAMPTZ,
+        created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CHECK ((reward_kind = 'points' AND points > 0 AND item_id IS NULL) OR
+               (reward_kind = 'cosmetic' AND points = 0 AND item_id IS NOT NULL))
+      );
+      CREATE TABLE promo_redemptions (
+        id TEXT PRIMARY KEY,
+        code_id TEXT NOT NULL REFERENCES promo_codes(id),
+        user_id TEXT NOT NULL REFERENCES users(id),
+        request_id TEXT NOT NULL,
+        ordinal INTEGER NOT NULL CHECK (ordinal > 0),
+        reward JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (user_id, request_id),
+        UNIQUE (code_id, user_id, ordinal)
+      );
+      CREATE INDEX promo_redemptions_code ON promo_redemptions(code_id, created_at DESC);
+      CREATE TABLE shop_settings (
+        item_id TEXT PRIMARY KEY,
+        price INTEGER CHECK (price BETWEEN 0 AND 1000000),
+        active BOOLEAN NOT NULL DEFAULT true,
+        transferable BOOLEAN NOT NULL DEFAULT false
+      );
+      CREATE TABLE gifts (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL REFERENCES users(id),
+        recipient_id TEXT NOT NULL REFERENCES users(id),
+        item_id TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('purchase', 'transfer')),
+        message TEXT NOT NULL DEFAULT '',
+        price INTEGER NOT NULL CHECK (price >= 0),
+        request_id TEXT NOT NULL,
+        read_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (sender_id, request_id),
+        CHECK (sender_id <> recipient_id)
+      );
+      CREATE INDEX gifts_recipient ON gifts(recipient_id, created_at DESC);
+      CREATE TABLE global_settings (
+        key TEXT PRIMARY KEY,
+        value JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      INSERT INTO global_settings (key, value) VALUES ('promotions_enabled', 'true'), ('gifts_enabled', 'true');
+      -- Unidades administrativas nunca transferem itens de teste para a economia real.
+      ALTER TABLE user_items ADD COLUMN admin_grant BOOLEAN NOT NULL DEFAULT false;
+      -- Uma aquisição pode ser transferida e depois comprada outra vez; refs novas identificam cada compra.
+      ALTER TABLE user_items ADD COLUMN acquisition_id TEXT;
+    `,
+  },
+
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

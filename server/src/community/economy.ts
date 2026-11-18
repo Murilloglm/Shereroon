@@ -6,14 +6,17 @@
  * verdade (teclado, mouse ou voz nos últimos minutos, informado pelo próprio aplicativo); cada recompensa tem uma
  * chave única (não conta duas vezes, nem com pedidos simultâneos) e há limites por dia.
  */
-import { CATALOG, itemById, POINTS, SLOTS, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
+import { itemById, POINTS, SLOTS, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
 import { iso, type Db, type Row } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
+import { CosmicAdmin, unlimitedCosmetics } from './global-admin.ts';
+import { Commerce } from './commerce.ts';
 import { newId, type User } from './auth.ts';
 import type { Community, CommunityEvent } from './core.ts';
 
 export interface EconomyOptions {
   now?: () => Date;
+  adminSecret?: string;
 }
 
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -29,6 +32,8 @@ function minutesOfDay(date: Date): number {
 }
 
 export class Economy {
+  readonly commerce: Commerce;
+  readonly admin: CosmicAdmin;
   readonly #db: Db;
   readonly #community: Community;
   readonly #now: () => Date;
@@ -43,6 +48,8 @@ export class Economy {
     this.#db = db;
     this.#community = community;
     this.#now = options.now ?? (() => new Date());
+    this.commerce = new Commerce(db, community, this.#now);
+    this.admin = new CosmicAdmin(db, options.adminSecret);
     community.onEvent((event) => this.#enqueue(() => this.#onEvent(event)));
   }
 
@@ -88,7 +95,7 @@ export class Economy {
     if (!options.ignoreCaps) {
       const day = dayOf(this.#now());
       const [totals] = await this.#db.query(
-        "SELECT coalesce(sum(delta) FILTER (WHERE delta > 0 AND reason <> 'teste'), 0) AS earned, coalesce(sum(delta) FILTER (WHERE reason = $3), 0) AS kind FROM points_ledger WHERE user_id = $1 AND day = $2",
+        "SELECT coalesce(sum(delta) FILTER (WHERE delta > 0 AND reason NOT IN ('teste', 'resgate', 'admin')), 0) AS earned, coalesce(sum(delta) FILTER (WHERE reason = $3), 0) AS kind FROM points_ledger WHERE user_id = $1 AND day = $2",
         [userId, day, reason],
       );
       value = Math.min(value, POINTS.dailyCap - Number(totals?.earned ?? 0));
@@ -110,13 +117,14 @@ export class Economy {
 
   async points(user: User) {
     const [row] = await this.#db.query('SELECT points FROM users WHERE id = $1', [user.id]);
-    const [today] = await this.#db.query("SELECT coalesce(sum(delta) FILTER (WHERE delta > 0 AND reason <> 'teste'), 0) AS earned FROM points_ledger WHERE user_id = $1 AND day = $2", [
+    const [today] = await this.#db.query("SELECT coalesce(sum(delta) FILTER (WHERE delta > 0 AND reason NOT IN ('teste', 'resgate', 'admin')), 0) AS earned FROM points_ledger WHERE user_id = $1 AND day = $2", [
       user.id,
       dayOf(this.#now()),
     ]);
     const history = await this.#db.query('SELECT delta, reason, detail, created_at FROM points_ledger WHERE user_id = $1 ORDER BY seq DESC LIMIT 50', [user.id]);
     return {
       points: Number(row?.points ?? 0),
+      unlimited: await unlimitedCosmetics(this.#db, user.id),
       earnedToday: Number(today?.earned ?? 0),
       rules: POINTS,
       history: history.map((entry) => ({ delta: Number(entry.delta), reason: String(entry.reason), detail: String(entry.detail), at: iso(entry.created_at) })),
@@ -177,25 +185,19 @@ export class Economy {
 
   async shop(user: User) {
     const owned = new Set((await this.#db.query('SELECT item_id FROM user_items WHERE user_id = $1', [user.id])).map((row) => String(row.item_id)));
-    return CATALOG.map((item) => ({ ...item, owned: owned.has(item.id) }));
+    return (await this.commerce.catalog()).filter((item) => item.active).map((item) => ({ ...item, owned: owned.has(item.id) }));
   }
 
-  async buy(user: User, itemId: unknown) {
-    const item = typeof itemId === 'string' ? itemById(itemId) : undefined;
-    if (!item) throw new ApiError(404, 'item_inexistente', 'Esse item não existe na loja.');
-    const [owned] = await this.#db.query('SELECT 1 FROM user_items WHERE user_id = $1 AND item_id = $2', [user.id, item.id]);
-    if (owned) throw new ApiError(409, 'item_repetido', 'Você já tem esse item.');
-    const done = await this.spend(user.id, item.price, 'compra', item.name, `compra:${item.id}`, async (tx) => {
-      await tx.query('INSERT INTO user_items (user_id, item_id, price) VALUES ($1, $2, $3)', [user.id, item.id, item.price]);
-    });
-    if (!done) throw new ApiError(409, 'item_repetido', 'Você já tem esse item.');
+  async buy(user: User, itemId: unknown, expectedPrice?: unknown) {
+    await this.commerce.purchase(user, itemId, expectedPrice);
     return this.inventory(user);
   }
 
   async inventory(user: User) {
-    const items = await this.#db.query('SELECT item_id, price, acquired_at FROM user_items WHERE user_id = $1 ORDER BY acquired_at', [user.id]);
+    const items = await this.#db.query('SELECT item_id, price, acquired_at, admin_grant FROM user_items WHERE user_id = $1 ORDER BY acquired_at', [user.id]);
+    const catalog = await this.commerce.catalog();
     return {
-      items: items.filter((row) => itemById(String(row.item_id))).map((row) => ({ id: String(row.item_id), price: Number(row.price), acquiredAt: iso(row.acquired_at) })),
+      items: items.filter((row) => itemById(String(row.item_id))).map((row) => ({ id: String(row.item_id), price: Number(row.price), acquiredAt: iso(row.acquired_at), adminGrant: row.admin_grant === true, transferable: row.admin_grant !== true && catalog.find((item) => item.id === row.item_id)?.transferable === true })),
       equipped: (await this.equippedOf([user.id]))[user.id] ?? {},
     };
   }
@@ -212,12 +214,12 @@ export class Economy {
     if (item.kind !== slot) throw new ApiError(400, 'espaco_invalido', `“${item.name}” não vai nesse espaço.`);
     const variant = typeof input.variant === 'string' ? item.variants.find((option) => option.id === input.variant) : item.variants[0];
     if (!variant) throw new ApiError(400, 'cor_invalida', 'Essa cor não existe para esse item.');
-    const [owned] = await this.#db.query('SELECT 1 FROM user_items WHERE user_id = $1 AND item_id = $2', [user.id, item.id]);
-    if (!owned) throw new ApiError(403, 'item_nao_adquirido', 'Adquira o item na loja antes de equipar.');
-    await this.#db.query(
-      'INSERT INTO user_equipped (user_id, slot, item_id, variant) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, slot) DO UPDATE SET item_id = $3, variant = $4',
-      [user.id, slot, item.id, variant.id],
-    );
+    await this.#db.tx(async (tx) => {
+      await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
+      const [owned] = await tx.query('SELECT 1 FROM user_items WHERE user_id = $1 AND item_id = $2', [user.id, item.id]);
+      if (!owned) throw new ApiError(403, 'item_nao_adquirido', 'Adquira o item na loja antes de equipar.');
+      await tx.query('INSERT INTO user_equipped (user_id, slot, item_id, variant) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, slot) DO UPDATE SET item_id = $3, variant = $4', [user.id, slot, item.id, variant.id]);
+    });
     void this.#community.social.announceProfileChange(user.id);
     return this.inventory(user);
   }

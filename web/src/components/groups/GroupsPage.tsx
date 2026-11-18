@@ -245,7 +245,7 @@ function unreadOf(view: GroupView, channelId: string): { unread: boolean; mentio
   return { muted, mentions: muted ? 0 : (state?.mentions ?? 0), unread, count: unread ? (state?.count ?? 0) : 0 };
 }
 
-/** Membros agrupados como no restante do app: dono, depois cada cargo (do mais alto ao mais baixo), online sem cargo e offline. */
+/** Cosmic Admin, dono, cargos locais, membros online e offline. */
 function MemberList({ view, className }: { view: GroupView; className?: string }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [query, setQuery] = useState('');
@@ -258,16 +258,18 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
   const categorized = view.members.filter((member) => member.bot && (member.botList ?? 'categoria') === 'categoria').sort(byName);
   const listed = view.members.filter((member) => !member.bot || member.botList === 'mostrar');
   const online = listed.filter((member) => member.online).sort(byName);
-  const owner = online.filter((member) => member.userId === view.group.ownerId);
-  const rest = online.filter((member) => member.userId !== view.group.ownerId);
+  const admins = listed.filter((member) => member.cosmicAdmin).sort(byName);
+  const owner = online.filter((member) => member.userId === view.group.ownerId && !member.cosmicAdmin);
+  const rest = online.filter((member) => member.userId !== view.group.ownerId && !member.cosmicAdmin);
   const sections: { id: string; title: string; color?: string; icon?: ReactNode; members: MemberView[] }[] = [
+    { id: 'cosmic-admin', title: 'Cosmic Admin', color: 'var(--color-neon-300)', icon: <Crown className="size-3.5" aria-hidden="true" />, members: admins },
     { id: 'dono', title: 'Dono', color: 'var(--color-warn-400)', icon: <Crown className="size-3.5" aria-hidden="true" />, members: owner },
     ...view.roles
       .filter((role) => !role.isEveryone)
       .sort((a, b) => b.position - a.position)
       .map((role) => ({ id: role.id, title: role.name, color: role.color ?? undefined, members: rest.filter((member) => topRole(view, member)?.id === role.id) })),
     { id: 'online', title: 'Online', members: rest.filter((member) => !topRole(view, member)) },
-    { id: 'offline', title: 'Offline', members: listed.filter((member) => !member.online).sort(byName) },
+    { id: 'offline', title: 'Offline', members: listed.filter((member) => !member.online && !member.cosmicAdmin).sort(byName) },
     { id: 'bots', title: 'Bots', members: categorized },
     ...(showHidden ? [{ id: 'ocultos', title: 'Bots fora da lista', members: hiddenBots }] : []),
   ];
@@ -291,6 +293,7 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
               <span data-testid="member-name">{memberName(member)}</span>
             </CosmeticName>
             {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
+            {member.cosmicAdmin && <span className="shrink-0 rounded bg-brand-500/20 px-1 text-[10px] font-extrabold text-neon-300" title="Cosmic Admin · administração oficial" data-testid="member-cosmic-admin">♛ Admin</span>}
             {member.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-on-accent" data-testid="member-bot-tag">BOT</span>}
           </p>
           <p className="flex items-center gap-1 truncate text-xs text-fog-500">

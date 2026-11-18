@@ -8,6 +8,7 @@ import { social } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { backgroundStyle, DecoratedAvatar, nameStyle } from '../cosmetics/Decoration.tsx';
 import { errorText } from '../groups/common.tsx';
+import { GiftDialog, RedeemCode } from './GiftsSettings.tsx';
 import { Button, cx } from '../ui.tsx';
 
 const formatPoints = (value: number) => value.toLocaleString('pt-BR');
@@ -88,7 +89,7 @@ export function PointsSettings() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-3xl font-extrabold" data-testid="points-balance" data-value={info.points}>
-              {formatPoints(info.points)} <span className="text-base font-bold text-fog-400">Cosmic Points</span>
+              {info.unlimited ? '∞' : formatPoints(info.points)} <span className="text-base font-bold text-fog-400">Cosmic Points</span>
             </p>
             <p className="text-sm text-fog-400" data-testid="points-today">
               Hoje: {formatPoints(info.earnedToday)} de {formatPoints(POINTS.dailyCap)} possíveis
@@ -134,6 +135,8 @@ export function PointsSettings() {
 export function ShopSettings({ account }: { account: Account }) {
   const shop = useStore(cosmetics.store, (state) => state.shop);
   const points = useStore(cosmetics.store, (state) => state.points?.points ?? null);
+  const unlimited = useStore(cosmetics.store, (state) => state.points?.unlimited === true);
+  const [gift, setGift] = useState<CosmeticItem | null>(null);
   const [variants, setVariants] = useState<Record<string, string>>({});
   useEffect(() => {
     void cosmetics.loadShop().catch(() => undefined);
@@ -144,11 +147,11 @@ export function ShopSettings({ account }: { account: Account }) {
   const buy = (item: CosmeticItem) =>
     void dialogs.confirm({
       title: `Adquirir ${item.name}?`,
-      message: `Custa ${formatPoints(item.price)} Cosmic Points. Depois é só equipar em Decorações e inventário.`,
+      message: unlimited ? 'Aquisição administrativa sem débito de pontos. O item de teste não permite transferência.' : `Custa ${formatPoints(item.price)} Cosmic Points. Depois é só equipar em Decorações e inventário.`,
       confirmLabel: 'Adquirir',
       action: async () => {
         try {
-          await cosmetics.buy(item.id);
+          await cosmetics.buy(item.id, item.price);
           groups.notify(`${item.name} adquirido. Equipe em Decorações e inventário.`);
         } catch (error) {
           await dialogs.alert({ kind: 'erro', title: 'Não foi possível adquirir', message: errorText(error) });
@@ -159,8 +162,10 @@ export function ShopSettings({ account }: { account: Account }) {
   return (
     <>
       <p className="text-sm text-fog-300" data-testid="shop-balance">
-        Seu saldo: <Price value={points ?? 0} />
+        Saldo: {unlimited ? <span className="font-extrabold text-neon-300">∞ Cosmic Points</span> : <><Price value={points ?? 0} /> Cosmic Points</>}
       </p>
+      <RedeemCode />
+      {gift && <GiftDialog item={gift} onClose={() => setGift(null)} />}
       {SLOTS.map((kind) => {
         const items = (shop ?? CATALOG.map((item) => ({ ...item, owned: false }))).filter((item) => item.kind === kind);
         return (
@@ -168,7 +173,7 @@ export function ShopSettings({ account }: { account: Account }) {
             <div className="grid gap-3 sm:grid-cols-2">
               {items.map((item) => {
                 const variant = variants[item.id] ?? item.variants[0]!.id;
-                const missing = (points ?? 0) < item.price ? item.price - (points ?? 0) : 0;
+                const missing = !unlimited && (points ?? 0) < item.price ? item.price - (points ?? 0) : 0;
                 return (
                   <article key={item.id} className="grid gap-2 rounded-xl bg-ink-850/80 p-3" data-testid="shop-item" data-item={item.id}>
                     <ItemPreview account={account} item={item} variant={variant} />
@@ -194,6 +199,7 @@ export function ShopSettings({ account }: { account: Account }) {
                         </Button>
                       )}
                     </div>
+                    <Button size="sm" variant="quiet" onClick={() => setGift(item)}>Presentear um amigo</Button>
                   </article>
                 );
               })}
@@ -209,6 +215,7 @@ export function ShopSettings({ account }: { account: Account }) {
 
 export function InventorySettings({ account }: { account: Account }) {
   const inventory = useStore(cosmetics.store, (state) => state.inventory);
+  const [transferItem, setTransferItem] = useState<CosmeticItem | null>(null);
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   useEffect(() => {
     void cosmetics.loadInventory().catch(() => undefined);
@@ -225,6 +232,7 @@ export function InventorySettings({ account }: { account: Account }) {
   };
   return (
     <>
+      {transferItem && <GiftDialog item={transferItem} transfer onClose={() => setTransferItem(null)} />}
       <Block>
         <div className="flex items-center gap-5">
           <div className="flex size-28 items-center justify-center" data-testid="inventory-preview">
@@ -260,6 +268,7 @@ export function InventorySettings({ account }: { account: Account }) {
                       </p>
                     </div>
                     <Swatches item={item} value={isOn ? current!.variant : ''} onChange={(variant) => void equip(kind, item.id, variant)} />
+                    {inventory.items.find((entry) => entry.id === item.id)?.transferable && <Button size="sm" onClick={() => setTransferItem(item)}>Transferir para amigo</Button>}
                     {isOn ? (
                       <Button size="sm" onClick={() => void equip(kind, null)} data-testid={`unequip-${item.id}`}>
                         Tirar

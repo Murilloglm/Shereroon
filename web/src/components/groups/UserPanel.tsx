@@ -31,7 +31,7 @@ export function UserPanel({ account, live, session, className }: { account: Acco
       <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-1 text-left hover:bg-white/5" onClick={() => openSettings('perfil')} data-testid="account-menu" aria-label="Sua conta">
         <DecoratedAvatar userId={account.id} name={account.displayName} size={38} online={live} />
         <span className="min-w-0">
-          <span className="block truncate text-sm leading-tight font-bold">{account.displayName}</span>
+          <span className="block truncate text-sm leading-tight font-bold">{account.cosmicAdmin && <span className="mr-1 text-neon-300" title="Cosmic Admin">♛</span>}{account.displayName}</span>
           <span className="flex items-center gap-1 truncate text-xs text-fog-400">
             <span className={cx('size-1.5 shrink-0 rounded-full', live ? 'bg-ok-400' : 'bg-warn-400')} />
             {live ? 'Online' : 'Reconectando…'}

@@ -115,7 +115,7 @@ function Overview({ view, onClose }: { view: GroupView; onClose: () => void }) {
 
       <section className="grid gap-3 border-t border-ink-700 pt-5">
         <h3 className="text-base font-extrabold">Sair ou encerrar</h3>
-        {view.me.isOwner ? (
+        {view.me.isOwner || view.me.isCosmicAdmin ? (
           <>
             <div className="flex flex-wrap items-end gap-2">
               <label className={cx(fieldLabel, 'min-w-48 flex-1')}>

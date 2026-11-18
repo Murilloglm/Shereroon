@@ -126,7 +126,9 @@ export function UserInteractions({ view, voice, children }: Ctx & { children: Re
 
 /** Esta conta está acima da outra na hierarquia (ou é a dona)? */
 export function outranks(view: GroupView, member: MemberView | undefined): boolean {
-  if (!member || member.userId === view.me.userId || member.userId === view.group.ownerId) return false;
+  if (!member || member.userId === view.me.userId || member.cosmicAdmin) return false;
+  if (view.me.isCosmicAdmin) return true;
+  if (member.userId === view.group.ownerId) return false;
   if (view.me.isOwner) return true;
   const mine = view.me.top ?? -1;
   const theirs = Math.max(-1, ...view.roles.filter((role) => !role.isEveryone && member.roleIds.includes(role.id)).map((role) => role.position));
@@ -255,6 +257,7 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
             <p className="text-sm text-fog-400">
               @{profile.username}
               {profile.nickname && <span className="ml-1 text-xs text-neon-300">(apelido seu)</span>}
+              {profile.cosmicAdmin && <span className="ml-1.5 rounded bg-violet-500/20 px-2 py-1 text-xs font-extrabold text-neon-300" title="Administrador oficial da plataforma">♛ Cosmic Admin</span>}
               {profile.bot && <span className="ml-1.5 rounded bg-brand-500/30 px-1 text-[10px] font-extrabold text-brand-100">BOT</span>}
             </p>
             {profile.status && <p className="mt-2 text-sm text-fog-200" data-testid="profile-status">{profile.status}</p>}
@@ -470,7 +473,7 @@ export function UserMenu({
       </>
     );
   } else if (panel === 'cargos' && view && member) {
-    const manageable = view.roles.filter((role) => !role.isEveryone && !role.botId && (view.me.isOwner || role.position < (view.me.top ?? -1)));
+    const manageable = view.roles.filter((role) => !role.isEveryone && !role.botId && (view.me.isOwner || view.me.isCosmicAdmin || role.position < (view.me.top ?? -1)));
     content = (
       <>
         <Item icon={<ChevronLeft className="size-4" />} onSelect={() => setPanel('principal')}>Voltar</Item>

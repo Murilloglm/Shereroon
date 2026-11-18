@@ -8,6 +8,7 @@ import { can, memberName, nameColor, selectClass, useAction } from '../common.ts
 
 interface Effective {
   isOwner: boolean;
+  isCosmicAdmin: boolean;
   timedOut: boolean;
   base: bigint;
   channels: Record<string, bigint>;
@@ -22,7 +23,7 @@ function EffectivePermissions({ view, member, onClose }: { view: GroupView; memb
   useEffect(() => {
     void run(async () => {
       const raw = await groups.call('GET', `/api/groups/${view.group.id}/members/${member.userId}/permissions`);
-      setData({ isOwner: raw.isOwner, timedOut: raw.timedOut, base: BigInt(raw.base), channels: Object.fromEntries(Object.entries(raw.channels as Record<string, string>).map(([id, value]) => [id, BigInt(value)])) });
+      setData({ isOwner: raw.isOwner, isCosmicAdmin: raw.isCosmicAdmin === true, timedOut: raw.timedOut, base: BigInt(raw.base), channels: Object.fromEntries(Object.entries(raw.channels as Record<string, string>).map(([id, value]) => [id, BigInt(value)])) });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [member.userId, view]);
@@ -37,7 +38,7 @@ function EffectivePermissions({ view, member, onClose }: { view: GroupView; memb
         <p className="text-sm text-fog-400">
           Resultado calculado pelo servidor, somando todos os cargos da pessoa ({roles.map((role) => role.name).join(', ')}) e as regras do canal escolhido.
         </p>
-        {data?.isOwner && <Notice tone="ok">Esta pessoa é a dona do grupo: tem todas as permissões, em todos os canais.</Notice>}
+        {data?.isCosmicAdmin ? <Notice tone="ok">Cosmic Admin: administração oficial da plataforma, acima dos cargos locais.</Notice> : data?.isOwner && <Notice tone="ok">Esta pessoa é a dona do grupo: tem todas as permissões, em todos os canais.</Notice>}
         {data?.timedOut && <Notice tone="aviso">Está de castigo agora: lê, mas não escreve, não fala e não transmite.</Notice>}
         <label className="grid gap-1.5 text-sm font-semibold">
           Onde
@@ -97,7 +98,7 @@ export function MembersTab({ view }: { view: GroupView }) {
   const { busy, run } = useAction();
   const term = search.trim().toLowerCase();
   const members = view.members.filter((member) => !term || `${member.displayName} ${member.username} ${member.nickname ?? ''}`.toLowerCase().includes(term));
-  const assignable = view.roles.filter((role) => !role.isEveryone && (view.me.isOwner || role.position < (view.me.top ?? 0)));
+  const assignable = view.roles.filter((role) => !role.isEveryone && (view.me.isOwner || view.me.isCosmicAdmin || role.position < (view.me.top ?? 0)));
   const inspected = view.members.find((member) => member.userId === inspecting);
   const path = (member: MemberView, action = '') => `/api/groups/${view.group.id}/members/${member.userId}${action}`;
 
@@ -118,6 +119,7 @@ export function MembersTab({ view }: { view: GroupView }) {
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 truncate font-bold" style={{ color: nameColor(view, member) }}>
                   <span className="truncate">{memberName(member)}</span>
+                  {member.cosmicAdmin && <Crown className="size-4 shrink-0 text-neon-300" aria-label="Cosmic Admin" />}
                   {owner && <Crown className="size-4 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
                   {timedOut && <Clock className="size-4 shrink-0 text-warn-400" aria-label="De castigo" />}
                 </p>
@@ -133,7 +135,7 @@ export function MembersTab({ view }: { view: GroupView }) {
                     </li>
                   ))}
               </ul>
-              {can(view, P.MANAGE_ROLES) && !owner && (
+              {can(view, P.MANAGE_ROLES) && (!owner || view.me.isCosmicAdmin) && (!member.cosmicAdmin || self) && (
                 <Menu
                   side="bottom"
                   align="end"
@@ -159,7 +161,7 @@ export function MembersTab({ view }: { view: GroupView }) {
                   <Eye className="size-4" />
                 </IconButton>
               )}
-              {!owner && !self && (can(view, P.KICK_MEMBERS) || can(view, P.BAN_MEMBERS)) && (
+              {!member.cosmicAdmin && (!owner || view.me.isCosmicAdmin) && !self && (can(view, P.KICK_MEMBERS) || can(view, P.BAN_MEMBERS)) && (
                 <Menu
                   side="bottom"
                   align="end"

@@ -9,6 +9,7 @@ import { Store } from '../store.ts';
 export type FriendState = 'nenhuma' | 'enviada' | 'recebida' | 'amigos';
 
 export interface UserCard {
+  cosmicAdmin?: boolean;
   id: string;
   username: string;
   displayName: string;

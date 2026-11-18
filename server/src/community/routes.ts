@@ -6,6 +6,8 @@ import type { Context, Hono } from 'hono';
 import { ApiError } from '../errors.ts';
 import type { RateLimiter } from '../ratelimit.ts';
 import type { BotRuntime } from '../bots/runtime.ts';
+import { mountAdmin } from './admin-routes.ts';
+import { securityLimit } from './global-admin.ts';
 import type { Economy } from './economy.ts';
 import type { Accounts, User } from './auth.ts';
 import type { Community } from './core.ts';
@@ -54,6 +56,9 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
   const who = async (c: Context): Promise<User> => {
     const user = await accounts.authenticate(tokenOf(c));
     if (!user) throw new ApiError(401, 'sessao_invalida', 'Sua sessão terminou. Entre de novo.');
+    if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/gifts'].includes(c.req.path))) {
+      await economy.admin.requireMfa(user, tokenOf(c));
+    }
     return user;
   };
 
@@ -88,6 +93,8 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
     }
     return all;
   };
+
+  if (economy) mountAdmin(app, { economy, community, limiter, who, tokenOf, body, clientIp });
 
   app.get('/api/features', (c) => c.json({ groups: true, maxFileBytes: community.limits.fileBytes }));
 
@@ -377,11 +384,31 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
       if (limiter.take(`ativo:${user.id}`, 3, 60_000)) await economy.markActive(user);
       return c.json({ ok: true });
     });
+    app.post('/api/shop/redeem', async (c) => {
+      const user = await who(c);
+      if (!limiter.take(`resgate:${user.id}`, 8, 10 * 60_000) || !limiter.take(`resgate-ip:${clientIp(c)}`, 30, 10 * 60_000) || !(await securityLimit(economy.commerce.db, `resgate:${user.id}`, 8)) || !(await securityLimit(economy.commerce.db, `resgate-ip:${clientIp(c)}`, 30))) throw new ApiError(429, 'muitas_tentativas', 'Muitas tentativas de resgate. Aguarde alguns minutos.');
+      return c.json(await economy.commerce.redeem(user, await body(c)));
+    });
+    app.get('/api/me/gifts', async (c) => {
+      const page = Number(c.req.query('page') ?? 0);
+      if (!Number.isSafeInteger(page) || page < 0 || page > 100_000) throw new ApiError(400, 'pagina_invalida', 'Página inválida.');
+      return c.json({ gifts: await economy.commerce.gifts(await who(c), page * 100) });
+    });
+    app.post('/api/shop/gifts', async (c) => {
+      const user = await who(c);
+      if (!limiter.take(`presentes:${user.id}`, 20, 10 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Aguarde antes de enviar mais presentes.');
+      return c.json(await economy.commerce.gift(user, await body(c)));
+    });
+    app.post('/api/me/gifts/:giftId/read', async (c) => {
+      await economy.commerce.readGift(await who(c), id(c, 'giftId'));
+      return c.json({ ok: true });
+    });
     app.get('/api/shop', async (c) => c.json({ items: await economy.shop(await who(c)) }));
     app.post('/api/shop/buy', async (c) => {
       const user = await who(c);
       if (!limiter.take(`compra:${user.id}`, 20, 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Compras demais. Espere um pouco.');
-      return c.json(await economy.buy(user, (await body(c)).itemId));
+      const input = await body(c);
+      return c.json(await economy.buy(user, input.itemId, input.expectedPrice));
     });
     app.get('/api/me/inventory', async (c) => c.json(await economy.inventory(await who(c))));
     app.put('/api/me/equipped', async (c) => c.json(await economy.equip(await who(c), await body(c))));
