@@ -208,6 +208,131 @@
 }
 
 @layer components {
+  /*
+   * Decorações de avatar (components/cosmetics/Decoration.tsx): só transform e opacidade (leve para a placa de vídeo).
+   * Paradas fora de .cn-deco-live (listas, animações reduzidas); reagem à voz com brilho e escala.
+   */
+  .cn-deco {
+    transition: filter 160ms ease-out, transform 160ms ease-out;
+  }
+  .cn-deco:not(.cn-deco-live) * {
+    animation: none !important;
+  }
+  /* Só os elementos animados giram/escalam em volta do próprio centro (os outros mantêm o transform do desenho). */
+  .cn-deco [class*='cn-anim-'] {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  /* Giram em volta do centro do avatar: com view-box, a origem é a do sistema do viewBox (-50..50), ou seja, o centro. */
+  .cn-deco > g.cn-anim-spin,
+  .cn-deco > g.cn-wings {
+    transform-box: view-box;
+    transform-origin: 0 0;
+  }
+  .cn-deco-speaking {
+    filter: drop-shadow(0 0 4px var(--color-ok-400));
+    transform: scale(1.05);
+  }
+  .cn-deco-speaking .cn-wings {
+    transform: scale(1.08);
+  }
+  .cn-wings {
+    transition: transform 200ms ease-out;
+  }
+  .cn-anim-spin {
+    animation: cn-spin 8s linear infinite;
+  }
+  .cn-anim-twinkle {
+    animation: cn-twinkle 2.2s ease-in-out infinite;
+  }
+  .cn-anim-float {
+    animation: cn-float 3s ease-in-out infinite;
+  }
+  .cn-anim-bob {
+    animation: cn-bob 3.2s ease-in-out infinite;
+  }
+  .cn-anim-flicker {
+    animation: cn-flicker 0.9s ease-in-out infinite;
+  }
+  .cn-anim-flash {
+    animation: cn-flash 1.8s steps(1, end) infinite;
+  }
+  .cn-anim-burst {
+    animation: cn-burst 900ms ease-out 1 both;
+  }
+  @keyframes cn-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes cn-twinkle {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  @keyframes cn-float {
+    0%,
+    100% {
+      opacity: 0.2;
+      transform: translateY(2px);
+    }
+    50% {
+      opacity: 1;
+      transform: translateY(-3px);
+    }
+  }
+  @keyframes cn-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+  @keyframes cn-flicker {
+    0%,
+    100% {
+      opacity: 0.8;
+      transform: scaleY(1);
+    }
+    45% {
+      opacity: 1;
+      transform: scaleY(1.2);
+    }
+    70% {
+      transform: scaleY(0.9);
+    }
+  }
+  @keyframes cn-flash {
+    0%,
+    62% {
+      opacity: 0;
+    }
+    64%,
+    74% {
+      opacity: 1;
+    }
+    76%,
+    100% {
+      opacity: 0;
+    }
+  }
+  @keyframes cn-burst {
+    from {
+      opacity: 0.9;
+      transform: scale(0.8);
+    }
+    to {
+      opacity: 0;
+      transform: scale(1.35);
+    }
+  }
+
   /* Arte do fundo (nebulosas, estrelas, riscos de luz): só no tema Cosmic Night. */
   .cn-backdrop-art {
     opacity: var(--backdrop-art);

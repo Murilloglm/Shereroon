@@ -1,4 +1,4 @@
-import { Accessibility, Bell, Check, Download, Gamepad2, LogOut, Mic, Palette, Power, Search, ShieldCheck, UserPen, UserRound, Users, X } from 'lucide-react';
+import { Accessibility, Bell, Check, Download, Gamepad2, LogOut, ShoppingBag, Sparkles, Wand2, Mic, Palette, Power, Search, ShieldCheck, UserPen, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { appearance, setAppearance, type MotionChoice } from '../../lib/appearance.ts';
 import { desktop } from '../../lib/desktop.ts';
@@ -13,6 +13,7 @@ import { AutostartSettings } from '../AutostartSettings.tsx';
 import { errorText, fieldLabel, selectClass, useAction } from '../groups/common.tsx';
 import { CallSettings } from '../room/CallSettings.tsx';
 import { GamesSettings } from './GamesSettings.tsx';
+import { InventorySettings, PointsSettings, ShopSettings } from './PersonalizationSettings.tsx';
 import { ProfileEditor } from '../social/ProfileEditor.tsx';
 import { UpdateSettings } from '../UpdateSettings.tsx';
 import { Avatar, Button, cx, Notice, TextInput, Toggle } from '../ui.tsx';
@@ -29,7 +30,7 @@ interface SectionDef {
   render: (account: Account | null) => ReactNode;
 }
 
-const GROUPS = ['Conta', 'Experiência', 'Voz e vídeo', 'Aplicativo', 'Jogos'];
+const GROUPS = ['Conta', 'Experiência', 'Voz e vídeo', 'Aplicativo', 'Jogos', 'Personalização'];
 
 const SECTIONS: SectionDef[] = [
   { id: 'conta', group: 'Conta', title: 'Minha conta', keywords: 'usuário senha trocar sair', icon: UserRound, needsAccount: true, render: (account) => account && <MyAccount account={account} /> },
@@ -42,6 +43,9 @@ const SECTIONS: SectionDef[] = [
   { id: 'voz', group: 'Voz e vídeo', title: 'Voz, vídeo e transmissão', keywords: 'microfone saída fone áudio ruído eco codec qualidade volume transmissão tela', icon: Mic, render: () => <VoiceSettings /> },
   { id: 'inicializacao', group: 'Aplicativo', title: 'Inicialização com o Windows', keywords: 'iniciar bandeja minimizado windows', icon: Power, available: () => Boolean(desktop?.autostart), render: () => <AutostartSettings /> },
   { id: 'jogos', group: 'Jogos', title: 'Jogos e atividades', keywords: 'jogo detectar atividade privacidade executável vincular xbox riot plataforma', icon: Gamepad2, needsAccount: true, render: (account) => account && <GamesSettings userId={account.id} /> },
+  { id: 'inventario', group: 'Personalização', title: 'Decorações e inventário', keywords: 'decoração avatar equipar moldura fundo cor nome inventário itens', icon: Wand2, needsAccount: true, render: (account) => account && <InventorySettings account={account} /> },
+  { id: 'loja', group: 'Personalização', title: 'Loja', keywords: 'comprar adquirir itens decorações cosmic points', icon: ShoppingBag, needsAccount: true, render: (account) => account && <ShopSettings account={account} /> },
+  { id: 'pontos', group: 'Personalização', title: 'Cosmic Points', keywords: 'pontos saldo histórico ganhar recompensas', icon: Sparkles, needsAccount: true, render: () => <PointsSettings /> },
   { id: 'atualizacoes', group: 'Aplicativo', title: 'Atualizações', keywords: 'versão baixar instalar atualizar', icon: Download, available: () => Boolean(desktop), render: () => <UpdateSettings /> },
 ];
 

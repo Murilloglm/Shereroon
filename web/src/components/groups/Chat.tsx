@@ -7,6 +7,7 @@ import { dialogs } from '../../lib/dialogs.ts';
 import { applyMention, insertAt, mentionQuery, splitMessage } from '../../lib/groups/text.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, emojiUrl, IconButton, Menu, MenuItem, MenuLabel, MotionSafeImage, Notice } from '../ui.tsx';
+import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
 import { Attachments, formatBytes, kindOf } from './Attachments.tsx';
 import { errorText, memberName, nameColor, useAction } from './common.tsx';
 import { EmojiGlyph, EmojiPicker, QUICK_EMOJIS, type CustomEmoji } from './EmojiPicker.tsx';
@@ -519,7 +520,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                     ) : (
                       <span className={cx('block', message.reply && 'mt-5')}>
                         <UserTrigger userId={message.author.id}>
-                          <Avatar id={message.author.id ?? message.author.name} name={name} size={40} image={member?.avatar} />
+                          <DecoratedAvatar userId={message.author.id ?? message.author.name} name={name} size={40} image={member?.avatar} />
                         </UserTrigger>
                       </span>
                     )}
@@ -536,7 +537,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                       <p className="flex items-baseline gap-2">
                         <UserTrigger userId={message.author.id} className="min-w-0 truncate">
                           <span className="truncate font-bold text-neon-300 hover:underline" style={{ color: member ? nameColor(view, member) : undefined }} data-testid="chat-author">
-                            {name}
+                            <CosmeticName userId={message.author.id}>{name}</CosmeticName>
                           </span>
                         </UserTrigger>
                         {message.author.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-on-accent">BOT</span>}

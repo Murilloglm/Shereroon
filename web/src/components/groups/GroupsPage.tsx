@@ -4,6 +4,7 @@ import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
 import { searchMembers } from '../../lib/groups/member-search.ts';
+import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
 // A detecção de jogos (se a pessoa ligou) acompanha a conta conectada.
 import '../../lib/activities.ts';
 import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
@@ -283,12 +284,12 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
     return (
       <li key={member.userId} className={cx('rounded-lg hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
         <UserTrigger userId={member.userId} className="flex items-center gap-2.5 px-2 py-1.5">
-        <Avatar id={member.userId} name={memberName(member)} size={34} online={member.online} image={member.avatar} />
+        <DecoratedAvatar userId={member.userId} name={memberName(member)} size={34} online={member.online} image={member.avatar} />
         <div className="min-w-0">
           <p className="flex items-center gap-1 truncate text-sm font-bold text-neon-300" style={{ color: nameColor(view, member) }}>
-            <span className="truncate" data-testid="member-name">
-              {memberName(member)}
-            </span>
+            <CosmeticName userId={member.userId} className="truncate">
+              <span data-testid="member-name">{memberName(member)}</span>
+            </CosmeticName>
             {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
             {member.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-on-accent" data-testid="member-bot-tag">BOT</span>}
           </p>

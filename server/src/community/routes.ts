@@ -17,6 +17,8 @@ export interface CommunityDeps {
   bots?: BotRuntime;
   /** Cosmic Points, loja e inventário. */
   economy?: Economy;
+  /** Só em desenvolvimento e testes: rota para dar pontos à própria conta (nunca em produção). */
+  devPoints?: boolean;
   limiter: RateLimiter;
   clientIp: (c: Context) => string;
 }
@@ -25,7 +27,7 @@ const SMALL = 8_192;
 const MESSAGE = 24_000;
 const WITH_ICON = 200_000;
 
-export function mountCommunity(app: Hono, { accounts, community, bots, economy, limiter, clientIp }: CommunityDeps): void {
+export function mountCommunity(app: Hono, { accounts, community, bots, economy, devPoints, limiter, clientIp }: CommunityDeps): void {
   const body = async (c: Context, maxBytes = SMALL): Promise<Record<string, unknown>> => {
     if (Number(c.req.header('content-length') ?? 0) > maxBytes) throw new ApiError(413, 'corpo_grande', 'Requisição grande demais.');
     let text: string;
@@ -383,6 +385,14 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
     });
     app.get('/api/me/inventory', async (c) => c.json(await economy.inventory(await who(c))));
     app.put('/api/me/equipped', async (c) => c.json(await economy.equip(await who(c), await body(c))));
+    if (devPoints && process.env.NODE_ENV !== 'production') {
+      app.post('/api/dev/points', async (c) => {
+        const user = await who(c);
+        const amount = Math.min(10_000, Math.max(0, Number((await body(c)).amount) || 0));
+        await economy.earn(user.id, amount, 'teste', 'Pontos de desenvolvimento', `teste:${Date.now()}:${Math.random()}`, { ignoreCaps: true });
+        return c.json(await economy.points(user));
+      });
+    }
     app.get('/api/cosmetics', async (c) => {
       await who(c);
       return c.json({ cosmetics: await economy.equippedOf(String(c.req.query('ids') ?? '').split(',')) });

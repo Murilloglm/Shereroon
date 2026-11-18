@@ -116,6 +116,10 @@ describe('loja e inventário', () => {
     expect((await w.ok('GET', `/api/cosmetics?ids=${ana.id}`, beto.token)).cosmetics[ana.id]).toEqual({});
   });
 
+  it('não existe rota para dar pontos (a de desenvolvimento só liga com variável própria e fora de produção)', async () => {
+    expect((await w.api('POST', '/api/dev/points', ana.token, { amount: 1000 })).status).toBe(404);
+  });
+
   it('o saldo nunca fica negativo, nem por um gasto interno', async () => {
     await expect(w.economy.spend(caio.id, 10_000, 'teste', 'gasto alto demais', 'teste:gasto')).rejects.toThrow(/Cosmic Points suficientes/);
     expect((await balance(caio)).points).toBeGreaterThanOrEqual(0);

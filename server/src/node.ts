@@ -61,7 +61,7 @@ async function openDatabase(): Promise<Db | null> {
 }
 
 const sfu = new LiveKitSfu(config);
-let groups: { accounts: Accounts; community: Community; bots: BotRuntime; economy: Economy } | undefined;
+let groups: { accounts: Accounts; community: Community; bots: BotRuntime; economy: Economy; devPoints: boolean } | undefined;
 let database: Db | null = null;
 try {
   database = await openDatabase();
@@ -86,7 +86,9 @@ try {
     // Cosmic Points: recompensas por participação (a cada minuto confere quem está em chamada).
     const economy = new Economy(database, community);
     economy.start();
-    groups = { accounts, community, bots, economy };
+    // Rota de pontos de teste: só com COSMIC_DEV_POINTS=1 E fora de produção (o Render roda com NODE_ENV=production).
+    const devPoints = process.env.COSMIC_DEV_POINTS === '1' && process.env.NODE_ENV !== 'production';
+    groups = { accounts, community, bots, economy, devPoints };
     setInterval(() => void accounts.purgeExpired().catch(() => undefined), 6 * 60 * 60_000).unref();
     setInterval(() => void community.purgeOrphanFiles().catch(() => undefined), 30 * 60_000).unref();
   }

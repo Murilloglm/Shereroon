@@ -38,7 +38,7 @@ export interface AppDeps {
   remoteAddress?: (c: Context) => string | undefined;
   limiter?: RateLimiter;
   /** Contas e grupos. Só existem quando há banco de dados; sem ele, as salas por link seguem funcionando. */
-  groups?: { accounts: Accounts; community: Community; bots?: BotRuntime; economy?: Economy };
+  groups?: { accounts: Accounts; community: Community; bots?: BotRuntime; economy?: Economy; devPoints?: boolean };
 }
 
 
