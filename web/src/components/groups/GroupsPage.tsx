@@ -1,8 +1,9 @@
-import { ArrowLeft, AudioLines, Bell, BellOff, ChevronDown, ChevronRight, Compass, Crown, FolderPlus, Hash, Link2, Lock, MessageSquare, MicOff, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PhoneOff, Plus, Settings, UserPlus, Users, Volume2 } from 'lucide-react';
+import { ArrowLeft, AudioLines, Bell, BellOff, ChevronDown, ChevronRight, Compass, Crown, FolderPlus, Hash, Link2, Lock, MessageSquare, MicOff, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PhoneOff, Plus, Search, Settings, UserPlus, Users, Volume2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
+import { searchMembers } from '../../lib/groups/member-search.ts';
 import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
 import { alertIncoming } from '../../lib/groups/alerts.ts';
 import { groups, type ChannelKind, type ChannelView, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
@@ -244,6 +245,8 @@ function unreadOf(view: GroupView, channelId: string): { unread: boolean; mentio
 /** Membros agrupados como no restante do app: dono, depois cada cargo (do mais alto ao mais baixo), online sem cargo e offline. */
 function MemberList({ view, className }: { view: GroupView; className?: string }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [query, setQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
   const inVoice = new Set(Object.values(view.voice).flat());
   const byName = (a: MemberView, b: MemberView) => memberName(a).localeCompare(memberName(b));
   // Bots: junto dos membros, numa categoria própria ou fora da lista (só aparência; dá para abrir no fim).
@@ -272,10 +275,74 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
       return next;
     });
 
+  const row = (member: MemberView) => {
+    const role = topRole(view, member);
+    const status = !member.online ? 'Offline' : inVoice.has(member.userId) ? 'Em chamada' : 'Online';
+    return (
+      <li key={member.userId} className={cx('rounded-lg hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
+        <UserTrigger userId={member.userId} className="flex items-center gap-2.5 px-2 py-1.5">
+        <Avatar id={member.userId} name={memberName(member)} size={34} online={member.online} image={member.avatar} />
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 truncate text-sm font-bold text-neon-300" style={{ color: nameColor(view, member) }}>
+            <span className="truncate" data-testid="member-name">
+              {memberName(member)}
+            </span>
+            {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
+            {member.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-on-accent" data-testid="member-bot-tag">BOT</span>}
+          </p>
+          <p className="flex items-center gap-1 truncate text-xs text-fog-500">
+            <span className={cx('size-1.5 shrink-0 rounded-full', !member.online ? 'bg-fog-500' : status === 'Em chamada' ? 'bg-neon-400' : 'bg-ok-400')} />
+            {role && (
+              <>
+                <span className="truncate" data-testid="member-top-role">
+                  {role.name}
+                </span>
+                <span aria-hidden="true">•</span>
+              </>
+            )}
+            <span className="shrink-0">{status}</span>
+          </p>
+        </div>
+        </UserTrigger>
+      </li>
+    );
+  };
+
+  const searching = query.trim() !== '' || roleFilter !== '';
+  const results = searching ? searchMembers(view.members, query, roleFilter) : [];
+  const filterRoles = view.roles.filter((role) => !role.isEveryone && !role.botId).sort((a, b) => b.position - a.position);
+
   return (
     <aside className={cx('min-h-0 overflow-y-auto p-2.5', className)} data-testid="member-list">
       <h2 className="px-2 pt-1 pb-2 text-[15px] font-extrabold">Membros — {view.members.length}</h2>
-      {sections.map(
+      <div className="mb-2 grid gap-1.5 px-1">
+        <label className="flex h-8 items-center gap-2 rounded-lg bg-ink-950/60 px-2 text-sm text-fog-400 focus-within:ring-1 focus-within:ring-brand-400">
+          <Search className="size-3.5 shrink-0" aria-hidden="true" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar membros" aria-label="Pesquisar membros por nome, apelido ou usuário" className="min-w-0 flex-1 bg-transparent text-fog-100 outline-none placeholder:text-fog-500" data-testid="member-search" />
+          {query && (
+            <button type="button" aria-label="Limpar a pesquisa" className="text-fog-500 hover:text-fog-100" onClick={() => setQuery('')}>
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </label>
+        {filterRoles.length > 0 && (
+          <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} aria-label="Filtrar por cargo" className="h-8 rounded-lg border-0 bg-ink-950/60 px-2 text-xs text-fog-300 outline-none focus:ring-1 focus:ring-brand-400" data-testid="member-role-filter">
+            <option value="">Todos os cargos</option>
+            {filterRoles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {searching && (
+        <section className="mb-2" data-testid="member-results">
+          <p className="px-2 py-1 text-xs font-extrabold tracking-wide text-fog-400 uppercase">{results.length === 0 ? 'Ninguém encontrado' : `Resultados — ${results.length}`}</p>
+          <ul className="mt-1 grid gap-0.5">{results.map(row)}</ul>
+        </section>
+      )}
+      {!searching && sections.map(
         (section) =>
           section.members.length > 0 && (
             <section key={section.id} className="mb-2">
@@ -296,44 +363,13 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
               </button>
               {!collapsed.has(section.id) && (
                 <ul className="mt-1 grid gap-0.5">
-                  {section.members.map((member) => {
-                    const role = topRole(view, member);
-                    const status = !member.online ? 'Offline' : inVoice.has(member.userId) ? 'Em chamada' : 'Online';
-                    return (
-                      <li key={member.userId} className={cx('rounded-lg hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
-                        <UserTrigger userId={member.userId} className="flex items-center gap-2.5 px-2 py-1.5">
-                        <Avatar id={member.userId} name={memberName(member)} size={34} online={member.online} image={member.avatar} />
-                        <div className="min-w-0">
-                          <p className="flex items-center gap-1 truncate text-sm font-bold text-neon-300" style={{ color: nameColor(view, member) }}>
-                            <span className="truncate" data-testid="member-name">
-                              {memberName(member)}
-                            </span>
-                            {member.userId === view.group.ownerId && <Crown className="size-3.5 shrink-0 text-warn-400" aria-label="Dono do grupo" />}
-                            {member.bot && <span className="shrink-0 rounded bg-brand-500 px-1 text-[10px] leading-4 font-extrabold text-on-accent" data-testid="member-bot-tag">BOT</span>}
-                          </p>
-                          <p className="flex items-center gap-1 truncate text-xs text-fog-500">
-                            <span className={cx('size-1.5 shrink-0 rounded-full', !member.online ? 'bg-fog-500' : status === 'Em chamada' ? 'bg-neon-400' : 'bg-ok-400')} />
-                            {role && (
-                              <>
-                                <span className="truncate" data-testid="member-top-role">
-                                  {role.name}
-                                </span>
-                                <span aria-hidden="true">•</span>
-                              </>
-                            )}
-                            <span className="shrink-0">{status}</span>
-                          </p>
-                        </div>
-                        </UserTrigger>
-                      </li>
-                    );
-                  })}
+                  {section.members.map(row)}
                 </ul>
               )}
             </section>
           ),
       )}
-      {hiddenBots.length > 0 && (
+      {!searching && hiddenBots.length > 0 && (
         <button type="button" className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-fog-500 hover:bg-white/5 hover:text-fog-300" onClick={() => setShowHidden((value) => !value)} aria-expanded={showHidden} data-testid="hidden-bots">
           {showHidden ? 'Esconder' : 'Mostrar'} {hiddenBots.length === 1 ? '1 bot fora da lista' : `${hiddenBots.length} bots fora da lista`}
         </button>

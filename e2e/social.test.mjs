@@ -96,6 +96,23 @@ test('perfil: bio, status e foto enviada com prévia; os outros veem no cartão 
   await beto.keyboard.press('Escape');
 });
 
+test('pesquisa de membros: pelo nome ou usuário, abre o perfil pelo resultado; "ninguém encontrado"', async () => {
+  const search = beto.getByTestId('member-search');
+  await search.fill('CAI');
+  const results = beto.getByTestId('member-results');
+  await results.waitFor();
+  assert.deepEqual(await results.getByTestId('member').evaluateAll((items) => items.map((item) => item.dataset.user)), ['caio']);
+  await results.getByTestId('member').locator('[data-user-trigger]').click();
+  await beto.getByTestId('profile-card').waitFor();
+  await beto.keyboard.press('Escape');
+  await search.fill('@ana');
+  assert.deepEqual(await results.getByTestId('member').evaluateAll((items) => items.map((item) => item.dataset.user)), ['ana']);
+  await search.fill('ninguem-com-esse-nome');
+  assert.match(await results.textContent(), /Ninguém encontrado/);
+  await search.fill('');
+  assert.equal(await beto.getByTestId('member-results').count(), 0, 'sem pesquisa, volta a lista por cargos');
+});
+
 test('menu de botão direito: amizade, apelido e nota pessoais (só quem criou vê)', async () => {
   await memberTrigger(beto, 'ana').click({ button: 'right' });
   const menu = beto.getByTestId('user-menu');
