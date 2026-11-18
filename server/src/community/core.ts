@@ -30,6 +30,7 @@ import { describeSfuError, sfuError } from '../sfu-errors.ts';
 import { cleanText, newId, type User } from './auth.ts';
 import type { Hub } from './hub.ts';
 import { Social } from './social.ts';
+import { Activities } from './activities.ts';
 import { imageInfo } from '../../../shared/image-info.ts';
 
 export type ChannelKind = 'categoria' | 'texto' | 'voz';
@@ -306,6 +307,7 @@ export class Community {
   readonly limits: { fileBytes: number; groupStorageBytes: number };
   /** Perfis, amizades e mensagens privadas (fora das regras dos grupos). */
   readonly social: Social;
+  readonly activities: Activities;
 
   constructor(db: Db, hub: Hub, sfu: Sfu, options: CommunityOptions, limiter = new RateLimiter()) {
     this.#db = db;
@@ -315,6 +317,7 @@ export class Community {
     this.#limiter = limiter;
     this.limits = { fileBytes: options.maxFileBytes ?? LIMITS.fileBytes, groupStorageBytes: options.groupStorageBytes ?? LIMITS.groupStorageBytes };
     this.social = new Social(db, hub, this);
+    this.activities = new Activities(db, hub);
     hub.canSeeChannel = (groupId, channelId, userId) => this.canSee(groupId, channelId, userId);
     hub.onVoiceDropped = (userId, place) => void sfu.removeParticipant(voiceRoom(place.channelId), userId).catch(() => undefined);
     hub.onVoiceChanged = (userId, before, after) => {

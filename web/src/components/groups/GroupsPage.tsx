@@ -4,6 +4,8 @@ import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
 import { searchMembers } from '../../lib/groups/member-search.ts';
+// A detecção de jogos (se a pessoa ligou) acompanha a conta conectada.
+import '../../lib/activities.ts';
 import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
 import { alertIncoming } from '../../lib/groups/alerts.ts';
 import { groups, type ChannelKind, type ChannelView, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';

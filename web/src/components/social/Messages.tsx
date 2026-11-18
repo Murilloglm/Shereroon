@@ -9,6 +9,7 @@ import { Attachments, FileSourceProvider } from '../groups/Attachments.tsx';
 import { EmojiPicker } from '../groups/EmojiPicker.tsx';
 import { errorText, groupHash, GroupIcon, useAction } from '../groups/common.tsx';
 import { Avatar, Button, cx, IconButton, TextInput } from '../ui.tsx';
+import { ActivityList } from './ActivityList.tsx';
 import { startDm, useUserTriggers } from './UserInteractions.tsx';
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -88,7 +89,7 @@ function ConversationRow({ conversation, active }: { conversation: Conversation;
 
 // --- Amigos ---------------------------------------------------------------------------------------
 
-type FriendsTab = 'online' | 'todos' | 'pendentes' | 'bloqueados' | 'adicionar';
+type FriendsTab = 'online' | 'atividades' | 'todos' | 'pendentes' | 'bloqueados' | 'adicionar';
 
 export function FriendsHome() {
   const friends = useStore(social.store, (state) => state.friends);
@@ -123,6 +124,7 @@ export function FriendsHome() {
         {(
           [
             ['online', 'Online'],
+            ['atividades', 'Atividades'],
             ['todos', 'Todos'],
             ['pendentes', pending > 0 ? `Pendentes (${pending})` : 'Pendentes'],
             ['bloqueados', 'Bloqueados'],
@@ -138,7 +140,9 @@ export function FriendsHome() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {tab === 'adicionar' ? (
+        {tab === 'atividades' ? (
+          <ActivityList />
+        ) : tab === 'adicionar' ? (
           <form onSubmit={add} className="grid max-w-xl gap-2">
             <p className="text-sm text-fog-400">Adicione pelo nome de usuário (o que aparece depois do @ no perfil).</p>
             <div className="flex gap-2">

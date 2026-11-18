@@ -97,6 +97,11 @@ export interface DesktopBridge {
     get(): Promise<AutostartState | null>;
     set(state: { enabled: boolean; minimized: boolean }): Promise<AutostartState | null>;
   };
+  /** Programas abertos, para a detecção de jogos (não existe em versões antigas do aplicativo). */
+  activity?: {
+    running(): Promise<string[]>;
+    programs(): Promise<{ exe: string; name: string; icon: string | null }[]>;
+  };
   /** Janela sem a barra do Windows (não existe em versões antigas do aplicativo, que têm a moldura padrão). */
   window?: {
     state(): Promise<WindowState | null>;

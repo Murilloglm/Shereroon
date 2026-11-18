@@ -34,6 +34,8 @@ import { groups, type GroupView, type MemberView } from '../../lib/groups/client
 import type { RoomSession } from '../../lib/session.ts';
 import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
+import { activities, playingFor, type CurrentActivity } from '../../lib/activities.ts';
+import { GameIcon } from '../settings/GameIcon.tsx';
 import { PersonVolume } from '../room/PersonVolume.tsx';
 import { Avatar, cx } from '../ui.tsx';
 import { errorText, memberName, nameColor } from '../groups/common.tsx';
@@ -253,6 +255,7 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
               {profile.bot && <span className="ml-1.5 rounded bg-brand-500/30 px-1 text-[10px] font-extrabold text-brand-100">BOT</span>}
             </p>
             {profile.status && <p className="mt-2 text-sm text-fog-200" data-testid="profile-status">{profile.status}</p>}
+            <ProfileActivity userId={profile.id} />
             {profile.bio && <p className="mt-2 text-sm leading-snug whitespace-pre-line text-fog-300" data-testid="profile-bio">{profile.bio}</p>}
             {roles.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1" data-testid="profile-roles">
@@ -668,5 +671,45 @@ function CallSection({ session, userId, name, onClose }: { session: RoomSession;
         </Item>
       )}
     </>
+  );
+}
+
+/** Jogo atual e jogos do perfil, se a pessoa deixar quem está vendo ver (Configurações → Jogos e atividades). */
+function ProfileActivity({ userId }: { userId: string }) {
+  const [data, setData] = useState<{ activity: CurrentActivity | null; games: { name: string; icon: string | null }[] } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void activities
+      .forProfile(userId)
+      .then((result) => alive && setData(result))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+  if (!data || (!data.activity && data.games.length === 0)) return null;
+  return (
+    <div className="mt-3 grid gap-2" data-testid="profile-activity">
+      {data.activity && (
+        <div className="flex items-center gap-2.5 rounded-xl bg-ink-900/70 p-2">
+          <GameIcon icon={data.activity.icon} size={36} />
+          <div className="min-w-0">
+            <p className="text-[11px] font-extrabold tracking-wide text-fog-500 uppercase">Jogando</p>
+            <p className="truncate text-sm font-bold" data-testid="profile-playing">{data.activity.name}</p>
+            <p className="text-xs text-fog-500">{playingFor(data.activity.startedAt)}</p>
+          </div>
+        </div>
+      )}
+      {data.games.length > 0 && (
+        <div className="flex flex-wrap gap-1" data-testid="profile-games">
+          {data.games.map((game) => (
+            <span key={game.name} className="flex items-center gap-1.5 rounded-md border border-ink-600 px-1.5 py-0.5 text-xs font-semibold">
+              <GameIcon icon={game.icon} size={16} />
+              {game.name}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

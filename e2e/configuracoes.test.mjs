@@ -36,7 +36,7 @@ test('abre em tela própria, com as categorias na barra lateral e a conta em des
   assert.equal(await screen().getAttribute('data-section'), 'conta');
   assert.match(await page.getByTestId('account-settings').textContent(), /@config/);
   // No site não há opções do aplicativo de Windows.
-  assert.deepEqual(await navIds(), ['conta', 'perfil', 'privacidade', 'amigos', 'aparencia', 'notificacoes', 'acessibilidade', 'voz']);
+  assert.deepEqual(await navIds(), ['conta', 'perfil', 'privacidade', 'amigos', 'aparencia', 'notificacoes', 'acessibilidade', 'voz', 'jogos']);
   // Ocupa a janela inteira, não uma janelinha sobre o chat.
   const box = await screen().boundingBox();
   assert.ok(box.width >= 1390 && box.height >= 890, `tamanho: ${JSON.stringify(box)}`);

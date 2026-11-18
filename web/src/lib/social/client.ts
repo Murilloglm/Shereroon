@@ -30,6 +30,7 @@ export interface Profile extends UserCard {
   canMessage: boolean;
   profilePrivacy?: 'todos' | 'membros' | 'amigos';
   dmPrivacy?: 'amigos' | 'membros';
+  activityPrivacy?: 'amigos' | 'membros' | 'ninguem';
 }
 
 export interface Friend {

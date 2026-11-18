@@ -2,12 +2,13 @@
 // e o que o navegador não oferece vem daqui: seletor próprio de telas e janelas, áudio do computador e por
 // aplicativo sem instalar nada à parte, bandeja do sistema, funcionamento em segundo plano e atualização.
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerSaveBlocker, protocol, session, shell, Tray } from 'electron';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { runtimeConnection } from './connection-config.mjs';
 import { DEEP_SCHEME, linkFromArgv } from './deep-link.mjs';
 import { cleanAutostart, HIDDEN_FLAG, loginItemFor, readAutostart, writeAutostart } from './autostart.mjs';
@@ -481,10 +482,66 @@ function installPermissions(ses) {
 
 const windowState = () => ({ maximized: Boolean(win?.isMaximized()), fullscreen: Boolean(win?.isFullScreen()), focused: Boolean(win?.isFocused()) });
 
+const run = promisify(execFile);
+
+/** Nomes dos executáveis rodando agora (só os nomes, sem pastas), para reconhecer o jogo aberto. */
+async function runningExes() {
+  if (process.platform !== 'win32') return [];
+  try {
+    const { stdout } = await run('tasklist', ['/fo', 'csv', '/nh'], { windowsHide: true, timeout: 5000, maxBuffer: 4 * 1024 * 1024 });
+    const names = new Set();
+    for (const line of stdout.split(/\r?\n/)) {
+      const name = /^"([^"]+)"/.exec(line)?.[1];
+      if (name && /\.exe$/i.test(name)) names.add(name);
+    }
+    return [...names];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Programas com janela aberta, com o nome do produto e o ícone do executável, para a pessoa escolher qual é o jogo
+ * que quer vincular. O caminho completo fica aqui no processo principal: a página recebe só o nome do .exe.
+ */
+async function openPrograms() {
+  if (process.platform !== 'win32') return [];
+  try {
+    const script = "Get-Process | Where-Object { $_.MainWindowTitle -and $_.Path } | Select-Object Path, MainWindowTitle, Product | ConvertTo-Json -Compress";
+    const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 10_000, maxBuffer: 4 * 1024 * 1024 });
+    const parsed = JSON.parse(stdout || '[]');
+    const rows = Array.isArray(parsed) ? parsed : [parsed];
+    const seen = new Set();
+    const out = [];
+    for (const row of rows.slice(0, 60)) {
+      const path = typeof row?.Path === 'string' ? row.Path : '';
+      const exe = path.split(/[\\/]/).pop() ?? '';
+      if (!/\.exe$/i.test(exe) || seen.has(exe.toLowerCase())) continue;
+      seen.add(exe.toLowerCase());
+      let icon = null;
+      try {
+        const image = await app.getFileIcon(path, { size: 'normal' });
+        const data = image.isEmpty() ? null : image.toDataURL();
+        icon = data && data.length <= 12_000 ? data : null;
+      } catch {
+        // sem ícone
+      }
+      const name = String(row.Product || row.MainWindowTitle || exe.replace(/\.exe$/i, '')).slice(0, 60);
+      out.push({ exe, name, icon });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 function installIpc() {
   // Botões da janela desenhados pela interface. "Fechar" passa pelo mesmo caminho do X do Windows (numa
   // sala, só esconde na bandeja).
   ipcMain.handle('window:state', (event) => (trusted(event) ? windowState() : null));
+  // Atividades: a página só pergunta quando a pessoa ligou a detecção de jogos (ou pediu a lista para vincular um).
+  ipcMain.handle('activity:running', async (event) => (trusted(event) ? runningExes() : []));
+  ipcMain.handle('activity:programs', async (event) => (trusted(event) ? openPrograms() : []));
   ipcMain.handle('window:control', (event, action) => {
     if (!trusted(event) || !win) return null;
     if (action === 'minimize') win.minimize();

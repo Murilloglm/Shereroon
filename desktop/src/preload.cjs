@@ -37,6 +37,12 @@ contextBridge.exposeInMainWorld('shareroomDesktop', {
     onState: (listener) => subscribe('window:state', listener),
   },
 
+  /** Jogos: programas abertos neste computador (só os nomes dos .exe), para a detecção de jogos que a pessoa liga. */
+  activity: {
+    running: () => ipcRenderer.invoke('activity:running'),
+    programs: () => ipcRenderer.invoke('activity:programs'),
+  },
+
   /** Convites abertos por um link cosmicnight://. `take` devolve o pendente (uma vez só). */
   links: {
     take: () => ipcRenderer.invoke('desktop:take-link'),

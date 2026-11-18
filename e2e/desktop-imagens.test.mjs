@@ -74,6 +74,30 @@ test('foto de perfil enviada aparece dentro do aplicativo, inclusive de um forma
     await waitFor(() => imageShows(photo), `a foto (${file.split(/[\\/]/).pop()}) carregar de verdade`);
   }
   assert.deepEqual(blocked, [], 'a política de segurança não bloqueou nenhuma imagem');
+  await page.getByTestId('settings-close').click();
+});
+
+test('detecção de jogos: o programa aberto é reconhecido e a lista de programas traz os ícones dos executáveis', { skip }, async () => {
+  // O "jogo" é o próprio aplicativo (com certeza está aberto): vinculado pelo nome do executável.
+  const exe = await app.evaluate(() => process.execPath.split(/[\\/]/).pop());
+  await page.evaluate(
+    async ([api, exe]) => {
+      const response = await fetch(`${api}/api/me/games`, { method: 'POST', headers: { authorization: `Bearer ${localStorage.getItem('shareroom:conta')}`, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Jogo de teste', exe }) });
+      if (!response.ok) throw new Error(await response.text());
+    },
+    [BASE_URL, exe],
+  );
+  await page.getByTestId('account-settings-open').click();
+  await page.getByTestId('settings-nav-jogos').click();
+  await page.getByRole('switch', { name: 'Detectar o jogo aberto neste computador' }).click();
+  await waitFor(async () => /jogando Jogo de teste/.test((await page.getByTestId('games-detected').textContent()) ?? ''), 'o aplicativo reconhecer o programa aberto');
+
+  await page.getByTestId('game-programs').click();
+  const list = page.getByTestId('game-program-list');
+  await waitFor(async () => (await list.locator('button').count()) > 0, 'a lista de programas abertos aparecer', 20_000);
+  assert.ok((await list.locator('img').count()) > 0, 'com o ícone tirado do executável');
+  await page.getByRole('switch', { name: 'Detectar o jogo aberto neste computador' }).click();
+  await page.getByTestId('settings-close').click();
 });
 
 test('a política continua fechada para outras origens de imagem', { skip }, async () => {

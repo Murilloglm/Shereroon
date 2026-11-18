@@ -439,6 +439,21 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
     });
   });
 
+  // --- Atividades e jogos vinculados ---------------------------------------------------------------
+  const activities = community.activities;
+  app.get('/api/me/games', async (c) => c.json({ games: await activities.games(await who(c)) }));
+  app.post('/api/me/games', async (c) => c.json({ game: await activities.addGame(await who(c), await body(c, 32_000)) }));
+  app.patch('/api/me/games/:gameId', async (c) => c.json({ game: await activities.updateGame(await who(c), c.req.param('gameId'), await body(c)) }));
+  app.delete('/api/me/games/:gameId', async (c) => (await activities.removeGame(await who(c), c.req.param('gameId')), c.json({ ok: true })));
+  app.put('/api/me/activity', async (c) => {
+    const user = await who(c);
+    if (!limiter.take(`atividade:${user.id}`, 30, 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Atualizações demais. Espere um pouco.');
+    return c.json(await activities.setActivity(user, await body(c)));
+  });
+  app.delete('/api/me/activity', async (c) => (await activities.clearActivity(await who(c)), c.json({ ok: true })));
+  app.get('/api/activities', async (c) => c.json({ friends: await activities.list(await who(c)) }));
+  app.get('/api/users/:userId/activity', async (c) => c.json(await activities.forProfile(await who(c), c.req.param('userId'))));
+
   app.get('/api/me/notes', async (c) => c.json({ notes: await social.notes(await who(c)) }));
   app.put('/api/users/:userId/note', async (c) => c.json({ note: await social.setNote(await who(c), id(c, 'userId'), await body(c)) }));
 

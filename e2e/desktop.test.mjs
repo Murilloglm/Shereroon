@@ -84,7 +84,7 @@ test('a interface roda de dentro do aplicativo, isolada do sistema', { skip }, a
     secure: window.isSecureContext,
   }));
   assert.equal(facts.node, false, 'a página não tem acesso ao Node');
-  assert.deepEqual(facts.bridge, ['autostart', 'chooseSource', 'config', 'links', 'listSources', 'onCommand', 'setState', 'update', 'window']);
+  assert.deepEqual(facts.bridge, ['activity', 'autostart', 'chooseSource', 'config', 'links', 'listSources', 'onCommand', 'setState', 'update', 'window']);
   assert.equal(facts.config.apiUrl, BASE_URL);
   assert.equal(facts.config.siteUrl, SITE);
   assert.ok(facts.config.helperPort > 1023, `componente de áudio numa porta local: ${facts.config.helperPort}`);

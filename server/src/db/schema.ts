@@ -421,6 +421,45 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    id: 5,
+    name: 'atividades: jogos vinculados, atividade atual e recentes, privacidade das atividades',
+    sql: `
+      -- Quem vê o que a conta está jogando: só amigos (padrão), também quem divide um grupo, ou ninguém.
+      ALTER TABLE users ADD COLUMN activity_privacy TEXT NOT NULL DEFAULT 'amigos' CHECK (activity_privacy IN ('amigos', 'membros', 'ninguem'));
+
+      -- Jogos que a pessoa vinculou: à mão (só o nome) ou com o executável detectado pelo aplicativo de Windows.
+      CREATE TABLE user_games (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        name_key TEXT NOT NULL,
+        -- Nome do executável em minúsculas (sem pasta), para reconhecer o jogo aberto; null se foi adicionado à mão.
+        exe TEXT,
+        -- Ícone pequeno (data:image/png) tirado do próprio executável, opcional.
+        icon TEXT,
+        show_on_profile BOOLEAN NOT NULL DEFAULT true,
+        -- Não mostrar atividade deste jogo.
+        hidden BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (user_id, name_key)
+      );
+      CREATE INDEX user_games_user ON user_games(user_id);
+
+      -- O que a pessoa jogou: a atividade atual é a que não terminou e foi renovada há pouco (o aplicativo renova
+      -- enquanto o jogo está aberto); as terminadas viram "atividades recentes".
+      CREATE TABLE user_activities (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        game_name TEXT NOT NULL,
+        game_id TEXT REFERENCES user_games(id) ON DELETE SET NULL,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ended_at TIMESTAMPTZ
+      );
+      CREATE INDEX user_activities_user ON user_activities(user_id, started_at DESC);
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

@@ -148,7 +148,7 @@ export class Social {
       note: note ? String(note.note) : '',
       nickname: note ? String(note.nickname) : '',
       canMessage: !self && (await this.#canMessage(viewer.id, target)),
-      ...(self ? { profilePrivacy: privacy, dmPrivacy: String(target.dm_privacy) } : {}),
+      ...(self ? { profilePrivacy: privacy, dmPrivacy: String(target.dm_privacy), activityPrivacy: String(target.activity_privacy) } : {}),
     };
   }
 
@@ -179,6 +179,10 @@ export class Social {
     if (input.profilePrivacy !== undefined) {
       if (!['todos', 'membros', 'amigos'].includes(String(input.profilePrivacy))) throw new ApiError(400, 'privacidade_invalida', 'Escolha quem pode ver seu perfil.');
       set('profile_privacy', input.profilePrivacy);
+    }
+    if (input.activityPrivacy !== undefined) {
+      if (!['amigos', 'membros', 'ninguem'].includes(String(input.activityPrivacy))) throw new ApiError(400, 'privacidade_invalida', 'Escolha quem pode ver o que você está jogando.');
+      set('activity_privacy', input.activityPrivacy);
     }
     if (input.dmPrivacy !== undefined) {
       if (!['amigos', 'membros'].includes(String(input.dmPrivacy))) throw new ApiError(400, 'privacidade_invalida', 'Escolha quem pode mandar mensagem.');
