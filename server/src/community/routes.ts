@@ -6,6 +6,7 @@ import type { Context, Hono } from 'hono';
 import { ApiError } from '../errors.ts';
 import type { RateLimiter } from '../ratelimit.ts';
 import type { BotRuntime } from '../bots/runtime.ts';
+import type { Economy } from './economy.ts';
 import type { Accounts, User } from './auth.ts';
 import type { Community } from './core.ts';
 
@@ -14,6 +15,8 @@ export interface CommunityDeps {
   community: Community;
   /** Central de Bots. Sem ela, as rotas de bots não existem. */
   bots?: BotRuntime;
+  /** Cosmic Points, loja e inventário. */
+  economy?: Economy;
   limiter: RateLimiter;
   clientIp: (c: Context) => string;
 }
@@ -22,7 +25,7 @@ const SMALL = 8_192;
 const MESSAGE = 24_000;
 const WITH_ICON = 200_000;
 
-export function mountCommunity(app: Hono, { accounts, community, bots, limiter, clientIp }: CommunityDeps): void {
+export function mountCommunity(app: Hono, { accounts, community, bots, economy, limiter, clientIp }: CommunityDeps): void {
   const body = async (c: Context, maxBytes = SMALL): Promise<Record<string, unknown>> => {
     if (Number(c.req.header('content-length') ?? 0) > maxBytes) throw new ApiError(413, 'corpo_grande', 'Requisição grande demais.');
     let text: string;
@@ -363,6 +366,28 @@ export function mountCommunity(app: Hono, { accounts, community, bots, limiter, 
   });
 
   // --- Central de Bots ------------------------------------------------------------------
+
+  if (economy) {
+    // --- Cosmic Points, loja e inventário ------------------------------------------------------------
+    app.get('/api/me/points', async (c) => c.json(await economy.points(await who(c))));
+    app.post('/api/me/active', async (c) => {
+      const user = await who(c);
+      if (limiter.take(`ativo:${user.id}`, 3, 60_000)) await economy.markActive(user);
+      return c.json({ ok: true });
+    });
+    app.get('/api/shop', async (c) => c.json({ items: await economy.shop(await who(c)) }));
+    app.post('/api/shop/buy', async (c) => {
+      const user = await who(c);
+      if (!limiter.take(`compra:${user.id}`, 20, 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Compras demais. Espere um pouco.');
+      return c.json(await economy.buy(user, (await body(c)).itemId));
+    });
+    app.get('/api/me/inventory', async (c) => c.json(await economy.inventory(await who(c))));
+    app.put('/api/me/equipped', async (c) => c.json(await economy.equip(await who(c), await body(c))));
+    app.get('/api/cosmetics', async (c) => {
+      await who(c);
+      return c.json({ cosmetics: await economy.equippedOf(String(c.req.query('ids') ?? '').split(',')) });
+    });
+  }
 
   if (!bots) return;
 

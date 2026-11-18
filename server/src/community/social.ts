@@ -364,6 +364,12 @@ export class Social {
     this.#hub.toUser(b, { t: 'friend.changed', userId: a });
   }
 
+  /** Algo que aparece em volta do perfil mudou (itens equipados): grupos e amigos recarregam. */
+  async announceProfileChange(userId: string): Promise<void> {
+    await this.#community.userChanged(userId);
+    await this.#notifyRelated(userId, { t: 'profile.changed', userId });
+  }
+
   async #notifyRelated(userId: string, event: { t: string; [key: string]: unknown }): Promise<void> {
     const rows = await this.#db.query(
       "SELECT CASE WHEN user_low = $1 THEN user_high ELSE user_low END AS other FROM friendships WHERE (user_low = $1 OR user_high = $1) AND status = 'amigos'",

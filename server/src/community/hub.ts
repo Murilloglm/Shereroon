@@ -125,6 +125,11 @@ export class Hub {
     return this.#voice.get(userId) ?? null;
   }
 
+  /** Todos que estão em algum canal de voz agora. */
+  voiceAll(): [string, VoicePlace][] {
+    return [...this.#voice.entries()];
+  }
+
   /** Canal de voz → pessoas dentro dele, para um grupo. */
   voiceIn(groupId: string): Record<string, string[]> {
     const out: Record<string, string[]> = {};

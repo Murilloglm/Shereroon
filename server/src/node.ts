@@ -8,6 +8,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './app.ts';
 import { officialBots } from './bots/catalog.ts';
 import { BotRuntime } from './bots/runtime.ts';
+import { Economy } from './community/economy.ts';
 import { Accounts } from './community/auth.ts';
 import { Community } from './community/core.ts';
 import { attachGateway } from './community/gateway.ts';
@@ -60,7 +61,7 @@ async function openDatabase(): Promise<Db | null> {
 }
 
 const sfu = new LiveKitSfu(config);
-let groups: { accounts: Accounts; community: Community; bots: BotRuntime } | undefined;
+let groups: { accounts: Accounts; community: Community; bots: BotRuntime; economy: Economy } | undefined;
 let database: Db | null = null;
 try {
   database = await openDatabase();
@@ -82,7 +83,10 @@ try {
     // Os bots rodam aqui, no backend: seguem funcionando com todo mundo offline.
     const bots = new BotRuntime(database, community, officialBots());
     bots.start();
-    groups = { accounts, community, bots };
+    // Cosmic Points: recompensas por participação (a cada minuto confere quem está em chamada).
+    const economy = new Economy(database, community);
+    economy.start();
+    groups = { accounts, community, bots, economy };
     setInterval(() => void accounts.purgeExpired().catch(() => undefined), 6 * 60 * 60_000).unref();
     setInterval(() => void community.purgeOrphanFiles().catch(() => undefined), 30 * 60_000).unref();
   }

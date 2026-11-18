@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { randomBytes, toBase64Url } from './bytes.ts';
 import type { BotRuntime } from './bots/runtime.ts';
+import type { Economy } from './community/economy.ts';
 import type { Accounts } from './community/auth.ts';
 import type { Community } from './community/core.ts';
 import { mountCommunity } from './community/routes.ts';
@@ -37,7 +38,7 @@ export interface AppDeps {
   remoteAddress?: (c: Context) => string | undefined;
   limiter?: RateLimiter;
   /** Contas e grupos. Só existem quando há banco de dados; sem ele, as salas por link seguem funcionando. */
-  groups?: { accounts: Accounts; community: Community; bots?: BotRuntime };
+  groups?: { accounts: Accounts; community: Community; bots?: BotRuntime; economy?: Economy };
 }
 
 
@@ -286,7 +287,7 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
     mountCommunity(app, { ...groups, limiter, clientIp });
   } else {
     app.get('/api/features', (c) => c.json({ groups: false }));
-    for (const path of ['/api/auth/*', '/api/groups/*', '/api/groups', '/api/channels/*', '/api/roles/*', '/api/messages/*', '/api/files/*', '/api/invites/*', '/api/voice/*', '/api/users/*', '/api/me/*', '/api/media/*', '/api/friends', '/api/friends/*', '/api/blocks', '/api/blocks/*', '/api/dms', '/api/dms/*', '/api/dm-messages/*', '/api/dm-files/*', '/api/emojis/*', '/api/activities']) {
+    for (const path of ['/api/auth/*', '/api/groups/*', '/api/groups', '/api/channels/*', '/api/roles/*', '/api/messages/*', '/api/files/*', '/api/invites/*', '/api/voice/*', '/api/users/*', '/api/me/*', '/api/media/*', '/api/friends', '/api/friends/*', '/api/blocks', '/api/blocks/*', '/api/dms', '/api/dms/*', '/api/dm-messages/*', '/api/dm-files/*', '/api/emojis/*', '/api/activities', '/api/cosmetics', '/api/shop', '/api/shop/*']) {
       app.all(path, () => {
         throw new ApiError(503, 'grupos_indisponiveis', 'Contas e grupos precisam de um banco de dados, que este servidor não tem configurado.');
       });

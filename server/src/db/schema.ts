@@ -460,6 +460,50 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       CREATE INDEX user_activities_user ON user_activities(user_id, started_at DESC);
     `,
   },
+  {
+    id: 6,
+    name: 'cosmic points, loja, inventário e itens equipados',
+    sql: `
+      -- Saldo de Cosmic Points (gratuitos, sem dinheiro real). Nunca fica negativo.
+      ALTER TABLE users ADD COLUMN points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0);
+
+      -- Cada ganho e cada gasto. "ref" é a chave de idempotência: a mesma recompensa (ou compra) não conta duas vezes,
+      -- nem com dois pedidos ao mesmo tempo. "day" é o dia no horário de Brasília, para os limites diários.
+      CREATE TABLE points_ledger (
+        id TEXT PRIMARY KEY,
+        -- Ordem de lançamento (para o histórico, mesmo com horários iguais).
+        seq BIGINT GENERATED ALWAYS AS IDENTITY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        delta INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        detail TEXT NOT NULL DEFAULT '',
+        ref TEXT NOT NULL,
+        day TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (user_id, ref)
+      );
+      CREATE INDEX points_ledger_user ON points_ledger(user_id, created_at DESC);
+      CREATE INDEX points_ledger_day ON points_ledger(user_id, day);
+
+      -- Itens adquiridos (o catálogo fica no código: shared/cosmetics.ts).
+      CREATE TABLE user_items (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        item_id TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        acquired_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, item_id)
+      );
+
+      -- O que está equipado em cada espaço (decoração, moldura, fundo, cor do nome).
+      CREATE TABLE user_equipped (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        slot TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        variant TEXT NOT NULL,
+        PRIMARY KEY (user_id, slot)
+      );
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

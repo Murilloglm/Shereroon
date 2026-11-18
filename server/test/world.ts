@@ -2,6 +2,7 @@ import { expect } from 'vitest';
 import { createApp } from '../src/app.ts';
 import { officialBots } from '../src/bots/catalog.ts';
 import { BotRuntime } from '../src/bots/runtime.ts';
+import { Economy } from '../src/community/economy.ts';
 import type { BotModule } from '../src/bots/types.ts';
 import { Accounts } from '../src/community/auth.ts';
 import { Community } from '../src/community/core.ts';
@@ -45,7 +46,8 @@ export async function createWorld(limiter: RateLimiter = new Unlimited(), module
   /** Relógio dos bots: os testes adiantam o tempo em vez de esperar. */
   const clock = { now: new Date('2026-11-16T15:00:00.000Z') };
   const bots = new BotRuntime(db, community, modules, { now: () => clock.now });
-  const app = createApp({ config, sfu, limiter, groups: { accounts, community, bots } });
+  const economy = new Economy(db, community, { now: () => clock.now });
+  const app = createApp({ config, sfu, limiter, groups: { accounts, community, bots, economy } });
 
   const api = async (method: string, path: string, token?: string | null, body?: unknown) => {
     const response = await app.request(path, {
@@ -115,7 +117,7 @@ export async function createWorld(limiter: RateLimiter = new Unlimited(), module
   };
   const texts = async (person: Person, channelId: string) => ((await ok('GET', `/api/channels/${channelId}/messages`, person.token)).messages as { content: string }[]).map((message) => message.content);
 
-  return { db, hub, sfu, accounts, community, bots, clock, app, api, ok, signup, connect, group, view, join, role, give, order, channelByName, say, texts };
+  return { db, hub, sfu, accounts, community, bots, economy, clock, app, api, ok, signup, connect, group, view, join, role, give, order, channelByName, say, texts };
 }
 
 export type World = Awaited<ReturnType<typeof createWorld>>;
