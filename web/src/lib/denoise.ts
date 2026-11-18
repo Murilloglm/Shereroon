@@ -4,20 +4,31 @@
  * Se o modelo não puder ser carregado, o mesmo worklet usa uma supressão convencional.
  */
 
-export type NoiseMode = 'off' | 'leve' | 'equilibrado' | 'forte';
+export type NoiseMode = 'off' | 'leve' | 'equilibrado' | 'forte' | 'voz';
 export type NoiseLevel = Exclude<NoiseMode, 'off'>;
 export type NoiseEngine = 'ia' | 'convencional';
 
+// Em todos os modos, enquanto há fala parte do som original é mantida: em barulho forte a rede neural às vezes
+// confunde voz com ruído, e a proteção impede que a fala seja apagada junto (veja public/worklets/denoiser.js).
 export const NOISE_LEVELS: { value: NoiseLevel; name: string; about: string }[] = [
-  { value: 'leve', name: 'Leve', about: 'Baixa o ruído em até 12 dB. É o que menos mexe no som.' },
-  { value: 'equilibrado', name: 'Equilibrado', about: 'Baixa o ruído em até 24 dB.' },
-  { value: 'forte', name: 'Forte', about: 'Remove tudo o que o modelo considera ruído. Pode engolir sons fracos que não são voz.' },
+  { value: 'leve', name: 'Leve', about: 'Baixa o ruído em até 12 dB e quase não mexe na voz. É o mais natural.' },
+  { value: 'equilibrado', name: 'Equilibrado', about: 'Baixa o ruído em até 24 dB nas pausas, priorizando manter a voz inteira.' },
+  { value: 'forte', name: 'Forte', about: 'Supressão mais intensa: tira quase todo o ruído das pausas. Com muito barulho, pode perder um pouco do começo das falas.' },
+  {
+    value: 'voz',
+    name: 'Voz prioritária',
+    about:
+      'Preserva o máximo da sua voz e corta o ruído entre as falas. Antecipa 40 ms para não perder o começo das palavras (atraso total de 60 ms). Vozes de outras pessoas e TV ao fundo não somem por completo: sons de voz sobrepostos são os mais difíceis de separar.',
+  },
 ];
 
 export const isNoiseLevel = (value: unknown): value is NoiseLevel => NOISE_LEVELS.some((level) => level.value === value);
 
 /** Atraso que o filtro acrescenta a uma fonte, em milissegundos (959 amostras a 48 kHz, medido nos testes). */
 export const NOISE_DELAY_MS = 20;
+
+/** Atraso de cada modo: "Voz prioritária" segura mais 40 ms para proteger o começo das palavras. */
+export const noiseDelayMs = (level: NoiseLevel): number => (level === 'voz' ? 60 : NOISE_DELAY_MS);
 
 export interface NoiseStats {
   inputDb: number;
@@ -28,6 +39,8 @@ export interface NoiseStats {
   noiseDb: number;
   /** Probabilidade de haver voz, segundo o modelo (0 a 1). */
   voice: number;
+  /** Quanto a proteção da voz esteve ativa (0 a 1): fala reconhecida, mesmo no meio do ruído. */
+  presence?: number;
   /** Fração de um núcleo de CPU gasta por este filtro, medida. */
   cpuPct: number;
   msPerFrame: number;

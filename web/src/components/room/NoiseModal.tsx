@@ -2,7 +2,7 @@ import { AudioWaveform, Circle, LoaderCircle, Play, Square } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { audioContext } from '../../lib/audio.ts';
-import { NOISE_DELAY_MS, NOISE_LEVELS, type NoiseCapture, type NoiseStats } from '../../lib/denoise.ts';
+import { noiseDelayMs, NOISE_LEVELS, type NoiseCapture, type NoiseStats } from '../../lib/denoise.ts';
 import { defaultSetting, noiseAdvice, type ActiveEngine, type NoiseControl } from '../../lib/noise-control.ts';
 import { useStore } from '../../lib/store.ts';
 import { Button, Chip, cx, Modal, Notice, Toggle } from '../ui.tsx';
@@ -150,7 +150,7 @@ export function NoiseModal({ control, sourceKey, name, onClose }: { control: Noi
 
         <section className="grid gap-2">
           <h3 className="text-sm font-extrabold">Intensidade</h3>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {NOISE_LEVELS.map((level) => (
               <Chip key={level.value} selected={setting.level === level.value} onClick={() => control.setLevel(sourceKey, level.value)} data-testid={`noise-level-${level.value}`}>
                 {level.name}
@@ -168,6 +168,14 @@ export function NoiseModal({ control, sourceKey, name, onClose }: { control: Noi
             {stats ? (
               <>
                 <Gauge
+                  testId="noise-input"
+                  data={Math.round(stats.inputDb)}
+                  label="Entrada"
+                  about="nível que chega do aparelho"
+                  fill={(stats.inputDb + 70) / 70}
+                  value={stats.inputDb <= -119 ? 'silêncio' : `${decimal(stats.inputDb, 0)} dB`}
+                />
+                <Gauge
                   testId="noise-reduction"
                   data={Math.round(stats.reductionDb * 10) / 10}
                   label="Redução agora"
@@ -179,9 +187,20 @@ export function NoiseModal({ control, sourceKey, name, onClose }: { control: Noi
                 {stats.engine === 'ia' && (
                   <Gauge label="Voz detectada" about="segundo o modelo" tone="ok" fill={stats.voice} value={`${Math.round(stats.voice * 100)}%`} />
                 )}
+                {stats.engine === 'ia' && typeof stats.presence === 'number' && (
+                  <Gauge
+                    testId="noise-protection"
+                    data={Math.round(stats.presence * 100)}
+                    label="Voz protegida"
+                    about="fala mantida mesmo no ruído"
+                    tone="ok"
+                    fill={stats.presence}
+                    value={`${Math.round(stats.presence * 100)}%`}
+                  />
+                )}
                 <p className="text-[13px] leading-snug text-fog-400" data-testid="noise-cpu" data-value={Math.round(stats.cpuPct * 100) / 100}>
                   Processamento medido: <b className="text-fog-100">{decimal(stats.cpuPct)}% de um núcleo</b> ({decimal(stats.msPerFrame, 2)} ms para cada 10 ms
-                  de áudio). Atraso acrescentado a esta fonte: {NOISE_DELAY_MS} ms.
+                  de áudio). Atraso acrescentado a esta fonte: {noiseDelayMs(setting.level)} ms.
                 </p>
               </>
             ) : (

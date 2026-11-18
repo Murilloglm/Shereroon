@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Denoiser, FRAME, MODES, RNNOISE_DELAY, RnnoiseEngine, SPECTRAL_DELAY, SpectralEngine } from '../public/worklets/denoiser.js';
+import { Denoiser, FRAME, MODES, RNNOISE_DELAY, RnnoiseEngine, SPECTRAL_DELAY, SpectralEngine, VOICE_LOOKAHEAD } from '../public/worklets/denoiser.js';
 
 const RATE = 48_000;
 const IA_DELAY = FRAME + RNNOISE_DELAY;
@@ -100,9 +100,10 @@ function ambience(length: number): Float32Array {
 const add = (a: Float32Array, b: Float32Array) => a.map((sample, i) => sample + (b[i] ?? 0));
 
 /** Passa um sinal pelo filtro em blocos de 128 amostras, como o navegador faz. */
-function run(engine: 'ia' | 'convencional', mode: Mode, input: Float32Array, each?: (denoiser: Denoiser, block: number) => void) {
+function run(engine: 'ia' | 'convencional', mode: Mode, input: Float32Array, each?: (denoiser: Denoiser, block: number) => void, protection = true) {
   const denoiser = new Denoiser(engine === 'ia' ? new RnnoiseEngine(wasm) : new SpectralEngine());
   denoiser.setMode(mode);
+  denoiser.protection = protection;
   const output = new Float32Array(input.length);
   const started = performance.now();
   for (let at = 0, block = 0; at + 128 <= input.length; at += 128, block++) {
@@ -139,7 +140,8 @@ function measure(output: Float32Array, delay: number, reference: Float32Array) {
   let pause = 0;
   let pauseFrames = 0;
   let cuts = 0;
-  for (let frame = 100; frame < spoken.length - 3; frame++) {
+  // Até onde a saída (atrasada) ainda existe.
+  for (let frame = 100; frame < spoken.length - 3 - Math.ceil(delay / FRAME); frame++) {
     const from = frame * FRAME;
     const out = power(output, from + delay, from + delay + FRAME);
     if (spoken[frame] === true) {
@@ -188,6 +190,24 @@ describe('latência', () => {
       expect(delay).toBe(959);
       expect(bestLag(voice, output)).toBe(959);
     }
+  });
+
+  it('"Voz prioritária" antecipa 40 ms: atrasa 959 + 1920 amostras (60 ms)', () => {
+    const { output, delay } = run('ia', 'voz', voice);
+    expect(delay).toBe(IA_DELAY + VOICE_LOOKAHEAD * FRAME);
+    expect(delay).toBe(2879);
+    // A voz limpa sai igual, só mais atrasada.
+    let lagScore = -Infinity;
+    let lag = 0;
+    for (let candidate = 2700; candidate <= 3000; candidate++) {
+      let score = 0;
+      for (let i = RATE; i < RATE * 4; i += 3) score += voice[i]! * output[i + candidate]!;
+      if (score > lagScore) {
+        lagScore = score;
+        lag = candidate;
+      }
+    }
+    expect(lag).toBe(2879);
   });
 
   it('o motor convencional atrasa 960 amostras', () => {
@@ -244,6 +264,61 @@ describe('qualidade de voz (motor de IA)', () => {
   }
 });
 
+describe('ambiente barulhento (ruído no nível da voz ou acima dela)', () => {
+  // O problema relatado: com muito barulho em volta, o filtro tirava pedaços da voz junto com o ruído. Aqui a voz
+  // fica no nível do ruído (0 dB) e abaixo dele (−5 dB). A proteção da voz mistura parte do original enquanto há
+  // fala; o modo "Voz prioritária" ainda antecipa 40 ms para proteger o começo das palavras.
+  const noises: [string, (length: number) => Float32Array, number][] = [
+    // nome, gerador, redução mínima exigida nas pausas no modo Equilibrado (dB)
+    ['ventilador', fan, 15],
+    ['chiado', hiss, 15],
+    ['som ambiente com vozes ao fundo', ambience, 10],
+  ];
+  // Trechos de voz cortados (mais de 10 dB abaixo do original) tolerados em cada modo.
+  const maxCuts: Record<number, Record<'leve' | 'equilibrado' | 'forte' | 'voz', number>> = {
+    0: { leve: 0.5, equilibrado: 2.5, forte: 2.5, voz: 0.5 },
+    [-5]: { leve: 0.5, equilibrado: 5, forte: 8, voz: 1.5 },
+  };
+  for (const [name, make, minimum] of noises) {
+    for (const snr of [0, -5]) {
+      it(`${name}, voz ${snr} dB em relação ao ruído: a voz fica e o ruído das pausas cai`, () => {
+        const noisy = add(voice, scaleTo(make(voice.length), -23 - snr));
+        const before = measure(noisy, 0, voice);
+        const line: string[] = [];
+        const reductions: Record<string, number> = {};
+        for (const mode of ['leve', 'equilibrado', 'forte', 'voz'] as const) {
+          const { output, delay } = run('ia', mode, noisy);
+          const after = measure(output, delay, voice);
+          reductions[mode] = before.pauseDb - after.pauseDb;
+          line.push(`${mode} −${reductions[mode]!.toFixed(1)} dB (voz ${after.voiceChangeDb.toFixed(1)} dB, cortes ${after.cutsPct.toFixed(1)}%)`);
+          expect(after.cutsPct, `${mode}: trechos de voz cortados`).toBeLessThan(maxCuts[snr]![mode]);
+          expect(after.voiceChangeDb, `${mode}: nível da voz`).toBeGreaterThan(-2.5);
+        }
+        console.log(`  ${name}, voz ${snr} dB: ${line.join(' | ')}`);
+        expect(reductions.equilibrado!).toBeGreaterThan(minimum);
+        expect(reductions.forte!).toBeGreaterThanOrEqual(reductions.equilibrado! - 0.5);
+        // "Voz prioritária" troca parte da redução por voz preservada (detecção mais sensível, solta mais devagar).
+        expect(reductions.voz!).toBeGreaterThan(minimum * 0.6);
+      });
+    }
+  }
+
+  it('a proteção da voz é o que evita os cortes: sem ela, o mesmo filtro corta muito mais', () => {
+    for (const make of [fan, ambience]) {
+      const noisy = add(voice, scaleTo(make(voice.length), -18));
+      for (const mode of ['equilibrado', 'forte'] as const) {
+        const protectedRun = run('ia', mode, noisy);
+        const bare = run('ia', mode, noisy, undefined, false);
+        const withProtection = measure(protectedRun.output, protectedRun.delay, voice).cutsPct;
+        const without = measure(bare.output, bare.delay, voice).cutsPct;
+        console.log(`  ${make.name}, ${mode}: cortes sem proteção ${without.toFixed(1)}% → com proteção ${withProtection.toFixed(1)}%`);
+        expect(without).toBeGreaterThan(8);
+        expect(withProtection).toBeLessThan(without / 2);
+      }
+    }
+  });
+});
+
 describe('comparação original × processado', () => {
   it('em modo original, a saída é idêntica à entrada (só atrasada)', () => {
     const { output, delay } = run('ia', 'forte', voice, (denoiser) => denoiser.setBypass(true));
@@ -257,6 +332,19 @@ describe('comparação original × processado', () => {
     const { output } = run('ia', 'forte', noisy, (denoiser, block) => denoiser.setBypass(Math.floor(block / 150) % 2 === 1));
     const original = run('ia', 'forte', noisy, (denoiser) => denoiser.setBypass(true)).output;
     // O maior salto entre amostras vizinhas não passa do que o próprio áudio original já tem.
+    const jump = (x: Float32Array) => {
+      let worst = 0;
+      for (let i = RATE; i < x.length - 1; i++) worst = Math.max(worst, Math.abs(x[i + 1]! - x[i]!));
+      return worst;
+    };
+    expect(jump(output)).toBeLessThanOrEqual(jump(original) * 1.05);
+  });
+
+  it('entrar e sair de "Voz prioritária" (que muda o atraso) não dá estalo', () => {
+    const noisy = add(voice, scaleTo(hiss(voice.length), -38));
+    const modes = ['equilibrado', 'voz', 'forte', 'voz', 'leve'] as const;
+    const { output } = run('ia', 'equilibrado', noisy, (denoiser, block) => denoiser.setMode(modes[Math.floor(block / 300) % modes.length]!));
+    const original = run('ia', 'forte', noisy, (denoiser) => denoiser.setBypass(true)).output;
     const jump = (x: Float32Array) => {
       let worst = 0;
       for (let i = RATE; i < x.length - 1; i++) worst = Math.max(worst, Math.abs(x[i + 1]! - x[i]!));
@@ -300,6 +388,9 @@ describe('consumo de processamento', () => {
     expect(quiet.voice).toBeLessThan(0.2);
     const talking = run('ia', 'forte', voice).stats!;
     expect(talking.voice).toBeGreaterThan(quiet.voice + 0.2);
+    // Medidor de "voz protegida": sobe quando há fala e fica perto de zero só com ruído.
+    expect(talking.presence).toBeGreaterThan(0.3);
+    expect(quiet.presence).toBeLessThan(0.1);
     expect(talking.reductionDb).toBeLessThan(3);
     expect(talking.cpuPct).toBeGreaterThan(0);
   });

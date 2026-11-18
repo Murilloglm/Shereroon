@@ -16,12 +16,66 @@ export const FRAME = 480;
 export const RNNOISE_DELAY = 479;
 export const SPECTRAL_DELAY = 480;
 
-/** Quanto do som original sobra em cada intensidade. O ruído cai, no máximo, o valor em dB. */
+/**
+ * Quanto do som original sobra em cada intensidade.
+ *  - `dry`: nas pausas (sem voz): o ruído cai, no máximo, `limitDb`.
+ *  - `voiceDry`: enquanto há voz. Em barulho forte a rede neural às vezes confunde a fala com ruído e a
+ *    apagaria; misturar esta parte do original garante que a voz nunca caia mais que isso. É a proteção que
+ *    prioriza entender a fala antes de tirar todo o ruído.
+ *  - `sensitive`: detecção de voz mais sensível e que demora mais para fechar (modo "Voz prioritária").
+ */
 export const MODES = {
-  leve: { limitDb: 12, dry: 10 ** (-12 / 20) },
-  equilibrado: { limitDb: 24, dry: 10 ** (-24 / 20) },
-  forte: { limitDb: Infinity, dry: 0 },
+  leve: { limitDb: 12, dry: 10 ** (-12 / 20), voiceDry: 10 ** (-3 / 20), sensitive: false },
+  equilibrado: { limitDb: 24, dry: 10 ** (-24 / 20), voiceDry: 10 ** (-6 / 20), sensitive: false },
+  forte: { limitDb: Infinity, dry: 0, voiceDry: 10 ** (-9 / 20), sensitive: false },
+  voz: { limitDb: 30, dry: 10 ** (-30 / 20), voiceDry: 10 ** (-1.5 / 20), sensitive: true },
 };
+
+/**
+ * Presença de voz, quadro a quadro (10 ms), a partir da probabilidade que o RNNoise dá. Em barulho forte essa
+ * probabilidade cai bastante mesmo com alguém falando, então ela é comparada com o nível que o próprio
+ * ruído provoca (uma linha de base que acompanha as pausas), suavizada, e abre rápido e fecha devagar:
+ * o começo e o fim das palavras não são cortados.
+ */
+export const PRESENCE = {
+  normal: { smooth: 0.4, margin: 0.12, span: 0.22, hold: 8, release: 0.15 },
+  sensitive: { smooth: 0.4, margin: 0.07, span: 0.16, hold: 12, release: 0.12 },
+};
+
+/**
+ * Antecipação do modo "Voz prioritária", em quadros de 10 ms. Com ruído muito forte, a rede neural leva algumas
+ * dezenas de milissegundos para perceber que a fala começou; segurando o áudio esse tanto, a proteção já está
+ * ligada quando a primeira sílaba sai. Custa o mesmo tanto de atraso, por isso só existe nesse modo.
+ */
+export const VOICE_LOOKAHEAD = 4;
+
+export class VoicePresence {
+  constructor() {
+    this.smooth = 0;
+    this.base = 0.1;
+    this.hold = 0;
+    this.value = 0;
+    this.sensitive = false;
+  }
+
+  /** @param {number} probability probabilidade de voz do RNNoise para o quadro */
+  update(probability) {
+    const p = this.sensitive ? PRESENCE.sensitive : PRESENCE.normal;
+    this.smooth += (probability - this.smooth) * p.smooth;
+    // Linha de base: desce rápido (pausas) e sobe devagar (~3 s), para não "aprender" uma fala longa.
+    this.base += (this.smooth - this.base) * (this.smooth < this.base ? 0.2 : 0.003);
+    const raw = Math.min(1, Math.max(0, (this.smooth - this.base - p.margin) / p.span));
+    if (raw >= this.value) {
+      this.value = raw;
+      this.hold = p.hold; // segura um pouco depois do último sinal de voz (o fim das palavras)
+    } else if (this.hold > 0) {
+      this.hold -= 1;
+    } else {
+      this.value = Math.max(raw, this.value - p.release);
+    }
+    return this.value;
+  }
+}
 
 const now = typeof performance !== 'undefined' && typeof performance.now === 'function' ? () => performance.now() : () => Date.now();
 
@@ -218,22 +272,49 @@ export class Denoiser {
     this.history = new Float32Array(FRAME * 2);
     this.dryFrame = new Float32Array(FRAME);
     this.wetFrame = new Float32Array(FRAME);
-    /** Atraso total entre entrada e saída, em amostras. */
-    this.delay = FRAME + engine.delay;
     this.mode = 'equilibrado';
     this.bypass = false;
     this.dryGain = 1; // começa no original e desliza até a intensidade pedida
+    this.voicePresence = new VoicePresence();
+    /** Quadros guardados para a antecipação do modo "Voz prioritária" (null nos outros modos). */
+    this.ahead = null;
+    /** Liga e desliga a proteção da voz (os testes comparam com o filtro sem proteção). */
+    this.protection = true;
+    this.started = false;
+    /** Troca de modo pendente (entrar/sair de "Voz prioritária"), feita com rampa. */
+    this.switchTo = null;
+    /** Quadros até a rampa de volta depois de uma troca dessas (0 = nada pendente). */
+    this.fadeInIn = 0;
     this.capture = null;
     this.onCapture = null;
     this.#resetStats();
   }
 
+  /** Atraso total entre entrada e saída, em amostras (um quadro a mais por quadro de antecipação). */
+  get delay() {
+    return FRAME + this.engine.delay + (this.mode === 'voz' ? VOICE_LOOKAHEAD * FRAME : 0);
+  }
+
   #resetStats() {
-    this.stats = { frames: 0, inPower: 0, outPower: 0, removedPower: 0, voice: 0, busyMs: 0, peakReductionDb: 0 };
+    this.stats = { frames: 0, inPower: 0, outPower: 0, removedPower: 0, voice: 0, presence: 0, busyMs: 0, peakReductionDb: 0 };
   }
 
   setMode(mode) {
-    if (MODES[mode]) this.mode = mode;
+    if (!MODES[mode]) return;
+    // Entrar ou sair de "Voz prioritária" muda o atraso em 40 ms: o som desce até zero, o modo troca e o som volta
+    // em rampa (sem estalo). As outras trocas são imediatas (a mistura já desliza amostra a amostra).
+    const changesDelay = (mode === 'voz') !== (this.mode === 'voz');
+    if (changesDelay && this.started) {
+      this.switchTo = mode;
+      return;
+    }
+    this.switchTo = null;
+    this.#applyMode(mode);
+  }
+
+  #applyMode(mode) {
+    this.mode = mode;
+    this.voicePresence.sensitive = MODES[mode].sensitive;
   }
 
   /** `true` deixa passar o som original (com o mesmo atraso, então ligar e desligar não dá estalo nem salto). */
@@ -270,14 +351,34 @@ export class Denoiser {
     this.history.set(this.inFrame, FRAME);
     this.dryFrame.set(this.history.subarray(FRAME - this.engine.delay, FRAME * 2 - this.engine.delay));
 
-    const target = this.bypass ? 1 : MODES[this.mode].dry;
+    // Proteção da voz: só o motor de IA dá a probabilidade de voz (o convencional não corta a fala a esse ponto).
+    // O valor descreve o quadro que acabou de entrar, que sai no próximo: a proteção abre um pouco antes da voz.
+    let presence = this.engine.name === 'ia' && this.protection ? this.voicePresence.update(voice) : 0;
+    let dry = this.dryFrame;
+    let wet = this.wetFrame;
+    if (this.mode === 'voz') {
+      // Antecipação: sai o quadro de VOICE_LOOKAHEAD quadros atrás, protegido pelo que se sabe dos quadros seguintes.
+      const slots = VOICE_LOOKAHEAD + 1;
+      this.ahead ??= { dry: Array.from({ length: slots }, () => new Float32Array(FRAME)), wet: Array.from({ length: slots }, () => new Float32Array(FRAME)), presence: new Float32Array(slots), at: 0 };
+      const ahead = this.ahead;
+      ahead.dry[ahead.at].set(dry);
+      ahead.wet[ahead.at].set(wet);
+      ahead.presence[ahead.at] = presence;
+      ahead.at = (ahead.at + 1) % slots;
+      dry = ahead.dry[ahead.at];
+      wet = ahead.wet[ahead.at];
+      for (let i = 0; i < slots; i++) presence = Math.max(presence, ahead.presence[i]);
+    } else {
+      this.ahead = null;
+    }
+    const mode = MODES[this.mode];
+    const dryShare = mode.dry + (mode.voiceDry - mode.dry) * presence;
+    const target = this.bypass ? 1 : dryShare;
     const step = (target - this.dryGain) / FRAME;
     let gain = this.dryGain;
     let inPower = 0;
     let outPower = 0;
     let removedPower = 0;
-    const dry = this.dryFrame;
-    const wet = this.wetFrame;
     const out = this.outQueue;
     for (let i = 0; i < FRAME; i++) {
       gain += step;
@@ -289,12 +390,24 @@ export class Denoiser {
       removedPower += removed * removed;
     }
     this.dryGain = target;
+    this.started = true;
+    if (this.switchTo) {
+      // Rampa para zero neste quadro; o modo novo vale a partir do próximo.
+      for (let i = 0; i < FRAME; i++) out[i] *= 1 - (i + 1) / FRAME;
+      this.#applyMode(this.switchTo);
+      this.switchTo = null;
+      // Entrando em "Voz prioritária", os primeiros quadros da antecipação ainda estão vazios.
+      this.fadeInIn = this.mode === 'voz' ? VOICE_LOOKAHEAD + 1 : 1;
+    } else if (this.fadeInIn > 0) {
+      this.fadeInIn -= 1;
+      if (this.fadeInIn === 0) for (let i = 0; i < FRAME; i++) out[i] *= (i + 1) / FRAME;
+      else out.fill(0);
+    }
 
     if (this.capture) {
       const capture = this.capture;
       capture.dry.set(dry, capture.at);
       // "Processado" na gravação é sempre o filtro na intensidade escolhida, mesmo com a comparação ligada.
-      const dryShare = MODES[this.mode].dry;
       for (let i = 0; i < FRAME; i++) capture.wet[capture.at + i] = wet[i] + dryShare * (dry[i] - wet[i]);
       capture.at += FRAME;
       if (capture.at >= capture.dry.length) {
@@ -309,6 +422,7 @@ export class Denoiser {
     stats.outPower += outPower / FRAME;
     stats.removedPower += removedPower / FRAME;
     stats.voice += voice;
+    stats.presence += presence;
     if (inPower > 1e-9) stats.peakReductionDb = Math.max(stats.peakReductionDb, toDb(inPower) - toDb(outPower));
   }
 
@@ -330,6 +444,8 @@ export class Denoiser {
       peakReductionDb: stats.peakReductionDb,
       noiseDb: toDb(stats.removedPower / stats.frames),
       voice: stats.voice / stats.frames,
+      /** Quanto a proteção da voz esteve ativa (0 a 1): fala detectada mesmo no meio do ruído. */
+      presence: stats.presence / stats.frames,
       cpuPct: (stats.busyMs / (stats.frames * 10)) * 100,
       msPerFrame: stats.busyMs / stats.frames,
       engine: this.engine.name,

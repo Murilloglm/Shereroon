@@ -31,6 +31,23 @@ describe('SpeechDetector', () => {
     expect(off! - TICK).toBeLessThanOrEqual(SPEECH.holdMs + TICK);
   });
 
+  it('ruído constante acima do limiar (ventilador a −30 dBFS, sem filtro): o anel apaga e só a voz acende de novo', () => {
+    const NOISE = 0.0316; // −30 dBFS
+    const LOUD_VOICE = 0.12; // −18 dBFS, voz por cima do ruído
+    const detector = new SpeechDetector();
+    let t = 0;
+    for (; t <= 3000; t += TICK) detector.update(NOISE, t);
+    expect(detector.update(NOISE, t)).toBe(false);
+    // A voz acima do ruído acende no mesmo bloco, sem esperar.
+    expect(detector.update(LOUD_VOICE, (t += TICK))).toBe(true);
+    // Fala com pausas curtas no meio do ruído: continua acesa.
+    for (let i = 0; i < 40; i++) expect(detector.update(i % 8 < 6 ? LOUD_VOICE : NOISE, (t += TICK))).toBe(true);
+    // E apaga quando a pessoa para de falar.
+    let off = false;
+    for (let i = 0; i < 20 && !off; i++) off = !detector.update(NOISE, (t += TICK));
+    expect(off).toBe(true);
+  });
+
   it('histerese: nível entre os limiares mantém aceso mas não acende sozinho', () => {
     const detector = new SpeechDetector();
     expect(detector.update(BREATH, 0)).toBe(false);

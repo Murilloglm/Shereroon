@@ -148,6 +148,21 @@ test('microfone com IA no modo Forte: o ruído das pausas cai e a voz fica no me
   const cpu = Number(await talker.getByTestId('noise-cpu').getAttribute('data-value'));
   assert.ok(cpu < 15, `o filtro é leve: ${cpu}% de um núcleo`);
   console.log(`      microfone — processamento medido no Chrome: ${cpu}% de um núcleo`);
+  // Medidores de entrada e de voz protegida, vindos do filtro; a proteção acende quando a voz toca.
+  await waitFor(async () => Number(await talker.getByTestId('noise-input').getAttribute('data-value')) > -70, 'o medidor de entrada mostrar o nível');
+  await waitFor(async () => Number(await talker.getByTestId('noise-protection').getAttribute('data-value')) > 0, 'a proteção da voz acender com a fala', 20_000);
+});
+
+test('microfone no modo "Voz prioritária": a voz segue inteira, o ruído das pausas ainda cai, sem republicar', { skip: skipMic }, async () => {
+  const trackBefore = await guestAudioId();
+  await talker.getByTestId('noise-level-voz').click();
+  assert.match(await talker.getByTestId('noise-modal').textContent(), /Atraso acrescentado a esta fonte: 60 ms/);
+  const filtered = await waitForBand(guest, VOICE_BAND, (stats) => stats.tracks === 1 && micBase.p10 - stats.p10 >= 8, 'o ruído das pausas cair no modo Voz prioritária');
+  assert.ok(Math.abs(filtered.p90 - micBase.p90) <= 4, `a voz segue no mesmo nível: antes ${micBase.p90} dB, depois ${filtered.p90} dB`);
+  assert.equal(await guestAudioId(), trackBefore, 'trocar o modo não republica a faixa');
+  console.log(`      microfone (Voz prioritária) — pausas: ${micBase.p10} → ${filtered.p10} dB; voz: ${micBase.p90} → ${filtered.p90} dB`);
+  await talker.getByTestId('noise-level-forte').click();
+  await waitForBand(guest, VOICE_BAND, (stats) => micBase.p10 - stats.p10 >= 10, 'voltar ao Forte');
 });
 
 test('interruptor geral e comparação: o som original volta na hora, e o filtro retorna depois', { skip: skipMic }, async () => {
