@@ -189,13 +189,13 @@
       "path": "server/test/bootstrap-cli.test.ts",
       "status": "A",
       "category": "release-preparation",
-      "sha256": "5f26667037542ffec48af8f327973c8bb2b2e2b2286d18afd6578443bf5557d1"
+      "sha256": "8ac2fa31eab232ee733164265dca05f2629743244161d2974e5104e245685119"
     },
     {
       "path": "server/test/platform.test.ts",
       "status": "A",
       "category": "feature-new",
-      "sha256": "ea81ff3f804b865f91d4a5d42801abd393ebae303119fce7d8f4546a2f821247"
+      "sha256": "cec845d147720ca7121d5bf19b3ea1ee85ea577b81b592eb5401d3b914ff74ea"
     },
     {
       "path": "server/test/release-migration.test.ts",

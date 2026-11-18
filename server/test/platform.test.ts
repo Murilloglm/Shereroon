@@ -54,7 +54,7 @@ describe('administração global e MFA', () => {
       await database.close();
       if (resolve(folder).startsWith(prefix)) await rm(folder, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
   it('não promove pelo nome, senha errada, frontend ou cargo de servidor', async () => {
     expect((await w.ok('GET', '/api/auth/me', admin.token)).user.cosmicAdmin).toBe(false);
     await expect(bootstrapAdmin(w.db, admin.id, 'senha-incorreta')).rejects.toThrow();

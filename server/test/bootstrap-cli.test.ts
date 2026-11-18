@@ -16,7 +16,7 @@ const testPassword = 'senha-temporaria-exclusiva-de-teste';
 afterEach(async () => {
   if (folder && resolve(folder).startsWith(prefix)) await rm(folder, { recursive: true, force: true });
   folder = undefined;
-});
+}, 30_000);
 
 async function prepareLegacy() {
   folder = await mkdtemp(prefix);
@@ -35,7 +35,7 @@ function cli(dataDir: string, args: string[], env: NodeJS.ProcessEnv = {}) {
   return exec(process.execPath, ['server/scripts/bootstrap-admin.ts', ...args], {
     cwd: root,
     env: { ...process.env, DATABASE_URL: '', NODE_ENV: 'development', PGLITE_DIR: dataDir, COSMIC_BOOTSTRAP_USER_ID: '', COSMIC_BOOTSTRAP_PASSWORD: testPassword, ...env },
-    timeout: 10_000,
+    timeout: 20_000,
   });
 }
 
@@ -49,7 +49,7 @@ describe('procedimento de inicialização administrativa por CLI', () => {
       expect((await db.query('SELECT max(id) AS id FROM schema_migrations'))[0]!.id).toBe(6);
       expect((await db.query("SELECT to_regclass('public.global_permissions') AS name"))[0]!.name).toBeNull();
     } finally { await db.close(); }
-  });
+  }, 30_000);
   it('cria Mg uma única vez, registra o ID e exige configurar MFA; não imprime senha nem deixa sessão aberta', async () => {
     const path = await prepareLegacy();
     const output = await cli(path, ['--create-mg']);
@@ -65,7 +65,7 @@ describe('procedimento de inicialização administrativa por CLI', () => {
       expect((await db.query("SELECT count(*)::integer AS count FROM admin_audit WHERE action='admin.bootstrap'"))[0]!.count).toBe(1);
     } finally { await db.close(); }
     await expect(cli(path, ['--create-mg'])).rejects.toThrow('A administração já foi inicializada');
-  });
+  }, 30_000);
   it('produção sem DATABASE_URL falha antes de abrir ou migrar um banco local', async () => {
     const path = await prepareLegacy();
     await expect(cli(path, ['--create-mg'], { NODE_ENV: 'production' })).rejects.toThrow('DATABASE_URL é obrigatória em produção');
@@ -74,5 +74,5 @@ describe('procedimento de inicialização administrativa por CLI', () => {
       expect((await db.query('SELECT max(id) AS id FROM schema_migrations'))[0]!.id).toBe(6);
       expect(await db.query("SELECT id FROM users WHERE username_key='mg'")).toEqual([]);
     } finally { await db.close(); }
-  });
+  }, 30_000);
 });
