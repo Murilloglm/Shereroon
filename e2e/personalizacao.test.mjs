@@ -77,6 +77,27 @@ test('equipar com outra cor: aparece na prévia (animada) e em volta do avatar d
   assert.doesNotMatch((await panel.getAttribute('class')) ?? '', /cn-deco-live/, 'parada no painel (lista)');
 });
 
+test('bot Destaques Cósmicos: /destaque cobra o custo e aparece em destaque; /efeito grátis solta o efeito', async () => {
+  const { group } = await api('POST', '/api/groups', { name: 'Galáxia' });
+  await api('POST', `/api/groups/${group.id}/bots`, { botId: 'destaques' });
+  await api('PATCH', `/api/groups/${group.id}/bots/destaques`, { config: { custoDestaque: 40, custoEfeito: 0 } });
+  const botCharges = async () => (await api('GET', '/api/me/points')).history.filter((entry) => entry.reason === 'bot').map((entry) => entry.delta);
+  if ((await page.getByTestId('settings-screen').count()) > 0) await page.getByTestId('settings-close').click();
+  await page.goto(`${BASE_URL}/#/grupos/${group.id}`);
+  const input = page.getByTestId('chat-input');
+  await input.waitFor();
+  await input.fill('/destaque Bem-vindos à Galáxia');
+  await page.keyboard.press('Enter');
+  const highlight = page.getByTestId('chat-highlight');
+  await highlight.waitFor();
+  assert.match(await highlight.textContent(), /Destaque de Estelar.*Bem-vindos à Galáxia/s);
+  assert.deepEqual(await botCharges(), [-40], 'cobrou exatamente o custo configurado');
+  await input.fill('/efeito estrelas');
+  await page.keyboard.press('Enter');
+  await page.getByTestId('chat-effect').and(page.locator('[data-effect="estrelas"]')).waitFor();
+  assert.deepEqual(await botCharges(), [-40], 'efeito grátis não cobra');
+});
+
 test('com animações reduzidas, a decoração fica parada até na prévia', async () => {
   await page.getByTestId('account-settings-open').click();
   await page.getByTestId('settings-nav-acessibilidade').click();

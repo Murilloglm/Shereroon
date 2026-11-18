@@ -133,7 +133,8 @@ export class Economy {
   }
 
   async #onEvent(event: CommunityEvent): Promise<void> {
-    if (event.type === 'message' && !event.fromBot) {
+    // Comandos de bot ("/destaque", "/lembrar"...) não contam como conversa para a missão do dia.
+    if (event.type === 'message' && !event.fromBot && !event.message.content.trimStart().startsWith('/')) {
       const day = dayOf(this.#now());
       await this.earn(event.author.id, POINTS.dailyMessage, 'missao', 'Primeira mensagem do dia', `missao:mensagem:${day}`);
     }

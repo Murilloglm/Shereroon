@@ -148,6 +148,10 @@ export interface MessageMeta {
   buttons?: { label: string; command: string; style?: 'primario' | 'perigo' }[];
   /** Mensagem que só faz sentido para uma pessoa (resposta a um comando dela). Todos do canal ainda a veem. */
   replyTo?: string;
+  /** Destaques Cósmicos: mensagem em destaque (pedida por um membro) e efeito visual. Só bots publicam isso. */
+  style?: 'destaque';
+  highlightOf?: string;
+  effect?: 'confete' | 'estrelas' | 'aurora';
 }
 
 export interface CommunityOptions {

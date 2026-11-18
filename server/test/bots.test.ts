@@ -625,6 +625,53 @@ describe('Boas-vindas e Cargos', () => {
   });
 });
 
+describe('Destaques Cósmicos (ações de bot com Cosmic Points)', () => {
+  let dono: Person, membro: Person;
+  let groupId: string, geral: string;
+  const points = async (who: Person) => (await w.ok('GET', '/api/me/points', who.token)).points as number;
+  const last = async () => ((await w.ok('GET', `/api/channels/${geral}/messages`, dono.token)).messages as any[]).at(-1);
+
+  beforeAll(async () => {
+    dono = await person('dono');
+    membro = await person('membro');
+    groupId = await w.group(dono, 'Destaques');
+    geral = (await w.channelByName(dono, groupId, 'geral'))!;
+    await w.join(dono, groupId, membro);
+    await install(dono, groupId, 'destaques');
+    await configure(dono, groupId, 'destaques', { config: { custoDestaque: 30, custoEfeito: 0 } });
+  });
+
+  it('sem saldo, o destaque não sai e nada é cobrado', async () => {
+    await w.say(membro, geral, '/destaque olá a todos');
+    expect((await last()).content).toMatch(/precisa de 30 Cosmic Points/);
+    expect(await points(membro)).toBe(0);
+  });
+
+  it('com saldo: cobra o custo configurado e publica a mensagem em destaque, em nome de quem pediu', async () => {
+    await w.economy.earn(membro.id, 100, 'teste', 'saldo de teste', 'teste:destaque', { ignoreCaps: true });
+    await w.say(membro, geral, '/destaque olá a todos');
+    const message = await last();
+    expect(message.content).toBe('olá a todos');
+    expect(message.meta).toMatchObject({ style: 'destaque', highlightOf: expect.stringMatching(/^Membro/) });
+    expect(await points(membro)).toBe(70);
+    const history = (await w.ok('GET', '/api/me/points', membro.token)).history as any[];
+    expect(history[0]).toMatchObject({ delta: -30, reason: 'bot' });
+  });
+
+  it('ação gratuita (custo 0) não mexe no saldo; efeito desconhecido é recusado', async () => {
+    await w.say(membro, geral, '/efeito confete');
+    expect((await last()).meta).toMatchObject({ effect: 'confete' });
+    expect(await points(membro)).toBe(70);
+    await w.say(membro, geral, '/efeito fogos-de-verdade');
+    expect((await last()).content).toMatch(/Efeitos: confete, estrelas, aurora/);
+  });
+
+  it('pessoas não conseguem forjar o estilo: só mensagens do bot carregam destaque', async () => {
+    await w.ok('POST', `/api/channels/${geral}/messages`, membro.token, { content: 'tentando', meta: { style: 'destaque' } });
+    expect((await last()).meta).toBeNull();
+  });
+});
+
 describe('Lembretes e a fila de tarefas', () => {
   let shared: World;
   let dono: Person, comum: Person, mod: Person;

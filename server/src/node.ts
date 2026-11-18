@@ -81,11 +81,11 @@ try {
       groupStorageBytes: megabytes('GROUP_STORAGE_MB', 400, 100_000),
     });
     // Os bots rodam aqui, no backend: seguem funcionando com todo mundo offline.
-    const bots = new BotRuntime(database, community, officialBots());
-    bots.start();
     // Cosmic Points: recompensas por participação (a cada minuto confere quem está em chamada).
     const economy = new Economy(database, community);
     economy.start();
+    const bots = new BotRuntime(database, community, officialBots(), { economy });
+    bots.start();
     // Rota de pontos de teste: só com COSMIC_DEV_POINTS=1 E fora de produção (o Render roda com NODE_ENV=production).
     const devPoints = process.env.COSMIC_DEV_POINTS === '1' && process.env.NODE_ENV !== 'production';
     groups = { accounts, community, bots, economy, devPoints };

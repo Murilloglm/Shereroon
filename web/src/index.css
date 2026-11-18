@@ -333,6 +333,25 @@
     }
   }
 
+  /* Efeito de mensagem (Destaques Cósmicos): partículas sobem e somem, uma vez. */
+  .cn-chat-particle {
+    opacity: 0;
+    animation: cn-particle 1.4s ease-out 1 both;
+  }
+  @keyframes cn-particle {
+    0% {
+      opacity: 0;
+      transform: translateY(0) rotate(0deg);
+    }
+    20% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-34px) rotate(160deg);
+    }
+  }
+
   /* Arte do fundo (nebulosas, estrelas, riscos de luz): só no tema Cosmic Night. */
   .cn-backdrop-art {
     opacity: var(--backdrop-art);

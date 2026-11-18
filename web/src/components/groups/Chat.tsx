@@ -576,7 +576,14 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                       </form>
                     ) : (
                       <>
-                        <Content message={message} members={byUsername} me={me} emojis={view.emojis ?? []} />
+                        {message.author.bot && message.meta?.style === 'destaque' ? (
+                          <Highlight by={message.meta.highlightOf}>
+                            <Content message={message} members={byUsername} me={me} emojis={view.emojis ?? []} />
+                          </Highlight>
+                        ) : (
+                          <Content message={message} members={byUsername} me={me} emojis={view.emojis ?? []} />
+                        )}
+                        {message.author.bot && message.meta?.effect && <ChatEffect effect={message.meta.effect} />}
                         <Attachments files={message.attachments} />
                         {message.meta?.buttons && message.meta.buttons.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-2" data-testid="bot-buttons">
@@ -827,5 +834,33 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
         </div>
       )}
     </section>
+  );
+}
+
+/** Mensagem em destaque (Destaques Cósmicos): moldura em gradiente e quem pediu. */
+function Highlight({ by, children }: { by?: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-0.5 max-w-xl rounded-xl bg-linear-to-r from-brand-500/60 via-neon-500/50 to-brand-500/60 p-px" data-testid="chat-highlight">
+      <div className="rounded-[11px] bg-ink-900/95 px-3 py-2">
+        <p className="mb-0.5 text-[11px] font-extrabold tracking-wide text-neon-300 uppercase">✦ Destaque{by ? ` de ${by}` : ''}</p>
+        <div className="text-[15px]">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Efeito visual de uma vez (confete, estrelas, aurora). Some sozinho e não toca com as animações reduzidas. */
+function ChatEffect({ effect }: { effect: 'confete' | 'estrelas' | 'aurora' }) {
+  const colors = effect === 'aurora' ? ['#7ff0c0', '#3fdcff', '#b79dff'] : effect === 'estrelas' ? ['#ffd98a', '#ffffff', '#82e9ff'] : ['#ff8aa6', '#ffc65c', '#3fdcff', '#9873ff'];
+  return (
+    <div className="pointer-events-none relative h-8 overflow-visible" aria-hidden="true" data-testid="chat-effect" data-effect={effect}>
+      {Array.from({ length: 14 }, (_, index) => (
+        <span
+          key={index}
+          className="cn-chat-particle absolute top-6"
+          style={{ left: `${4 + index * 6.5}%`, background: colors[index % colors.length], animationDelay: `${(index % 5) * 70}ms`, borderRadius: effect === 'confete' ? 2 : 999, width: effect === 'aurora' ? 18 : 6, height: effect === 'aurora' ? 4 : 6 }}
+        />
+      ))}
+    </div>
   );
 }

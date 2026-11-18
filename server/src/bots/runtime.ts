@@ -14,6 +14,11 @@ import { ApiError } from '../errors.ts';
 import { RateLimiter } from '../ratelimit.ts';
 import type { BotContext, BotData, BotModule, CommandCall, CommandDef, ConfigField, Install, Job } from './types.ts';
 
+/** O que os bots precisam da economia: cobrar pontos de quem pediu uma ação (ver community/economy.ts). */
+export interface PointsSpender {
+  spend(userId: string, amount: number, reason: string, detail: string, ref: string): Promise<boolean>;
+}
+
 const HANDLER_TIMEOUT_MS = 8000;
 const MAX_ATTEMPTS = 5;
 const str = (set: bigint): string => set.toString();
@@ -60,6 +65,7 @@ function withTimeout<T>(work: Promise<T>, what: string): Promise<T> {
 }
 
 export class BotRuntime {
+  readonly #economy: PointsSpender | null;
   readonly #db: Db;
   readonly #community: Community;
   readonly #modules = new Map<string, BotModule>();
@@ -70,8 +76,9 @@ export class BotRuntime {
   #timer: ReturnType<typeof setInterval> | null = null;
   #ticking = false;
 
-  constructor(db: Db, community: Community, modules: readonly BotModule[], options: { now?: () => Date } = {}) {
+  constructor(db: Db, community: Community, modules: readonly BotModule[], options: { now?: () => Date; economy?: PointsSpender } = {}) {
     this.#db = db;
+    this.#economy = options.economy ?? null;
     this.#community = community;
     this.#now = options.now ?? (() => new Date());
     this.#limiter = new RateLimiter(() => this.#now().getTime());
@@ -477,6 +484,17 @@ export class BotRuntime {
       attempt,
       snapshot: () => community.snapshot(groupId),
       now: () => this.#now(),
+      ...(this.#economy
+        ? {
+            spendPoints: async (userId: string, amount: number, detail: string, ref: string) => {
+              try {
+                return (await this.#economy!.spend(userId, amount, 'bot', detail, ref)) ? ('ok' as const) : ('ok' as const);
+              } catch (error) {
+                return error instanceof ApiError && error.code === 'pontos_insuficientes' ? ('sem-saldo' as const) : ('indisponivel' as const);
+              }
+            },
+          }
+        : {}),
       say: async (channelId, content, meta) => {
         // Trava contra enxurrada (um laço entre regras, por exemplo): no máximo 20 mensagens a cada 10 segundos.
         if (!this.#limiter.take(`fala:${groupId}:${botId}`, 20, 10_000)) {

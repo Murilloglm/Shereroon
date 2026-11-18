@@ -72,6 +72,11 @@ export interface BotContext {
   /** Agenda uma tarefa. Com `everySeconds`, ela se repete. Devolve o identificador. */
   schedule(kind: string, payload: Record<string, unknown>, runAt: Date, everySeconds?: number): Promise<string>;
   cancel(jobId: string): Promise<void>;
+  /**
+   * Cobra Cosmic Points de quem pediu uma ação do bot (com a chave `ref`, nunca duas vezes). Só existe quando os
+   * pontos estão ligados no servidor.
+   */
+  spendPoints?(userId: string, amount: number, detail: string, ref: string): Promise<'ok' | 'sem-saldo' | 'indisponivel'>;
   /** Tenta uma ação que depende das permissões do bot; se o backend recusar, registra o motivo e devolve false. */
   attempt(what: string, action: () => Promise<unknown>): Promise<boolean>;
 }

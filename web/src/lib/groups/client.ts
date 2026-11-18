@@ -114,7 +114,13 @@ export interface ChatMessage {
   author: { id: string | null; name: string; username: string | null; bot?: boolean };
   content: string;
   /** Complementos de mensagens de bots: botões que enviam um comando como se a pessoa tivesse digitado. */
-  meta?: { buttons?: { label: string; command: string; style?: 'primario' | 'perigo' }[] } | null;
+  meta?: {
+    buttons?: { label: string; command: string; style?: 'primario' | 'perigo' }[];
+    /** Destaques Cósmicos: mensagem em destaque pedida por um membro, e efeito visual. Só bots publicam. */
+    style?: 'destaque';
+    highlightOf?: string;
+    effect?: 'confete' | 'estrelas' | 'aurora';
+  } | null;
   mentionEveryone: boolean;
   pinned: boolean;
   createdAt: string;
