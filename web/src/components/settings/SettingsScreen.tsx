@@ -12,6 +12,7 @@ import { useStore } from '../../lib/store.ts';
 import { AutostartSettings } from '../AutostartSettings.tsx';
 import { errorText, fieldLabel, selectClass, useAction } from '../groups/common.tsx';
 import { CallSettings } from '../room/CallSettings.tsx';
+import { InputSensitivity } from './InputSensitivity.tsx';
 import { GamesSettings } from './GamesSettings.tsx';
 import { CosmicAdminSettings } from './CosmicAdminSettings.tsx';
 import { GiftsSettings } from './GiftsSettings.tsx';
@@ -481,16 +482,10 @@ function AccessibilitySettings() {
 
 function VoiceSettings() {
   const call = useStore(settingsScreen, (state) => state.call);
-  if (!call) {
-    return (
-      <Notice>
-        As opções de microfone, som, supressão de ruído e transmissão ficam disponíveis durante uma chamada, onde dá para testar cada uma ao vivo. Entre num canal de voz e abra esta tela de novo (ou use a engrenagem da barra da chamada).
-      </Notice>
-    );
-  }
   return (
-    <div className="grid" data-testid="settings-voice">
-      <CallSettings session={call.session} noise={call.noise} />
+    <div className="grid gap-5" data-testid="settings-voice">
+      <InputSensitivity session={call?.session} />
+      {call ? <CallSettings session={call.session} noise={call.noise} /> : <Notice>As configurações de transmissão e saída ficam disponíveis durante uma chamada.</Notice>}
     </div>
   );
 }

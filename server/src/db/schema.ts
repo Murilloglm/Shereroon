@@ -608,6 +608,16 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       ALTER TABLE global_permissions ADD CONSTRAINT owner_mfa_exemption_only CHECK (NOT mfa_exempt OR is_primary);
     `,
   },
+  {
+    id: 9,
+    name: 'idempotent message delivery acknowledgements',
+    sql: `
+      ALTER TABLE messages ADD COLUMN client_id TEXT;
+      ALTER TABLE dm_messages ADD COLUMN client_id TEXT;
+      CREATE UNIQUE INDEX messages_client_id ON messages(author_id, channel_id, client_id);
+      CREATE UNIQUE INDEX dm_messages_client_id ON dm_messages(author_id, dm_id, client_id);
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

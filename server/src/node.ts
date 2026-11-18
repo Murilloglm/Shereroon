@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,7 +97,10 @@ try {
   process.exit(1);
 }
 
+const releaseVersion = JSON.parse(readFileSync(resolve(here, '../../desktop/package.json'), 'utf8')).version as string;
+const releaseCommit = process.env.RENDER_GIT_COMMIT ?? process.env.APP_COMMIT;
 const app = createApp({
+  build: { version: releaseVersion, commit: releaseCommit && /^[a-f0-9]{40}$/.test(releaseCommit) ? releaseCommit : undefined },
   config,
   sfu,
   remoteAddress: (c) => getConnInfo(c).remote.address,

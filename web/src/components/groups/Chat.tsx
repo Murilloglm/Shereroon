@@ -1,10 +1,11 @@
 import { Bell, BellOff, CornerUpLeft, Hash, Lock, Pencil, Pin, PinOff, Plus, Reply, SendHorizontal, Smile, SmilePlus, Trash2, Users, X } from 'lucide-react';
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
 import { groups, type Attachment, type ChannelView, type ChatMessage, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
 import { UserTrigger } from '../social/UserInteractions.tsx';
 import { dialogs } from '../../lib/dialogs.ts';
 import { applyMention, insertAt, mentionQuery, splitMessage } from '../../lib/groups/text.ts';
+import { isConfirmed, messageKey } from '../../lib/outbox.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, emojiUrl, IconButton, Menu, MenuItem, MenuLabel, MotionSafeImage, Notice } from '../ui.tsx';
 import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
@@ -43,7 +44,7 @@ interface Upload {
 }
 
 /** Texto da mensagem: links abrem fora, menções viram destaque e todo o resto é texto puro (nada de HTML). */
-function Content({ message, members, me, emojis }: { message: ChatMessage; members: Map<string, MemberView>; me: string; emojis: readonly CustomEmoji[] }) {
+function MessageContent({ message, members, me, emojis }: { message: ChatMessage; members: Map<string, MemberView>; me: string; emojis: readonly CustomEmoji[] }) {
   const pieces = useMemo(
     () =>
       splitMessage(message.content, {
@@ -80,6 +81,8 @@ function Content({ message, members, me, emojis }: { message: ChatMessage; membe
     </p>
   );
 }
+
+const Content = memo(MessageContent);
 
 /** Mensagens fixadas do canal, buscadas no servidor (inclui as antigas que não estão carregadas na tela). */
 function PinsPanel({ channel, canUnpin, onJump, onClose }: { channel: ChannelView; canUnpin: boolean; onJump: (id: string) => void; onClose: () => void }) {
@@ -177,7 +180,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
   const restore = useRef<number | null>(null);
   const uploadsRef = useRef<Upload[]>([]);
   uploadsRef.current = uploads;
-  const lastId = items.at(-1)?.id;
+  const lastId = items.findLast(isConfirmed)?.id;
   const firstId = items[0]?.id;
 
   const me = view.me.userId;
@@ -322,8 +325,9 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
     const content = draft.trim();
     if (busy || uploading || (!content && ready.length === 0)) return;
     stick.current = true;
-    const sent = await run(() => groups.send(channel.id, content, { replyTo: replyTo?.id, attachments: ready.map((upload) => upload.file!.id) }));
-    if (!sent) return;
+    const pending = groups.send(channel.id, content, { replyTo: replyTo?.id, attachments: ready.map((upload) => upload.file!.id), localAttachments: ready.map(upload => upload.file!) });
+    // The outbox owns this operation now; the composer is immediately ready for the next one.
+    void pending.catch(() => undefined);
     for (const upload of uploads) if (upload.preview) URL.revokeObjectURL(upload.preview);
     setDraft('');
     setReplyTo(null);
@@ -488,7 +492,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
             const mentioned = !own && (message.mentionEveryone || message.mentions.includes(me));
             const isEditing = editing?.id === message.id;
             return (
-              <Fragment key={message.id}>
+              <Fragment key={messageKey(message)}>
                 {newDay && (
                   <li className="my-3 flex items-center gap-3 text-xs font-bold text-fog-500" aria-label={day(message.createdAt)}>
                     <span className="h-px flex-1 bg-ink-700" />
@@ -506,6 +510,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                   data-testid="chat-message"
                   data-id={message.id}
                   data-author={message.author.username ?? ''}
+                  data-delivery={message.delivery ?? 'sent'}
                   data-mentioned={mentioned}
                   className={cx(
                     'group relative flex gap-3 rounded-lg px-2 py-0.5 transition-colors hover:bg-white/[0.035]',
@@ -585,6 +590,9 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                         )}
                         {message.author.bot && message.meta?.effect && <ChatEffect effect={message.meta.effect} />}
                         <Attachments files={message.attachments} />
+                        {(message.delivery || message.clientId && message.author.id === me) && <p className="mt-1 text-xs text-fog-400" role="status" data-testid="message-delivery">
+                          {!message.delivery ? 'Enviada' : message.delivery === 'sending' ? 'Enviando...' : <><span className="text-live-300">{message.deliveryError || 'Falha no envio.'}</span> <button type="button" className="font-bold text-brand-200 underline" onClick={() => void groups.retry(message.clientId!).catch(() => undefined)} data-testid="message-retry">Tentar novamente</button></>}
+                        </p>}
                         {message.meta?.buttons && message.meta.buttons.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-2" data-testid="bot-buttons">
                             {message.meta.buttons.map((button) => (
@@ -640,7 +648,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                       </>
                     )}
                   </div>
-                  {!isEditing && (
+                  {!isEditing && !message.delivery && (
                     <div className="absolute -top-3 right-2 hidden items-center gap-0.5 rounded-lg border border-ink-600 bg-ink-800 p-0.5 shadow-panel group-focus-within:flex group-hover:flex [@media(hover:none)]:static [@media(hover:none)]:flex [@media(hover:none)]:border-0 [@media(hover:none)]:bg-transparent [@media(hover:none)]:shadow-none" data-testid="message-actions">
                       {canReact && (
                         <>

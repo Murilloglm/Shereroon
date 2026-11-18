@@ -3,6 +3,7 @@
  * que o usuário escolher. Cada fonte é filtrada SOZINHA, antes de entrar na mixagem. Nada é ligado sem um
  * clique do usuário, e em jogos, música e vídeo a escolha nem fica guardada entre visitas.
  */
+import { inputSettings, setInput } from './input-settings.ts';
 import { audioContext } from './audio.ts';
 import { createNoiseFilter, isNoiseLevel, type NoiseCapture, type NoiseEngine, type NoiseFilter, type NoiseLevel, type NoiseStats } from './denoise.ts';
 import { MAX_SOLO } from './helper/client.ts';
@@ -123,16 +124,21 @@ export class NoiseControl {
       original: {},
       engines: {},
     });
-    this.#unsubscribe = [session.store.subscribe(() => this.#sync()), mixer.helper.store.subscribe(() => this.#sync())];
+    this.#unsubscribe = [session.store.subscribe(() => this.#sync()), mixer.helper.store.subscribe(() => this.#sync()), inputSettings.subscribe(() => this.#sync())];
     this.#sync();
   }
 
   setting(key: string): NoiseSetting {
+    const input = inputSettings.get();
+    if (key === MIC_KEY && (input.profile === 'studio' || input.noise !== 'legacy')) {
+      return { on: input.profile !== 'studio' && input.noise !== 'off' && input.noise !== 'browser', level: input.noise === 'off' || input.noise === 'legacy' || input.noise === 'browser' ? 'equilibrado' : input.noise };
+    }
     return this.store.get().settings[key] ?? defaultSetting(key);
   }
 
   /** Liga ou desliga o filtro de uma fonte. Só é chamado por um clique do usuário. */
   setOn(key: string, on: boolean): void {
+    if (key === MIC_KEY) setInput({ profile: 'custom', noise: on ? this.setting(key).level : 'off' });
     this.#save(key, { on });
     if (!on) this.setOriginal(key, false);
     this.#sync();
@@ -140,6 +146,7 @@ export class NoiseControl {
 
   /** Troca a intensidade na hora, sem interromper o áudio. */
   setLevel(key: string, level: NoiseLevel): void {
+    if (key === MIC_KEY && inputSettings.get().noise !== 'legacy') setInput({ profile: 'custom', noise: level });
     this.#save(key, { level });
     for (const running of this.#running.values()) if (running.key === key) running.filter.setLevel(level);
   }
@@ -247,6 +254,7 @@ export class NoiseControl {
   #syncMic(): void {
     const setting = this.setting(MIC_KEY);
     const want = setting.on && this.#session.store.get().micOn;
+    this.#running.get(MIC_KEY)?.filter.setLevel(setting.level);
     if (!want) {
       if (this.#running.has(MIC_KEY) || this.#micOnBrowser) {
         this.#drop(MIC_KEY);

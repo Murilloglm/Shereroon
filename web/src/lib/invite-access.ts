@@ -1,3 +1,4 @@
+import { groups } from './groups/client.ts';
 import { api } from './api.ts';
 import { desktop } from './desktop.ts';
 import type { SessionAccess } from './session.ts';
@@ -21,7 +22,7 @@ export function inviteAccess(invite: string, name: string, password?: string): S
         password: typed,
         hostKey: saved?.hostKey,
         session: saved?.session,
-      });
+      }, groups.sessionToken);
       storage.saveRoom(invite, {
         name: result.room.name,
         session: { identity: result.identity, proof: result.proof },

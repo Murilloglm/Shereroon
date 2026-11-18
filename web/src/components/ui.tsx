@@ -1,3 +1,5 @@
+import { avatarCache } from '../lib/avatar-cache.ts';
+import { useStore } from '../lib/store.ts';
 import { Check, X } from 'lucide-react';
 import {
   useEffect,
@@ -375,10 +377,12 @@ export function MotionSafeImage({ src, alt, className, play = false }: { src: st
 }
 
 /** Foto enviada. Com "reduzir movimento" ligado, um GIF animado aparece parado no primeiro quadro. */
-function AvatarImage({ src, alt }: { src: string; alt: string }) {
+function AvatarImage({ src, alt, fallback }: { src: string; alt: string; fallback: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [still, setStill] = useState(false);
+  const [failed, setFailed] = useState(false);
   const reduce = prefersReducedMotion();
+  if (failed) return <>{fallback}</>;
   return (
     <>
       <img
@@ -386,7 +390,7 @@ function AvatarImage({ src, alt }: { src: string; alt: string }) {
         alt={alt}
         className={cx('size-full rounded-full object-cover', still && 'hidden')}
         draggable={false}
-        crossOrigin={reduce ? "anonymous" : undefined}
+        onError={() => setFailed(true)}
         onLoad={(event) => {
           if (!reduce || !canvasRef.current) return;
           const image = event.currentTarget;
@@ -413,6 +417,7 @@ export function Avatar({
   online,
   speaking,
   image,
+  preview = false,
 }: {
   id: string;
   name: string;
@@ -421,7 +426,11 @@ export function Avatar({
   speaking?: boolean;
   /** 'padrao:<n>' (avatar padrão) ou 'arquivo:<id>' (foto enviada); sem isso, as iniciais. */
   image?: string | null;
+  /** Profile editor previews deliberately ignore the saved avatar. */
+  preview?: boolean;
 }) {
+  const cached = useStore(avatarCache.store, (state) => state.byUser[id]);
+  if (!preview && cached !== undefined) image = cached;
   const hue = hueFor(id);
   const preset = image?.startsWith('padrao:') ? DEFAULT_AVATARS[Number(image.slice(7))] : undefined;
   const photo = image?.startsWith('arquivo:') && /^[A-Za-z0-9_-]{8,40}$/.test(image.slice(8)) ? `${API_BASE}/api/media/${image.slice(8)}` : null;
@@ -443,7 +452,7 @@ export function Avatar({
         }}
         aria-hidden="true"
       >
-        {photo ? <AvatarImage src={photo} alt="" /> : initials(name)}
+        {photo ? <AvatarImage key={photo} src={photo} alt="" fallback={initials(name)} /> : initials(name)}
       </span>
       {online && (
         <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-ink-850 bg-ok-400" />

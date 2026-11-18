@@ -97,7 +97,7 @@ export function ProfileEditor({ userId }: { userId: string }) {
         <div className="h-20" style={{ background: bannerImage ? `center / cover no-repeat url("${bannerImage}")` : (bannerColor ?? 'linear-gradient(120deg, #4b348e, #6c4dff 55%, #74d7ff)') }} />
         <div className="flex items-end gap-3 px-4 pb-3">
           <div className="-mt-8 rounded-full border-4 border-ink-900">
-            {avatarPreview ? <img src={avatarPreview} alt="" className="size-16 rounded-full object-cover" /> : <Avatar id={userId} name={draft.displayName || saved.displayName} size={64} image={draft.avatar} />}
+            {avatarPreview ? <img src={avatarPreview} alt="" className="size-16 rounded-full object-cover" /> : <Avatar preview id={userId} name={draft.displayName || saved.displayName} size={64} image={draft.avatar} />}
           </div>
           <div className="min-w-0 pb-1">
             <p className="truncate font-extrabold">{draft.displayName || saved.displayName}</p>
@@ -124,11 +124,11 @@ export function ProfileEditor({ userId }: { userId: string }) {
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           {DEFAULT_AVATARS.map((_, index) => (
             <button key={index} type="button" onClick={() => set({ avatar: `padrao:${index}` })} aria-label={`Avatar padrão ${index + 1}`} aria-pressed={draft.avatar === `padrao:${index}`} className={cx('rounded-full p-0.5', draft.avatar === `padrao:${index}` ? 'ring-2 ring-neon-400' : 'hover:ring-1 hover:ring-ink-500')} data-testid="profile-default-avatar">
-              <Avatar id={userId} name={draft.displayName || saved.displayName} size={36} image={`padrao:${index}`} />
+              <Avatar preview id={userId} name={draft.displayName || saved.displayName} size={36} image={`padrao:${index}`} />
             </button>
           ))}
           <button type="button" onClick={() => set({ avatar: null })} className={cx('rounded-full p-0.5', !draft.avatar ? 'ring-2 ring-neon-400' : 'hover:ring-1 hover:ring-ink-500')} aria-label="Usar as iniciais" aria-pressed={!draft.avatar}>
-            <Avatar id={userId} name={draft.displayName || saved.displayName} size={36} />
+            <Avatar preview id={userId} name={draft.displayName || saved.displayName} size={36} />
           </button>
           <label className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-brand-400/60 px-3 text-sm font-bold text-brand-200 hover:bg-brand-500/10">
             <ImagePlus className="size-4" aria-hidden="true" /> Enviar imagem

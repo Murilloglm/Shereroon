@@ -70,6 +70,7 @@ export class NoiseFilter {
   engine: NoiseEngine | null = null;
   /** Última medição enviada pelo worklet (quatro por segundo). */
   stats: NoiseStats | null = null;
+  #level: NoiseLevel | null = null;
   #pendingCapture: ((result: NoiseCapture) => void) | null = null;
 
   constructor(node: AudioWorkletNode) {
@@ -91,6 +92,8 @@ export class NoiseFilter {
   }
 
   setLevel(level: NoiseLevel): void {
+    if (this.#level === level) return;
+    this.#level = level;
     this.node.port.postMessage({ type: 'mode', mode: level });
   }
 
@@ -108,6 +111,8 @@ export class NoiseFilter {
   }
 
   dispose(): void {
+    this.node.port.postMessage({ type: 'dispose' });
+    this.node.port.close();
     this.node.port.onmessage = null;
     this.node.onprocessorerror = null;
     this.node.disconnect();

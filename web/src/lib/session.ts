@@ -25,6 +25,9 @@ import {
   type TrackPublishOptions,
 } from 'livekit-client';
 import { ApiError } from './api.ts';
+import { avatarCache } from './avatar-cache.ts';
+import { inputSettings, effectiveMic } from './input-settings.ts';
+import { playCallSound } from './call-sounds.ts';
 import { audioContext, listAudioDevices, loadBoostWorklet, micPermission, PeakMeter, resumeAudio, type AudioDevices } from './audio.ts';
 import {
   CaptureError,
@@ -127,8 +130,11 @@ export interface ParticipantView {
   identity: string;
   name: string;
   isLocal: boolean;
+  accountId?: string;
+  avatar?: string | null;
   isHost: boolean;
   micOn: boolean;
+  deafened?: boolean;
   speaking: boolean;
   sharing: boolean;
   quality: LinkQuality;
@@ -183,8 +189,11 @@ export interface ViewerView {
   sync: { audioDelayMs: number | null; compensationMs: number; supported: boolean };
 }
 
+export interface ConnectionTiming { tokenMs: number; livekitMs: number; roomMs: number; participantsMs: number }
+
 export interface SessionState {
   phase: Phase;
+  connectionTiming?: ConnectionTiming;
   endReason: EndReason | null;
   error: string | null;
   notice: string | null;
@@ -272,6 +281,13 @@ function linkQuality(quality: ConnectionQuality): LinkQuality {
   }
 }
 
+function participantProfile(metadata: string | undefined): { accountId?: string; avatar?: string | null } {
+  try {
+    const data = JSON.parse(metadata ?? '{}');
+    return typeof data.accountId === 'string' ? { accountId: data.accountId, avatar: typeof data.avatar === 'string' ? data.avatar : null } : {};
+  } catch { return {}; }
+}
+
 function isHostMetadata(metadata: string | undefined): boolean {
   if (!metadata) return false;
   try {
@@ -309,7 +325,13 @@ export class RoomSession {
   readonly store: Store<SessionState>;
   readonly mic: MicPipeline;
   readonly #room: Room;
+  #profileUnsubscribe: (() => void) | null = null;
+  #avatarSignature = '';
+  #soundPeers = new Set<string>();
+  #leaveSounds = new Map<string, ReturnType<typeof setTimeout>>();
+  #inputUnsubscribe: (() => void) | null = null;
   #access: SessionAccess | null = null;
+  #deafened = new Map<string, boolean>();
   #capture: CaptureSession | null = null;
   #screenPub: LocalTrackPublication | null = null;
   #screenAudioPub: LocalTrackPublication | null = null;
@@ -408,6 +430,13 @@ export class RoomSession {
 
   /** Chame dentro de um clique: destrava o áudio do navegador. */
   async join(access: SessionAccess): Promise<void> {
+    this.#inputUnsubscribe?.();
+    this.#inputUnsubscribe = inputSettings.subscribe(() => {
+      this.mic.configureInput(inputSettings.get());
+      void this.updateMic({});
+    });
+    this.#profileUnsubscribe?.();
+    this.#profileUnsubscribe = avatarCache.store.subscribe(() => this.#publishAvatar());
     this.#access = access;
     this.#leaving = false;
     if (access.persistentIdentities) {
@@ -420,13 +449,16 @@ export class RoomSession {
     void resumeAudio();
     try {
       await this.#connect();
+      playCallSound('join', this.store.get().deafened);
     } catch (error) {
+      this.#inputUnsubscribe?.(); this.#inputUnsubscribe = null;
+      this.#profileUnsubscribe?.(); this.#profileUnsubscribe = null;
       const failure = joinFailure(error);
       this.store.set({ phase: 'idle', error: failure.message });
       throw failure;
     }
     // Só na entrada: reconexões nunca mexem no microfone.
-    await this.#restoreMic();
+    void this.#restoreMic().catch(() => this.#notify('Não foi possível restaurar o microfone.'));
   }
 
   /**
@@ -434,8 +466,9 @@ export class RoomSession {
    * microfone (nunca pede permissão sem um clique) e se a pessoa pode falar neste canal.
    */
   async #restoreMic(): Promise<void> {
-    if (storage.get<boolean>(MIC_WANTED_KEY, false) !== true || !this.store.get().rights.speak) return;
+    if (this.#leaving || this.store.get().phase !== 'connected' || storage.get<boolean>(MIC_WANTED_KEY, false) !== true || !this.store.get().rights.speak) return;
     const permission = await micPermission();
+    if (this.#leaving || this.store.get().phase !== 'connected') return;
     if (permission === 'granted') {
       await this.setMic(true, { remember: false });
     } else if (permission !== 'denied') {
@@ -444,7 +477,12 @@ export class RoomSession {
   }
 
   async leave(): Promise<void> {
+    if (!this.#leaving && this.store.get().phase === 'connected') playCallSound('leave', this.store.get().deafened);
     this.#leaving = true;
+    this.#profileUnsubscribe?.(); this.#profileUnsubscribe = null;
+    for (const timer of this.#leaveSounds.values()) clearTimeout(timer);
+    this.#leaveSounds.clear(); this.#soundPeers.clear();
+    this.#inputUnsubscribe?.(); this.#inputUnsubscribe = null;
     await this.#teardownMedia();
     await this.#room.disconnect();
     this.#stopTimer();
@@ -452,12 +490,19 @@ export class RoomSession {
   }
 
   async #connect(): Promise<void> {
+    const start = performance.now();
     const grant = await this.#access!.grant();
+    const granted = performance.now();
+    if (this.#leaving) throw new ApiError('entrada_cancelada', 'Entrada cancelada.', 409);
     // Nada é assinado sozinho: vozes sempre, telas só quando a pessoa assiste ou abre a prévia.
     await this.#room.connect(grant.url, grant.token, { autoSubscribe: false });
+    if (this.#leaving) { await this.#room.disconnect(); throw new ApiError('entrada_cancelada', 'Entrada cancelada.', 409); }
+    const connected = performance.now();
     void this.#room.startAudio().catch(() => undefined);
+    for (const participant of this.#room.remoteParticipants.values()) this.#soundPeers.add(participant.identity);
     this.store.set({
       phase: 'connected',
+      connectionTiming: { tokenMs: granted - start, livekitMs: connected - granted, roomMs: connected - start, participantsMs: connected - start },
       identity: grant.identity,
       isHost: grant.isHost,
       rights: grant.rights ?? FULL_RIGHTS,
@@ -469,6 +514,8 @@ export class RoomSession {
       error: null,
     });
     this.#applySubscriptions();
+    this.#publishDeafened();
+    this.#publishAvatar(true);
     this.#refresh();
     this.#startTimer();
     void this.refreshDevices();
@@ -501,10 +548,16 @@ export class RoomSession {
     }
   }
 
+  #markReconnecting(): void {
+    for (const timer of this.#leaveSounds.values()) clearTimeout(timer);
+    this.#leaveSounds.clear();
+    this.store.set({ phase: 'reconnecting' });
+  }
+
   async #rejoin(): Promise<void> {
     if (this.#rejoining) return;
     this.#rejoining = true;
-    this.store.set({ phase: 'reconnecting' });
+    this.#markReconnecting();
     const delays = [1000, 2000, 4000, 8000, 15000];
     for (let attempt = 0; !this.#leaving; attempt++) {
       await wait(delays[Math.min(attempt, delays.length - 1)]!);
@@ -556,9 +609,33 @@ export class RoomSession {
     const room = this.#room;
     const refresh = () => this.#refresh();
     room
-      .on(RoomEvent.ParticipantConnected, refresh)
+      .on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+        const state = this.store.get();
+        const timer = this.#leaveSounds.get(participant.identity);
+        if (timer) clearTimeout(timer);
+        this.#leaveSounds.delete(participant.identity);
+        if (!this.#leaving && state.phase === 'connected' && !this.#soundPeers.has(participant.identity)) {
+          playCallSound('join', state.deafened);
+        }
+        this.#soundPeers.add(participant.identity);
+        this.#publishAvatar(true);
+        refresh();
+        this.#publishDeafened();
+      })
       .on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+        const state = this.store.get();
+        if (!this.#leaving && state.phase === 'connected' && this.#soundPeers.has(participant.identity) && !this.#leaveSounds.has(participant.identity)) {
+          const timer = setTimeout(() => {
+            this.#leaveSounds.delete(participant.identity);
+            if (!this.#leaving && this.store.get().phase === 'connected' && !room.remoteParticipants.has(participant.identity)) {
+              this.#soundPeers.delete(participant.identity);
+              playCallSound('leave', this.store.get().deafened);
+            }
+          }, 200);
+          this.#leaveSounds.set(participant.identity, timer);
+        }
         this.#uplinks.delete(participant.identity);
+        this.#deafened.delete(participant.identity);
         refresh();
       })
       .on(RoomEvent.TrackPublished, refresh)
@@ -599,15 +676,32 @@ export class RoomSession {
       .on(RoomEvent.AudioPlaybackStatusChanged, () => {
         this.store.set({ audioBlocked: !room.canPlaybackAudio });
       })
-      .on(RoomEvent.Reconnecting, () => this.store.set({ phase: 'reconnecting' }))
-      .on(RoomEvent.SignalReconnecting, () => this.store.set({ phase: 'reconnecting' }))
+      .on(RoomEvent.Reconnecting, () => this.#markReconnecting())
+      .on(RoomEvent.SignalReconnecting, () => this.#markReconnecting())
       .on(RoomEvent.Reconnected, () => {
         this.store.set({ phase: 'connected' });
+        this.#publishDeafened();
         this.#settleUntil = Date.now() + SETTLE_MS;
         refresh();
       })
       .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => this.#onDisconnected(reason))
       .on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
+        if (topic === 'cosmic.avatar' && participant && payload.byteLength <= 512) {
+          try {
+            const data = JSON.parse(new TextDecoder().decode(payload));
+            const profile = participantProfile(participant.metadata);
+            if (profile.accountId && data.accountId === profile.accountId && (data.avatar === null || typeof data.avatar === 'string' && data.avatar.length <= 200)) avatarCache.update(profile.accountId, data.avatar);
+          } catch { /* ignore malformed or mismatched sender */ }
+          return;
+        }
+        if (topic === 'cosmic.deafened' && participant) {
+          const value = new TextDecoder().decode(payload);
+          if (value === 'true' || value === 'false') {
+            this.#deafened.set(participant.identity, value === 'true');
+            refresh();
+          }
+          return;
+        }
         if (topic !== UPLINK_TOPIC || !participant) return;
         try {
           this.#uplinks.set(participant.identity, JSON.parse(new TextDecoder().decode(payload)) as UplinkInfo);
@@ -625,11 +719,13 @@ export class RoomSession {
     const everyone: Participant[] = [room.localParticipant, ...room.remoteParticipants.values()];
     const participants: ParticipantView[] = everyone.map((participant) => ({
       identity: participant.identity,
+      ...participantProfile(participant.metadata),
       name: participant.name || 'Sem nome',
       isLocal: participant === room.localParticipant,
       isHost: isHostMetadata(participant.metadata),
       // O próprio participante mostra o estado escolhido na hora (o aviso ao servidor pode estar a caminho).
       micOn: participant === room.localParticipant ? state.micOn : participant.isMicrophoneEnabled,
+      deafened: participant.isLocal ? state.deafened : this.#deafened.get(participant.identity),
       speaking: this.#speech.get(participant.identity)?.speaking ?? participant.isSpeaking,
       sharing: participant.isScreenShareEnabled,
       quality: linkQuality(participant.connectionQuality),
@@ -870,9 +966,27 @@ export class RoomSession {
   }
 
   /** Liga ou desliga tudo o que a pessoa ouve da sala. */
+  #publishAvatar(force = false): void {
+    if (this.store.get().phase !== 'connected' || this.#leaving) return;
+    const profile = participantProfile(this.#room.localParticipant.metadata);
+    if (!profile.accountId) return;
+    const avatar = avatarCache.resolve(profile.accountId, profile.avatar) ?? null;
+    const signature = JSON.stringify({ accountId: profile.accountId, avatar });
+    if (!force && this.#avatarSignature === signature) return;
+    this.#avatarSignature = signature;
+    void this.#room.localParticipant.publishData(new TextEncoder().encode(signature), { reliable: true, topic: 'cosmic.avatar' }).catch(() => undefined);
+  }
+
+  #publishDeafened(): void {
+    if (this.store.get().phase !== 'connected') return;
+    void this.#room.localParticipant.publishData(new TextEncoder().encode(String(this.store.get().deafened)), { reliable: true, topic: 'cosmic.deafened' }).catch(() => undefined);
+  }
+
   setDeafened(deafened: boolean): void {
     storage.set(DEAFENED_KEY, deafened);
     this.store.set({ deafened });
+    this.#publishDeafened();
+    this.#refresh();
     this.#applyAudioRouting();
   }
 
@@ -1047,7 +1161,11 @@ export class RoomSession {
 
   async #unpublishShare(): Promise<void> {
     const local = this.#room.localParticipant;
-    const publications = [this.#screenPub, this.#screenAudioPub];
+    // SDK reconnects may replace publication objects. Read the current room tracks
+    // so stopping a share also removes publications restored by LiveKit.
+    const publications = [...local.trackPublications.values()].filter((publication) =>
+      publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio,
+    );
     this.#screenPub = null;
     this.#screenAudioPub = null;
     for (const publication of publications) {
@@ -1244,7 +1362,7 @@ export class RoomSession {
   async setMic(on: boolean, { remember = true }: { remember?: boolean } = {}): Promise<void> {
     const state = this.store.get();
     if (remember) storage.set(MIC_WANTED_KEY, on);
-    if (state.micBusy || state.micOn === on) return;
+    if (state.micBusy || state.micOn === on || on && (this.#leaving || state.phase !== 'connected')) return;
     if (on && !state.rights.speak) {
       this.#notify('Você não tem permissão para falar neste canal.');
       return;
@@ -1256,6 +1374,7 @@ export class RoomSession {
         await resumeAudio();
         const opening = !this.mic.active;
         if (opening) await this.mic.start(this.#micSettings());
+        if (this.#leaving || this.store.get().phase !== 'connected') { this.mic.stop(); return; }
         // A faixa publicada é sempre a mesma: desmutar só a religa. Nada de reabrir aparelho nem republicar.
         // Se o aviso de mute ainda não tinha saído, basta cancelá-lo.
         const pendingMute = this.#muteTimer !== null;
@@ -1315,18 +1434,21 @@ export class RoomSession {
   }
 
   /** Muda as opções do microfone. Trocar de aparelho ou de filtro reabre a captura, sem republicar. */
+  prepareMicTest(): void {
+    if (this.store.get().micOn || this.store.get().micBusy) throw new MicError('Desligue o microfone da chamada antes de testar.');
+    this.#cancelMicRelease(); this.mic.stop();
+  }
+
   async updateMic(patch: Partial<MicSettings>): Promise<void> {
-    const before = this.store.get().mic;
-    const mic = { ...before, ...patch };
+    const before = this.mic.settings ?? this.store.get().mic;
+    const mic = { ...this.store.get().mic, ...patch };
     storage.set('shareroom:microfone', mic);
     this.store.set({ mic });
     if (!this.mic.active) return;
 
-    const reopen =
-      before.deviceId !== mic.deviceId ||
-      before.echoCancellation !== mic.echoCancellation ||
-      (this.#micBrowserNs === null && before.noiseSuppression !== mic.noiseSuppression) ||
-      before.autoGainControl !== mic.autoGainControl;
+    const effective = this.#micSettings();
+    const reopen = before.deviceId !== effective.deviceId || before.echoCancellation !== effective.echoCancellation ||
+      before.noiseSuppression !== effective.noiseSuppression || before.autoGainControl !== effective.autoGainControl;
     if (reopen) {
       try {
         await this.mic.start(this.#micSettings());
@@ -1340,8 +1462,8 @@ export class RoomSession {
 
   /** As opções do microfone como vão para o navegador (com a supressão comandada pelo filtro de ruído, se houver). */
   #micSettings(): MicSettings {
-    const mic = this.store.get().mic;
-    return this.#micBrowserNs === null ? mic : { ...mic, noiseSuppression: this.#micBrowserNs };
+    const mic = effectiveMic(this.store.get().mic, inputSettings.get());
+    return this.#micBrowserNs === null ? mic : { ...mic, noiseSuppression: this.#micBrowserNs, autoGainControl: this.#micBrowserNs === false ? false : mic.autoGainControl };
   }
 
   /**
@@ -1351,10 +1473,11 @@ export class RoomSession {
    * `null` devolve o controle à preferência do usuário.
    */
   async setMicFilter(processor: AudioNode | null, browserNoiseSuppression: boolean | null): Promise<void> {
-    const before = this.#micSettings().noiseSuppression;
+    const before = this.#micSettings();
     await this.mic.setProcessor(processor ? { input: processor, output: processor } : null);
     this.#micBrowserNs = browserNoiseSuppression;
-    if (!this.mic.active || before === this.#micSettings().noiseSuppression) return;
+    const after = this.#micSettings();
+    if (!this.mic.active || before.noiseSuppression === after.noiseSuppression && before.autoGainControl === after.autoGainControl) return;
     try {
       await this.mic.start(this.#micSettings());
     } catch (error) {
@@ -1427,7 +1550,7 @@ export class RoomSession {
     };
 
     const local = this.#room.localParticipant;
-    if (local.identity) feed(local.identity, this.store.get().micOn && this.mic.open ? this.mic.meter.readRms() : 0);
+    if (local.identity) feed(local.identity, this.store.get().micOn && this.mic.open && (!inputSettings.get().enabled || this.mic.stats?.open) ? this.mic.meter.readRms() : 0);
 
     const running = audioContext().state === 'running';
     for (const participant of this.#room.remoteParticipants.values()) {

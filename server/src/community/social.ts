@@ -25,6 +25,7 @@ export interface UserCard {
 
 export interface DmMessage {
   id: string;
+  clientId?: string;
   dmId: string;
   author: { id: string | null; name: string; username: string | null };
   content: string;
@@ -198,7 +199,7 @@ export class Social {
       [user.id],
     );
     await this.#community.userChanged(user.id);
-    void this.#notifyRelated(user.id, { t: 'profile.changed', userId: user.id }).catch(() => undefined);
+    void this.#notifyProfileChanged(user.id).catch(() => undefined);
     return this.profile(user, user.id);
   }
 
@@ -232,7 +233,7 @@ export class Social {
       await tx.query('DELETE FROM user_media WHERE user_id = $1 AND kind = $2 AND id <> $3', [user.id, kind, id]);
     });
     await this.#community.userChanged(user.id);
-    void this.#notifyRelated(user.id, { t: 'profile.changed', userId: user.id }).catch(() => undefined);
+    void this.#notifyProfileChanged(user.id).catch(() => undefined);
     return this.profile(user, user.id);
   }
 
@@ -372,6 +373,18 @@ export class Social {
     await this.#notifyRelated(userId, { t: 'profile.changed', userId });
   }
 
+  async #notifyProfileChanged(userId: string): Promise<void> {
+    const target = await this.#user(userId);
+    if (!target) return;
+    const event = { t: 'profile.changed', userId, avatar: target.avatar === null ? null : String(target.avatar) };
+    const related = await this.#db.query(`
+      SELECT user_id AS other FROM members WHERE group_id IN (SELECT group_id FROM members WHERE user_id = $1)
+      UNION SELECT CASE WHEN user_low = $1 THEN user_high ELSE user_low END AS other FROM friendships WHERE user_low = $1 OR user_high = $1
+      UNION SELECT CASE WHEN user_low = $1 THEN user_high ELSE user_low END AS other FROM dm_channels WHERE user_low = $1 OR user_high = $1`, [userId]);
+    const ids = new Set([userId, ...related.map((row) => String(row.other))]);
+    for (const id of ids) this.#hub.toUser(id, event);
+  }
+
   async #notifyRelated(userId: string, event: { t: string; [key: string]: unknown }): Promise<void> {
     const rows = await this.#db.query(
       "SELECT CASE WHEN user_low = $1 THEN user_high ELSE user_low END AS other FROM friendships WHERE (user_low = $1 OR user_high = $1) AND status = 'amigos'",
@@ -448,10 +461,10 @@ export class Social {
     }));
   }
 
-  async #hydrate(rows: Row[]): Promise<DmMessage[]> {
+  async #hydrate(rows: Row[], fresh = false): Promise<DmMessage[]> {
     if (rows.length === 0) return [];
     const ids = rows.map((row) => String(row.id));
-    const [files, reactions, replies] = await Promise.all([
+    const [files, reactions, replies] = fresh ? [[], [], []] : await Promise.all([
       this.#db.query('SELECT id, message_id, name, mime, size, width, height FROM dm_files WHERE message_id = ANY($1::bigint[]) ORDER BY created_at', [ids]),
       this.#db.query('SELECT message_id, emoji, user_id FROM dm_reactions WHERE message_id = ANY($1::bigint[]) ORDER BY created_at', [ids]),
       this.#db.query(
@@ -470,6 +483,7 @@ export class Social {
       }
       return {
         id,
+        ...(row.client_id ? { clientId: String(row.client_id) } : {}),
         dmId: String(row.dm_id),
         author: { id: row.author_id === null ? null : String(row.author_id), name: String(row.author_name ?? 'Conta removida'), username: row.author_username === null || row.author_username === undefined ? null : String(row.author_username) },
         content: String(row.content),
@@ -503,6 +517,13 @@ export class Social {
   async send(user: User, dmId: string, input: Record<string, unknown>): Promise<DmMessage> {
     const dm = await this.#dm(user, dmId);
     const other = await this.#user(dm.other);
+    const clientId = input.clientId === undefined ? null : input.clientId;
+    if (clientId !== null && (typeof clientId !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(clientId))) throw new ApiError(400, 'id_invalido', 'Identificador de envio inválido.');
+    if (clientId) {
+      const [existing] = await this.#db.query('SELECT id FROM dm_messages WHERE author_id = $1 AND dm_id = $2 AND client_id = $3', [user.id, dmId, clientId]);
+      if (existing) return (await this.#hydrate(await this.#messageRows('m.id = $1', [existing.id])))[0]!;
+    }
+
     if (!other || !(await this.#canMessage(user.id, other))) throw new ApiError(403, 'mensagem_bloqueada', 'Você não pode mandar mensagens para essa pessoa agora.');
     const content = cleanText(input.content, SOCIAL_LIMITS.message, true);
     const attachments = Array.isArray(input.attachments) ? [...new Set(input.attachments.filter((item): item is string => typeof item === 'string' && ID.test(item)))].slice(0, 10) : [];
@@ -526,18 +547,25 @@ export class Social {
       replyTo = target ? String(target.id) : null;
     }
     const id = await this.#db.tx(async (tx) => {
-      const [row] = await tx.query('INSERT INTO dm_messages (dm_id, author_id, content, reply_to, meta) VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING id', [dmId, user.id, content, replyTo, meta ? JSON.stringify(meta) : null]);
+      const [row] = await tx.query('INSERT INTO dm_messages (dm_id, author_id, content, reply_to, meta, client_id) VALUES ($1, $2, $3, $4, $5::jsonb, $6) ON CONFLICT (author_id, dm_id, client_id) DO NOTHING RETURNING *', [dmId, user.id, content, replyTo, meta ? JSON.stringify(meta) : null, clientId]);
+      if (!row) {
+        const [existing] = await tx.query('SELECT id FROM dm_messages WHERE author_id = $1 AND dm_id = $2 AND client_id = $3', [user.id, dmId, clientId]);
+        return { id: String(existing!.id), row: null };
+      }
       const messageId = String(row!.id);
       if (attachments.length > 0) {
         const linked = await tx.query('UPDATE dm_files SET message_id = $1 WHERE id = ANY($2::text[]) AND dm_id = $3 AND uploader_id = $4 AND message_id IS NULL RETURNING id', [messageId, attachments, dmId, user.id]);
         if (linked.length !== attachments.length) throw new ApiError(400, 'anexo_invalido', 'Um dos anexos não pôde ser usado. Envie de novo.');
       }
-      await tx.query('UPDATE dm_channels SET last_message_id = $2 WHERE id = $1', [dmId, messageId]);
-      await tx.query('INSERT INTO dm_states (dm_id, user_id, last_read_id) VALUES ($1, $2, $3) ON CONFLICT (dm_id, user_id) DO UPDATE SET last_read_id = EXCLUDED.last_read_id', [dmId, user.id, messageId]);
+      await tx.query('UPDATE dm_channels SET last_message_id = GREATEST(last_message_id, $2::bigint) WHERE id = $1', [dmId, messageId]);
+      await tx.query('INSERT INTO dm_states (dm_id, user_id, last_read_id) VALUES ($1, $2, $3) ON CONFLICT (dm_id, user_id) DO UPDATE SET last_read_id = GREATEST(dm_states.last_read_id, EXCLUDED.last_read_id)', [dmId, user.id, messageId]);
       await tx.query('INSERT INTO dm_states (dm_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [dmId, dm.other]);
-      return messageId;
+      return { id: messageId, row };
     });
-    const [message] = await this.#hydrate(await this.#messageRows('m.id = $1', [id]));
+    if (!id.row) return (await this.#hydrate(await this.#messageRows('m.id = $1', [id.id])))[0]!;
+    const [message] = attachments.length === 0 && !replyTo
+      ? await this.#hydrate([{ ...id.row, author_name: user.displayName, author_username: user.username }], true)
+      : await this.#hydrate(await this.#messageRows('m.id = $1', [id.id]));
     this.#deliver(user.id, dm.other, { t: 'dm.message', message });
     return message!;
   }

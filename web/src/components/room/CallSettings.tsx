@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { codecHint, type CodecHint } from '../../lib/capture.ts';
 import { formatBitrate } from '../../lib/format.ts';
 import { presetBitrateKbps, TOP_TARGET, type Codec, type CodecChoice, type ContentKind, type Target } from '../../lib/quality.ts';
+import { inputSettings, effectiveMic, setInput } from '../../lib/input-settings.ts';
 import { MIC_KEY, type NoiseControl } from '../../lib/noise-control.ts';
 import type { RoomSession } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
@@ -56,11 +57,14 @@ const selectClass =
 
 /** Vídeo da transmissão, microfone e o que você escuta, na chamada em que você está. */
 export function CallSettings({ session, noise }: { session: RoomSession; noise: NoiseControl }) {
-  const micAi = useStore(noise.store, (state) => state.settings[MIC_KEY]?.on === true);
+  const input = useStore(inputSettings, (state) => state);
+  useStore(noise.store, (state) => state.settings);
+  const micAi = noise.setting(MIC_KEY).on;
   const quality = useStore(session.store, (state) => state.quality);
   const codecs = useStore(session.store, (state) => state.codecs);
   const share = useStore(session.store, (state) => state.share);
   const mic = useStore(session.store, (state) => state.mic);
+  const effective = { ...effectiveMic(mic, input), ...(micAi ? { noiseSuppression: false, autoGainControl: false } : {}) };
   const micOn = useStore(session.store, (state) => state.micOn);
   const devices = useStore(session.store, (state) => state.devices);
   const outputDeviceId = useStore(session.store, (state) => state.outputDeviceId);
@@ -216,7 +220,7 @@ export function CallSettings({ session, noise }: { session: RoomSession; noise: 
           <span className="w-12 text-right text-sm font-bold">{Math.round(mic.gain * 100)}%</span>
         </div>
         <Option title="Prevenção de eco" about="Evita que o som da sala volte pelo seu microfone. Deixe ligado se usa caixas de som.">
-          <Toggle on={mic.echoCancellation} label="Prevenção de eco" onChange={(on) => void session.updateMic({ echoCancellation: on })} />
+          <Toggle on={effective.echoCancellation} disabled={input.profile === 'studio'} label="Prevenção de eco" onChange={(on) => void session.updateMic({ echoCancellation: on })} />
         </Option>
         <Option
           title="Supressão de Ruído IA"
@@ -229,14 +233,14 @@ export function CallSettings({ session, noise }: { session: RoomSession; noise: 
           about={micAi ? 'Em pausa enquanto a Supressão de Ruído IA estiver ligada no microfone, para a voz não ser filtrada duas vezes.' : 'Filtro convencional contra chiado e ventilador.'}
         >
           <Toggle
-            on={mic.noiseSuppression && !micAi}
-            disabled={micAi}
+            on={effective.noiseSuppression && !micAi}
+            disabled={micAi || input.profile === 'studio'}
             label="Supressão de ruído do navegador"
-            onChange={(on) => void session.updateMic({ noiseSuppression: on })}
+            onChange={(on) => { setInput({ profile: 'custom', noise: on ? 'browser' : 'off' }); void session.updateMic({ noiseSuppression: on }); }}
           />
         </Option>
         <Option title="Ajuste automático de volume" about="Nivela sua voz quando você fala mais baixo ou mais alto.">
-          <Toggle on={mic.autoGainControl} label="Ajuste automático de volume" onChange={(on) => void session.updateMic({ autoGainControl: on })} />
+          <Toggle on={effective.autoGainControl} disabled={micAi || input.enabled || input.profile === 'studio'} label="Ajuste automático de volume" onChange={(on) => void session.updateMic({ autoGainControl: on })} />
         </Option>
       </Section>
 

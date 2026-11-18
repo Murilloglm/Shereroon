@@ -105,7 +105,7 @@ export const api = {
     password?: string;
     hostKey?: string;
     session?: { identity: string; proof: string };
-  }) => call<JoinGrant>('/api/rooms/join', input),
+  }, token?: string | null) => request<JoinGrant>('POST', '/api/rooms/join', { body: input, token }),
 
   kick: (invite: string, hostKey: string, identity: string) =>
     call<{ ok: true }>('/api/rooms/kick', { invite, hostKey, identity }),

@@ -26,7 +26,7 @@ describe('migrações de produção a partir da 0.3.2', () => {
     await legacyDatabase();
     const userBefore = await db.query("SELECT * FROM users WHERE id='legacy'");
     const ledgerBefore = await db.query('SELECT * FROM points_ledger');
-    expect(await migrate(db)).toEqual([7, 8]);
+    expect(await migrate(db)).toEqual([7, 8, 9]);
     expect(await db.query("SELECT * FROM users WHERE id='legacy'")).toEqual(userBefore);
     expect(await db.query('SELECT * FROM points_ledger')).toEqual(ledgerBefore);
     expect((await db.query('SELECT * FROM user_items'))[0]).toMatchObject({ user_id: 'legacy', item_id: 'anel-aurora', price: 150, admin_grant: false, acquisition_id: null });
@@ -44,7 +44,7 @@ describe('migrações de produção a partir da 0.3.2', () => {
     await db.query("UPDATE sessions SET admin_verified_until=now()+interval '5 minutes' WHERE user_id='legacy'");
     const [before] = await db.query('SELECT * FROM global_permissions');
     const sessions = await db.query('SELECT * FROM sessions');
-    expect(await migrate(db)).toEqual([8]);
+    expect(await migrate(db)).toEqual([8, 9]);
     expect((await db.query('SELECT * FROM global_permissions'))[0]).toEqual({ ...before, mfa_exempt: false });
     expect(await db.query('SELECT * FROM sessions')).toEqual(sessions);
     expect(await db.query('SELECT * FROM admin_audit')).toEqual([]);

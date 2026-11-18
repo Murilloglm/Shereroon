@@ -1,9 +1,10 @@
 import { Bell, BellOff, Check, CornerUpLeft, LoaderCircle, MessageSquare, Paperclip, Pencil, Search, SendHorizontal, Smile, Ticket, Trash2, UserCheck, UserMinus, UserPlus, Users, X } from 'lucide-react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { navigate } from '../../App.tsx';
 import { dialogs } from '../../lib/dialogs.ts';
 import { groups } from '../../lib/groups/client.ts';
 import { social, type Conversation, type DmAttachment, type DmMessage, type Friend } from '../../lib/social/client.ts';
+import { isConfirmed, messageKey } from '../../lib/outbox.ts';
 import { useStore } from '../../lib/store.ts';
 import { Attachments, FileSourceProvider } from '../groups/Attachments.tsx';
 import { EmojiPicker } from '../groups/EmojiPicker.tsx';
@@ -248,7 +249,6 @@ export function DmChat({ dmId }: { dmId: string }) {
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [picker, setPicker] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
-  const [sending, setSending] = useState(false);
   const [inviting, setInviting] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -261,7 +261,7 @@ export function DmChat({ dmId }: { dmId: string }) {
   }, [dmId]);
 
   // Lida de verdade só quando a conversa está na tela, com a janela em foco e o fim da lista visível.
-  const last = items.at(-1);
+  const last = items.findLast(isConfirmed);
   useEffect(() => {
     if (!last) return;
     const mark = () => {
@@ -297,20 +297,11 @@ export function DmChat({ dmId }: { dmId: string }) {
   const uploading = pending.some((item) => !item.attachment && !item.error);
   const send = async () => {
     const content = draft.trim();
-    if (sending || uploading || (!content && ready.length === 0)) return;
-    setSending(true);
-    try {
-      await social.send(dmId, { content, replyTo: replyTo?.id, attachments: ready.map((item) => item.attachment!.id) });
-      setDraft('');
-      setReplyTo(null);
-      setPending([]);
-      atBottom.current = true;
-    } catch (error) {
-      await dialogs.alert({ kind: 'erro', title: 'Mensagem não enviada', message: errorText(error) });
-    } finally {
-      setSending(false);
-      inputRef.current?.focus();
-    }
+    if (uploading || (!content && ready.length === 0)) return;
+    const pendingSend = social.send(dmId, { content, replyTo: replyTo?.id, attachments: ready.map((item) => item.attachment!.id) }, ready.map(item => item.attachment!));
+    setDraft(''); setReplyTo(null); setPending([]); atBottom.current = true;
+    inputRef.current?.focus();
+    void pendingSend.catch(() => undefined);
   };
 
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -372,7 +363,7 @@ export function DmChat({ dmId }: { dmId: string }) {
         >
           {state?.loaded && items.length === 0 && <p className="py-8 text-center text-sm text-fog-500">Este é o começo da sua conversa com {name}.</p>}
           {grouped.map(({ message, newDay }) => (
-            <div key={message.id}>
+            <div key={messageKey(message)}>
               {newDay && (
                 <p className="my-3 flex items-center gap-3 text-xs font-bold text-fog-500 capitalize">
                   <span className="h-px flex-1 bg-ink-700" />
@@ -480,7 +471,7 @@ export function DmChat({ dmId }: { dmId: string }) {
               className="max-h-40 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-[15px] outline-none"
               data-testid="dm-input"
             />
-            <IconButton label="Enviar" type="submit" className="size-9" disabled={sending || uploading || (!draft.trim() && ready.length === 0)} data-testid="dm-send">
+            <IconButton label="Enviar" type="submit" className="size-9" disabled={uploading || (!draft.trim() && ready.length === 0)} data-testid="dm-send">
               <SendHorizontal className="size-5" />
             </IconButton>
           </div>
@@ -490,7 +481,7 @@ export function DmChat({ dmId }: { dmId: string }) {
   );
 }
 
-function DmBubble({
+function DmBubbleRow({
   message,
   mine,
   me,
@@ -516,7 +507,7 @@ function DmBubble({
     void social.react(message, emoji, !mineAlready).catch((error: unknown) => groups.notify(errorText(error)));
   };
   return (
-    <article className={cx('group relative my-1 flex', mine ? 'justify-end' : 'justify-start')} data-testid="dm-message" data-mine={mine} data-id={message.id}>
+    <article className={cx('group relative my-1 flex', mine ? 'justify-end' : 'justify-start')} data-testid="dm-message" data-mine={mine} data-id={message.id} data-delivery={message.delivery ?? 'sent'}>
       <div className={cx('max-w-[78%] rounded-2xl px-3 py-2', mine ? 'rounded-br-md bg-brand-600/35 ring-1 ring-brand-400/30' : 'rounded-bl-md bg-ink-800 ring-1 ring-ink-600/70')}>
         {message.reply && (
           <p className="mb-1 truncate border-l-2 border-neon-400 pl-2 text-xs text-fog-400" data-testid="dm-reply-quote">
@@ -542,6 +533,9 @@ function DmBubble({
           {time(message.createdAt)}
           {message.editedAt && ' • editada'}
         </p>
+        {(message.delivery || message.clientId && mine) && <p className="mt-1 text-xs text-fog-400" role="status" data-testid="dm-delivery">
+          {!message.delivery ? 'Enviada' : message.delivery === 'sending' ? 'Enviando...' : <><span className="text-live-300">{message.deliveryError || 'Falha no envio.'}</span> <button type="button" className="font-bold text-brand-200 underline" onClick={() => void social.retry(message.clientId!).catch(() => undefined)} data-testid="dm-retry">Tentar novamente</button></>}
+        </p>}
         {message.reactions.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {message.reactions.map((reaction) => (
@@ -552,7 +546,7 @@ function DmBubble({
           </div>
         )}
       </div>
-      <div className={cx('absolute -top-3 hidden gap-0.5 rounded-lg border border-ink-600 bg-ink-900 p-0.5 group-focus-within:flex group-hover:flex', mine ? 'right-2' : 'left-2')}>
+      <div style={message.delivery ? { display: 'none' } : undefined} className={cx('absolute -top-3 hidden gap-0.5 rounded-lg border border-ink-600 bg-ink-900 p-0.5 group-focus-within:flex group-hover:flex', mine ? 'right-2' : 'left-2')}>
         <IconButton label="Reagir" className="size-7" onClick={onPicker} data-testid="dm-react">
           <Smile className="size-4" />
         </IconButton>
@@ -579,6 +573,8 @@ function DmBubble({
     </article>
   );
 }
+
+const DmBubble = memo(DmBubbleRow, (a, b) => a.message === b.message && a.mine === b.mine && a.me === b.me && a.editing === b.editing && a.picker === b.picker);
 
 /** Cartão de convite para um grupo dentro da conversa. */
 function InviteMessage({ meta }: { meta: NonNullable<DmMessage['meta']> }) {

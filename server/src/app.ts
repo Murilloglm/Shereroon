@@ -33,6 +33,7 @@ import { Signer } from './signer.ts';
 
 export interface AppDeps {
   config: Config;
+  build?: { version: string; commit?: string };
   sfu: Sfu;
   /** IP da conexão direta, quando o runtime sabe informar. */
   remoteAddress?: (c: Context) => string | undefined;
@@ -62,7 +63,7 @@ function publicRoom(room: RoomDescriptor) {
   };
 }
 
-export function createApp({ config, sfu, remoteAddress, limiter = new RateLimiter(), groups }: AppDeps): Hono {
+export function createApp({ config, sfu, remoteAddress, limiter = new RateLimiter(), groups, build }: AppDeps): Hono {
   const signer = new Signer(config.appSecret);
   const app = new Hono();
 
@@ -127,7 +128,7 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
     await next();
   });
 
-  app.get('/api/health', (c) => c.json({ ok: true }));
+  app.get('/api/health', (c) => c.json({ ok: true, ...(build ? { version: build.version, ...(build.commit ? { commit: build.commit } : {}) } : {}) }));
 
   // O LiveKit aceita as credenciais deste servidor? Serve para conferir a configuração depois de um deploy.
   app.get('/api/health/livekit', async (c) => {
@@ -221,11 +222,16 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
 
     if (!snapshot.exists) await withSfu(() => sfu.ensureRoom(roomName, room.capacity));
 
+    const authorization = c.req.header('authorization');
+    const account = groups && authorization?.startsWith('Bearer ')
+      ? await groups.accounts.authenticate(authorization.slice(7).trim()) : null;
+    const profile = account ? await groups!.community.social.profile(account, account.id) : null;
     const token = await sfu.createToken({
       room: roomName,
       identity,
       name,
       host: isHost,
+      ...(account && profile ? { accountId: account.id, avatar: profile.avatar } : {}),
       ttlSeconds: config.tokenTtlSeconds,
     });
 

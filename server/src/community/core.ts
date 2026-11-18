@@ -106,6 +106,7 @@ interface Ctx {
 
 export interface Message {
   id: string;
+  clientId?: string;
   channelId: string;
   author: { id: string | null; name: string; username: string | null; bot: boolean };
   content: string;
@@ -256,6 +257,7 @@ const toGroup = (row: Row): Group => ({
 
 const toMessage = (row: Row): Message => ({
   id: String(row.id),
+  ...(row.client_id ? { clientId: String(row.client_id) } : {}),
   channelId: String(row.channel_id),
   author: {
     id: row.author_id === null ? null : String(row.author_id),
@@ -1556,11 +1558,17 @@ export class Community {
    * Envia uma mensagem. `extra` só é usado pelos bots (botões e nome de exibição); um bot continua
    * precisando ver o canal e ter "Enviar mensagens" nele, como qualquer membro.
    */
-  async sendMessage(user: User, channelId: string, value: unknown, extra: { meta?: MessageMeta; as?: string; replyTo?: unknown; attachments?: unknown } = {}): Promise<Message> {
+  async sendMessage(user: User, channelId: string, value: unknown, extra: { meta?: MessageMeta; as?: string; replyTo?: unknown; attachments?: unknown; clientId?: unknown } = {}): Promise<Message> {
     const { ctx, channel, perms } = await this.#channelCtx(user, channelId);
     if (channel.kind === 'categoria') throw new ApiError(400, 'nao_e_texto', 'Categorias não têm mensagens.');
     if (ctx.subject.timedOut) throw new ApiError(403, 'em_castigo', 'Você está de castigo neste grupo e não pode enviar mensagens por enquanto.');
     this.#need(ctx, P.SEND_MESSAGES, perms);
+    const clientId = extra.clientId === undefined ? null : extra.clientId;
+    if (clientId !== null && (typeof clientId !== 'string' || !/^[A-Za-z0-9_-]{16,80}$/.test(clientId))) throw new ApiError(400, 'id_invalido', 'Identificador de envio inválido.');
+    if (clientId) {
+      const [existing] = await this.#db.query('SELECT id FROM messages WHERE author_id = $1 AND channel_id = $2 AND client_id = $3', [user.id, channelId, clientId]);
+      if (existing) return this.#message(String(existing.id));
+    }
     const fromBot = ctx.me.bot;
     const attachments = this.#attachmentIds(extra.attachments);
     if (attachments.length > 0) this.#need(ctx, P.ATTACH_FILES, perms);
@@ -1585,10 +1593,14 @@ export class Community {
     const mentions = this.#mentions(ctx.snap, content, user.id, replyAuthor);
     const id = await this.#db.tx(async (tx) => {
       const [inserted] = await tx.query(
-        'INSERT INTO messages (channel_id, author_id, author_name, content, mention_everyone, meta, reply_to, mentions) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::bigint, $8::jsonb) RETURNING id',
-        [channelId, user.id, fromBot ? (extra.as ?? null) : null, content, mention, fromBot && extra.meta ? JSON.stringify(extra.meta) : null, replyTo, JSON.stringify(mentions)],
+        'INSERT INTO messages (channel_id, author_id, author_name, content, mention_everyone, meta, reply_to, mentions, client_id) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::bigint, $8::jsonb, $9) ON CONFLICT (author_id, channel_id, client_id) DO NOTHING RETURNING *',
+        [channelId, user.id, fromBot ? (extra.as ?? null) : null, content, mention, fromBot && extra.meta ? JSON.stringify(extra.meta) : null, replyTo, JSON.stringify(mentions), clientId],
       );
-      const messageId = String(inserted!.id);
+      if (!inserted) {
+        const [existing] = await tx.query('SELECT id FROM messages WHERE author_id = $1 AND channel_id = $2 AND client_id = $3', [user.id, channelId, clientId]);
+        return { id: String(existing!.id), row: null };
+      }
+      const messageId = String(inserted.id);
       if (attachments.length > 0) {
         // Só entra arquivo que esta pessoa enviou para este canal e que ainda não está em outra mensagem.
         const attached = await tx.query(
@@ -1599,9 +1611,13 @@ export class Community {
       }
       // Quem escreve já leu o canal até a própria mensagem.
       await this.#read(tx, user.id, channelId, messageId);
-      return messageId;
+      return { id: messageId, row: inserted };
     });
-    const message = await this.#message(id);
+    if (!id.row) return this.#message(id.id);
+    // Fresh text has no reactions or attachments: avoid three hydration round trips.
+    const message = attachments.length === 0 && !replyTo
+      ? toMessage({ ...id.row, display_name: user.displayName, username: user.username, is_bot: fromBot })
+      : await this.#message(id.id);
     await this.hub.publishToChannel(ctx.snap.group.id, channelId, { t: 'message.created', groupId: ctx.snap.group.id, message });
     this.#emit({ type: 'message', groupId: ctx.snap.group.id, channel, message, author: user, fromBot });
     return message;
@@ -1968,6 +1984,7 @@ export class Community {
 
   /** Entra num canal de voz: devolve o token do SFU, que já vem limitado ao que a pessoa pode publicar ali. */
   async joinVoice(user: User, channelId: string) {
+    const started = performance.now();
     const pass = this.#movePass.get(user.id);
     const moved = pass !== undefined && pass.channelId === channelId && pass.expires > Date.now();
     // Ninguém entra num canal que não pode ver nem conectar, nem quando é movido: mover confere isso antes.
@@ -1986,24 +2003,31 @@ export class Community {
     }
     this.#movePass.delete(user.id);
     const room = voiceRoom(channelId);
+    const timings = { contextMs: performance.now() - started, ensureRoomMs: 0, signTokenMs: 0, sfuMs: 0, presenceMs: 0, totalMs: 0 };
     let token: string;
     try {
-      await this.#sfu.ensureRoom(room, LIMITS.voiceUsers + 1);
+      const sfuStarted = performance.now();
       const previous = this.hub.voiceOf(user.id);
-      if (previous && previous.channelId !== channelId) await this.#sfu.removeParticipant(voiceRoom(previous.channelId), user.id);
-      token = await this.#sfu.createVoiceToken({
+      const ensure = this.#sfu.ensureRoom(room, LIMITS.voiceUsers + 1).then(() => { timings.ensureRoomMs = performance.now() - sfuStarted; });
+      const remove = previous && previous.channelId !== channelId ? this.#sfu.removeParticipant(voiceRoom(previous.channelId), user.id) : Promise.resolve();
+      const signed = this.#sfu.createVoiceToken({
         room,
         identity: user.id,
         name: ctx.me.nickname ?? user.displayName,
         ttlSeconds: this.#options.tokenTtlSeconds,
         publish: rights,
         metadata: { voz: true },
-      });
+      }).then((value) => { timings.signTokenMs = performance.now() - sfuStarted; return value; });
+      const result = await Promise.all([ensure, remove, signed]);
+      token = result[2]; timings.sfuMs = performance.now() - sfuStarted;
     } catch (error) {
       throw sfuError(error);
     }
+    const presenceStarted = performance.now();
     if (this.hub.isOnline(user.id)) await this.hub.setVoice(user.id, { groupId, channelId });
+    timings.presenceMs = performance.now() - presenceStarted; timings.totalMs = performance.now() - started;
     return {
+      timings,
       token,
       url: this.#options.livekitUrl,
       identity: user.id,
@@ -2013,6 +2037,18 @@ export class Community {
       canWatch: has(perms, P.WATCH_STREAMS),
       highQuality: has(perms, P.HIGH_QUALITY_STREAM),
     };
+  }
+
+  /** Confirms actual SFU membership after joining or reconnecting the gateway. */
+  async syncVoice(user: User, channelId: string): Promise<void> {
+    const { ctx, perms } = await this.#channelCtx(user, channelId);
+    const channel = ctx.snap.channels.get(channelId);
+    if (!channel || channel.kind !== 'voz') throw new ApiError(400, 'nao_e_voz', 'Este canal não é de voz.');
+    this.#need(ctx, P.CONNECT, perms);
+    if (!this.hub.isOnline(user.id)) return;
+    const tracks = await this.#sfu.tracksOf(voiceRoom(channelId), user.id);
+    if (tracks === null) return;
+    await this.hub.setVoice(user.id, { groupId: ctx.snap.group.id, channelId });
   }
 
   async leaveVoice(user: User): Promise<void> {

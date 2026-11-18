@@ -349,6 +349,7 @@ export class Denoiser {
   #frame() {
     const started = now();
     const voice = this.engine.process(this.inFrame, this.wetFrame);
+    this.lastVoice = voice;
     this.stats.busyMs += now() - started;
 
     // Original alinhado: a amostra i da saída do motor corresponde à entrada `engine.delay` amostras atrás.

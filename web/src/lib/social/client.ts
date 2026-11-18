@@ -1,3 +1,4 @@
+import { avatarCache } from '../avatar-cache.ts';
 /**
  * Lado social na interface: perfis (com cache), notas e apelidos pessoais, amizades, bloqueios e mensagens
  * privadas. Usa a mesma sessão e o mesmo canal de tempo real dos grupos.
@@ -5,6 +6,7 @@
 import { API_BASE } from '../api.ts';
 import { groups } from '../groups/client.ts';
 import { Store } from '../store.ts';
+import { isConfirmed, mergeMessages, type Delivery } from '../outbox.ts';
 
 export type FriendState = 'nenhuma' | 'enviada' | 'recebida' | 'amigos';
 
@@ -60,7 +62,7 @@ export interface DmAttachment {
   height: number | null;
 }
 
-export interface DmMessage {
+export interface DmMessage extends Delivery {
   id: string;
   dmId: string;
   author: { id: string | null; name: string; username: string | null };
@@ -91,14 +93,26 @@ export function mediaUrl(value: string | null | undefined): string | null {
 }
 
 class SocialClient {
+  #outbox = new Map<string, { dmId: string; input: { content?: string; replyTo?: string; attachments?: string[]; invite?: { groupId: string } } }>();
+  #sending = new Map<string, Promise<DmMessage>>();
+  #loading = new Map<string, Promise<void>>();
   readonly store = new Store<SocialState>({ profiles: {}, notes: {}, notesLoaded: false, friends: null, blocks: null, conversations: null, messages: {} });
   /** Mensagem privada que chegou de outra pessoa (para aviso e som). */
   onIncoming: ((message: DmMessage, conversation: Conversation | undefined) => void) | null = null;
+  #profileRequests = new Map<string, Promise<Profile>>();
+  #accountId: string | null = null;
   #refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     groups.onEvent((event) => this.#onEvent(event));
     groups.store.subscribe(() => {
+      const accountId = groups.store.get().account?.id ?? null;
+      if (accountId !== this.#accountId) {
+        this.#accountId = accountId;
+        this.#outbox.clear(); this.#sending.clear(); this.#loading.clear();
+        avatarCache.clear(); this.#profileRequests.clear();
+        if (accountId) void this.profile(accountId, true).catch(() => undefined);
+      }
       // Saiu da conta: nada de outra conta fica na tela.
       if (groups.store.get().status !== 'dentro' && this.store.get().friends !== null) {
         this.store.set({ profiles: {}, notes: {}, notesLoaded: false, friends: null, blocks: null, conversations: null, messages: {} });
@@ -116,12 +130,22 @@ class SocialClient {
   async profile(userId: string, fresh = false): Promise<Profile> {
     const cached = this.store.get().profiles[userId];
     if (cached && !fresh) return cached;
-    const { profile } = await groups.call<{ profile: Profile }>('GET', `/api/users/${userId}`);
-    this.#putProfile(profile);
-    return profile;
+    const pending = this.#profileRequests.get(userId);
+    if (pending) return pending;
+    const accountId = groups.store.get().account?.id;
+    const avatarBefore = avatarCache.resolve(userId);
+    const request = groups.call<{ profile: Profile }>('GET', `/api/users/${userId}`).then(({ profile }) => {
+      const current = avatarCache.resolve(userId);
+      if (current !== avatarBefore && current !== undefined) profile = { ...profile, avatar: current };
+      if (groups.store.get().account?.id === accountId) this.#putProfile(profile);
+      return profile;
+    }).finally(() => { if (this.#profileRequests.get(userId) === request) this.#profileRequests.delete(userId); });
+    this.#profileRequests.set(userId, request);
+    return request;
   }
 
   #putProfile(profile: Profile): void {
+    avatarCache.update(profile.id, profile.avatar);
     this.store.set((state) => ({ profiles: { ...state.profiles, [profile.id]: profile } }));
   }
 
@@ -161,6 +185,7 @@ class SocialClient {
       groups.call<{ friends: Friend[] }>('GET', '/api/friends'),
       groups.call<{ blocks: UserCard[] }>('GET', '/api/blocks'),
     ]);
+    avatarCache.seed([...friends.map((item) => item.user), ...blocks]);
     this.store.set({ friends, blocks });
   }
 
@@ -203,6 +228,7 @@ class SocialClient {
 
   async loadConversations(): Promise<void> {
     const { conversations } = await groups.call<{ conversations: Conversation[] }>('GET', '/api/dms');
+    avatarCache.seed(conversations.map((item) => item.user));
     this.store.set({ conversations });
   }
 
@@ -212,21 +238,45 @@ class SocialClient {
     return id;
   }
 
-  async loadMessages(dmId: string, older = false): Promise<void> {
+  loadMessages(dmId: string, older = false): Promise<void> {
+    const key = `${dmId}:${older}`;
+    if (this.#loading.has(key)) return this.#loading.get(key)!;
     const current = this.store.get().messages[dmId];
-    const before = older ? current?.items[0]?.id : undefined;
-    const { messages } = await groups.call<{ messages: DmMessage[] }>('GET', `/api/dms/${dmId}/messages${before ? `?before=${before}` : ''}`);
-    this.#setMessages(dmId, {
-      items: older && current ? [...messages, ...current.items] : messages,
-      loaded: true,
-      hasMore: messages.length >= 50,
-    });
+    const before = older ? current?.items.find(isConfirmed)?.id : undefined;
+    const promise = groups.call<{ messages: DmMessage[] }>('GET', `/api/dms/${dmId}/messages${before ? `?before=${before}` : ''}`).then(({ messages }) => {
+      const latest = this.store.get().messages[dmId];
+      const preserved = older ? latest?.items ?? [] : (latest?.items ?? []).filter(item => !isConfirmed(item) || BigInt(item.id) > BigInt(messages.at(-1)?.id ?? 0));
+      this.#setMessages(dmId, { items: mergeMessages(preserved, messages), loaded: true, hasMore: messages.length >= 50 });
+    }).finally(() => this.#loading.delete(key));
+    this.#loading.set(key, promise); return promise;
   }
 
-  async send(dmId: string, input: { content?: string; replyTo?: string; attachments?: string[]; invite?: { groupId: string } }): Promise<DmMessage> {
-    const { message } = await groups.call<{ message: DmMessage }>('POST', `/api/dms/${dmId}/messages`, input);
-    this.#upsert(message);
-    return message;
+  async send(dmId: string, input: { content?: string; replyTo?: string; attachments?: string[]; invite?: { groupId: string } }, localAttachments: DmAttachment[] = []): Promise<DmMessage> {
+    const account = groups.store.get().account;
+    if (!account) throw new Error('Entre na sua conta para enviar mensagens.');
+    const clientId = crypto.randomUUID();
+    this.#outbox.set(clientId, { dmId, input });
+    const replied = this.store.get().messages[dmId]?.items.find(item => item.id === input.replyTo);
+    this.#upsert({ id: `local:${clientId}`, clientId, dmId, content: input.content ?? '', delivery: 'sending',
+      author: { id: account.id, name: account.displayName, username: account.username }, createdAt: new Date().toISOString(), editedAt: null,
+      reply: replied ? { id: replied.id, authorId: replied.author.id, authorName: replied.author.name, excerpt: replied.content.slice(0,120) } : null,
+      attachments: localAttachments, reactions: [], meta: null });
+    return this.retry(clientId);
+  }
+
+  retry(clientId: string): Promise<DmMessage> {
+    const active = this.#sending.get(clientId); if (active) return active;
+    const pending = this.#outbox.get(clientId);
+    if (!pending) return Promise.reject(new Error('Envio não encontrado.'));
+    const patch = (delivery: 'sending' | 'failed', deliveryError?: string) => {
+      const current = this.store.get().messages[pending.dmId];
+      if (current) this.#setMessages(pending.dmId, { items: current.items.map(item => item.clientId === clientId && !isConfirmed(item) ? { ...item, delivery, deliveryError } : item) });
+    };
+    patch('sending');
+    const promise = groups.call<{message: DmMessage}>('POST', `/api/dms/${pending.dmId}/messages`, { ...pending.input, clientId }).then(({message}) => {
+      this.#upsert(message); this.#outbox.delete(clientId); return message;
+    }).catch((error: unknown) => { patch('failed', error instanceof Error ? error.message : 'Não foi possível enviar.'); throw error; }).finally(() => this.#sending.delete(clientId));
+    this.#sending.set(clientId, promise); return promise;
   }
 
   async edit(messageId: string, content: string): Promise<void> {
@@ -272,10 +322,9 @@ class SocialClient {
 
   #upsert(message: DmMessage): void {
     const current = this.store.get().messages[message.dmId];
-    if (!current?.loaded) return;
-    const index = current.items.findIndex((item) => item.id === message.id);
-    const items = index >= 0 ? current.items.map((item) => (item.id === message.id ? message : item)) : [...current.items, message];
-    this.#setMessages(message.dmId, { items });
+    if (!current?.loaded && !message.delivery && !current?.items.some(item => message.clientId && item.clientId === message.clientId && item.author.id === message.author.id)) return;
+    if (message.clientId && isConfirmed(message)) this.#outbox.delete(message.clientId);
+    this.#setMessages(message.dmId, { items: mergeMessages(current?.items ?? [], [message]) });
   }
 
   #drop(dmId: string, id: string): void {
@@ -316,6 +365,8 @@ class SocialClient {
         if (this.store.get().profiles[event.userId as string]) void this.profile(event.userId as string, true).catch(() => undefined);
         break;
       case 'profile.changed':
+        if (typeof event.userId === 'string' && (event.avatar === null || typeof event.avatar === 'string')) avatarCache.update(event.userId, event.avatar);
+        if (event.userId === me) void this.profile(event.userId, true).catch(() => undefined);
         if (this.store.get().profiles[event.userId as string]) void this.profile(event.userId as string, true).catch(() => undefined);
         if (this.store.get().friends) void this.loadFriends().catch(() => undefined);
         break;

@@ -169,8 +169,8 @@ export function ParticipantsCard({
             className="group flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink-800"
           >
             <StreamHover session={session} identity={person.identity} name={person.name} enabled={person.sharing} className="flex min-w-0 flex-1 items-center gap-3">
-            <UserTrigger userId={person.isLocal ? null : person.identity} className="flex min-w-0 flex-1 items-center gap-3">
-            <Avatar id={person.identity} name={person.name} online speaking={person.speaking} />
+            <UserTrigger userId={person.isLocal ? null : person.accountId ?? person.identity} className="flex min-w-0 flex-1 items-center gap-3">
+            <Avatar id={person.accountId ?? person.identity} name={person.name} image={person.avatar} online speaking={person.speaking} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate font-bold">
                 <span className="truncate" data-testid="participant-name">

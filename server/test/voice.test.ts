@@ -40,6 +40,24 @@ beforeAll(async () => {
   for (const person of [dono, mod, mod2, ana, beto]) live[person.name] = await w.connect(person);
 }, 60_000);
 
+describe('SFU presence confirmation', () => {
+  it('repairs a token issued before gateway authentication without admitting an absent identity', async () => {
+    const late = await w.signup('latevoice');
+    await w.join(dono, groupId, late);
+    await enter(late);
+    expect(await inside()).not.toContain(late.id);
+    const connection = await w.connect(late);
+    await w.ok('POST', `/api/channels/${sala}/voice/sync`, late.token, {});
+    expect(await inside()).toContain(late.id);
+    await w.ok('POST', `/api/channels/${sala}/voice/sync`, late.token, {});
+    expect((await inside()).filter(id => id === late.id)).toHaveLength(1);
+    await w.ok('POST', '/api/voice/leave', late.token, {});
+    await w.ok('POST', `/api/channels/${sala}/voice/sync`, late.token, {});
+    expect(await inside()).not.toContain(late.id);
+    connection.close();
+  });
+});
+
 describe('entrar em canal de voz', () => {
   it('o token do SFU sai limitado ao que a pessoa pode publicar naquele canal', async () => {
     const grant = await enter(ana);

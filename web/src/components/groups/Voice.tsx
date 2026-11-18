@@ -38,9 +38,14 @@ function voiceAccess(channelId: string): SessionAccess {
  * quando ela sai do canal, fecha a página ou é tirada do canal.
  */
 export function useVoice(view: GroupView | null) {
+  const gatewayLive = useStore(groups.store, (state) => state.live);
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const [joining, setJoining] = useState<string | null>(null);
   const current = useRef<VoiceState | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const requested = useRef<string | null>(null);
+  const generation = useRef(0);
+  const connecting = useRef<RoomSession | null>(null);
 
   const drop = useCallback(async (tellServer: boolean) => {
     const active = current.current;
@@ -51,28 +56,61 @@ export function useVoice(view: GroupView | null) {
     if (tellServer) await groups.call('POST', '/api/voice/leave').catch(() => undefined);
   }, []);
 
-  const leave = useCallback(() => drop(true), [drop]);
+  const leave = useCallback(() => {
+    generation.current++; requested.current = null; setJoining(null);
+    void connecting.current?.leave();
+    return drop(true);
+  }, [drop]);
 
-  const join = useCallback(
-    async (groupId: string, channelId: string) => {
-      if (current.current?.channelId === channelId) return;
-      setJoining(channelId);
-      // Um canal de voz por vez: o backend tira a pessoa do anterior ao entregar o novo token.
+  const join = useCallback((groupId: string, channelId: string): Promise<void> => {
+    if (requested.current === channelId) return queue.current;
+    if (!requested.current && current.current?.channelId === channelId) return Promise.resolve();
+    const operation = ++generation.current;
+    requested.current = channelId; setJoining(channelId);
+    void connecting.current?.leave();
+    const task = queue.current.catch(() => undefined).then(async () => {
+      if (operation !== generation.current) return;
       await drop(false);
-      const session = new RoomSession();
+      if (operation !== generation.current) return;
+      const session = new RoomSession(); connecting.current = session;
       try {
         await session.join(voiceAccess(channelId));
+        if (operation !== generation.current) {
+          await session.leave();
+          await groups.call('POST', '/api/voice/leave').catch(() => undefined);
+          return;
+        }
         const next = { groupId, channelId, session };
-        current.current = next;
-        setVoice(next);
+        current.current = next; setVoice(next);
       } catch (error) {
-        groups.notify(errorText(error, 'Não foi possível entrar no canal de voz.'));
+        await session.leave().catch(() => undefined);
+        await groups.call('POST', '/api/voice/leave').catch(() => undefined);
+        if (operation === generation.current) groups.notify(errorText(error, 'Não foi possível entrar no canal de voz.'));
       } finally {
-        setJoining(null);
+        if (connecting.current === session) connecting.current = null;
+        if (operation === generation.current) { requested.current = null; setJoining(null); }
       }
-    },
-    [drop],
-  );
+    });
+    queue.current = task;
+    return task;
+  }, [drop]);
+
+  // Confirm actual SFU membership after connecting either transport.
+  useEffect(() => {
+    if (!voice || !gatewayLive) return;
+    const sync = () => {
+      if (voice.session.store.get().phase === 'connected') {
+        void groups.call('POST', `/api/channels/${voice.channelId}/voice/sync`).catch(() => undefined);
+      }
+    };
+    sync();
+    let phase = voice.session.store.get().phase;
+    const unsubscribe = voice.session.store.subscribe(() => {
+      const next = voice.session.store.get().phase;
+      if (next !== phase) { phase = next; if (next === 'connected') sync(); }
+    });
+    return unsubscribe;
+  }, [voice, gatewayLive]);
 
   // A conexão terminou sozinha (rede caiu de vez, a pessoa foi tirada do canal, outra aba assumiu).
   useEffect(() => {
@@ -126,7 +164,7 @@ export function useVoice(view: GroupView | null) {
   }, [voice, view, drop]);
 
   // Saiu da página de grupos: a conexão de voz termina.
-  useEffect(() => () => void drop(true), [drop]);
+  useEffect(() => () => { generation.current++; requested.current = null; void connecting.current?.leave(); void drop(true); }, [drop]);
 
   return { voice, joining, join, leave };
 }
@@ -148,7 +186,7 @@ export function VoiceLobby({ view, channel, joining, onJoin }: { view: GroupView
           <ul className="mt-4 flex flex-wrap justify-center gap-3">
             {inside.map((member) => (
               <li key={member.userId} className="flex items-center gap-2 text-sm font-semibold">
-                <Avatar id={member.userId} name={memberName(member)} size={28} online />
+                <Avatar id={member.userId} name={memberName(member)} size={28} online image={member.avatar} />
                 {memberName(member)}
               </li>
             ))}

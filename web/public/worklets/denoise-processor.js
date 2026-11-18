@@ -20,10 +20,14 @@ class DenoiseProcessor extends AudioWorkletProcessor {
     this.denoiser.onCapture = (dry, wet) => this.port.postMessage({ type: 'capture', dry, wet }, [dry.buffer, wet.buffer]);
     this.mono = new Float32Array(128);
     this.filtered = new Float32Array(128);
+    this.running = true;
     this.sinceStats = 0;
+    this.sinceVad = 0;
 
     this.port.onmessage = ({ data }) => {
-      if (data.type === 'mode') this.denoiser.setMode(data.mode);
+      if (data.type === 'dispose') { this.running = false; this.vadPort?.close(); this.vadPort = null; }
+      else if (data.type === 'vad-port') { this.vadPort?.close(); this.vadPort = data.port; }
+      else if (data.type === 'mode') this.denoiser.setMode(data.mode);
       else if (data.type === 'bypass') this.denoiser.setBypass(data.on);
       else if (data.type === 'capture') this.denoiser.startCapture(data.seconds);
     };
@@ -31,6 +35,7 @@ class DenoiseProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs) {
+    if (!this.running) return false;
     const input = inputs[0];
     const output = outputs[0];
     const frames = output[0].length;
@@ -49,6 +54,10 @@ class DenoiseProcessor extends AudioWorkletProcessor {
       for (let i = 0; i < frames; i++) this.mono[i] = (left[i] + right[i]) * 0.5;
     }
     this.denoiser.process(this.mono, this.filtered, frames);
+    this.sinceVad += frames;
+    if (this.vadPort && this.denoiser.engine.name === 'ia' && this.sinceVad >= 480) {
+      this.sinceVad = 0; this.vadPort.postMessage(this.denoiser.lastVoice ?? 0);
+    }
     for (const channel of output) channel.set(this.filtered);
 
     this.sinceStats += frames;

@@ -12,7 +12,7 @@ import { ensureLivekit, livekitArgs } from '../scripts/livekit.mjs';
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const API_PORT = Number(process.env.E2E_API_PORT || 8790);
 export const BASE_URL = `http://localhost:${API_PORT}`;
-const LIVEKIT_PORT = 7880;
+const LIVEKIT_PORT = Number(process.env.E2E_LIVEKIT_PORT || 7880);
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -76,8 +76,10 @@ export async function startStack(env = {}) {
   const binary = await ensureLivekit();
   let livekit = null;
   const startLivekit = async () => {
-    livekit = start('livekit', binary, livekitArgs());
-    await waitFor(() => portOpen(LIVEKIT_PORT), 'LiveKit na porta 7880');
+    const args = livekitArgs();
+    if (LIVEKIT_PORT !== 7880) args.push('--config-body', JSON.stringify({ port: LIVEKIT_PORT, rtc: { tcp_port: LIVEKIT_PORT + 1, udp_port: LIVEKIT_PORT + 2 } }));
+    livekit = start('livekit', binary, args);
+    await waitFor(() => portOpen(LIVEKIT_PORT), `LiveKit na porta ${LIVEKIT_PORT}`);
   };
   const ownsLivekit = !(await portOpen(LIVEKIT_PORT));
   if (ownsLivekit) await startLivekit();

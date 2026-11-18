@@ -1,4 +1,4 @@
-import { ArrowLeft, AudioLines, Bell, BellOff, ChevronDown, ChevronRight, Compass, Crown, FolderPlus, Hash, Link2, Lock, MessageSquare, MicOff, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PhoneOff, Plus, Search, Settings, UserPlus, Users, Volume2, X } from 'lucide-react';
+import { ArrowLeft, AudioLines, Bell, BellOff, ChevronDown, ChevronRight, Compass, Crown, FolderPlus, Hash, Link2, Lock, MessageSquare, Mic, MicOff, HeadphoneOff, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, PhoneOff, Plus, Search, Settings, UserPlus, Users, Volume2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
@@ -9,6 +9,7 @@ import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
 import '../../lib/activities.ts';
 import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
 import { alertIncoming } from '../../lib/groups/alerts.ts';
+import { voiceRoster } from '../../lib/groups/voice-roster.ts';
 import { groups, type ChannelKind, type ChannelView, type GroupView, type MemberView, type NotifyLevel } from '../../lib/groups/client.ts';
 import { dialogs } from '../../lib/dialogs.ts';
 import type { ParticipantView, RoomSession } from '../../lib/session.ts';
@@ -410,13 +411,17 @@ function VoiceBar({ view, voice, onLeave }: { view: GroupView | null; voice: Voi
 let draggingMember: { userId: string; from: string } | null = null;
 const MEMBER_DRAG = 'application/x-cosmic-member';
 
-function VoicePeopleRows({ people, session, channel }: { people: MemberView[]; session: RoomSession | null; channel: ChannelView }) {
-  return session ? <LiveVoicePeople people={people} session={session} channel={channel} /> : <VoicePeopleList people={people} live={new Map()} session={null} channel={channel} />;
+function VoicePeopleRows({ people, members, session, channel }: { people: MemberView[]; members: MemberView[]; session: RoomSession | null; channel: ChannelView }) {
+  return session ? <LiveVoicePeople people={people} members={members} session={session} channel={channel} /> : <VoicePeopleList people={people} live={new Map()} session={null} channel={channel} />;
 }
 
-function LiveVoicePeople({ people, session, channel }: { people: MemberView[]; session: RoomSession; channel: ChannelView }) {
+function LiveVoicePeople({ people, members, session, channel }: { people: MemberView[]; members: MemberView[]; session: RoomSession; channel: ChannelView }) {
   const participants = useStore(session.store, (state) => state.participants);
-  return <VoicePeopleList people={people} live={new Map(participants.map((participant) => [participant.identity, participant]))} session={session} channel={channel} />;
+  const phase = useStore(session.store, (state) => state.phase);
+  // LiveKit is authoritative for the connected room, including remote participants.
+  // Keep its last snapshot during a transient reconnect; never merge stale gateway entries.
+  const roster = voiceRoster(people, members, participants, phase);
+  return <VoicePeopleList people={roster} live={new Map(participants.map((participant) => [participant.identity, participant]))} session={session} channel={channel} />;
 }
 
 function VoicePeopleList({ people, live, session, channel }: { people: MemberView[]; live: Map<string, ParticipantView>; session: RoomSession | null; channel: ChannelView }) {
@@ -448,17 +453,19 @@ function VoicePeopleList({ people, live, session, channel }: { people: MemberVie
             {session ? (
               <StreamHover session={session} identity={member.userId} name={memberName(member)} enabled={state?.sharing === true} className="flex min-w-0 flex-1 items-center gap-2">
                 <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
-                  <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
+                  <DecoratedAvatar userId={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
                   <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
                 </UserTrigger>
               </StreamHover>
             ) : (
               <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
-                <Avatar id={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
+                <DecoratedAvatar userId={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
                 <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
               </UserTrigger>
             )}
             {state?.sharing && <span className="shrink-0 rounded bg-live-500 px-1 text-[10px] font-extrabold text-on-accent">AO VIVO</span>}
+            {state?.deafened && <HeadphoneOff className="size-3.5 shrink-0 text-fog-500" aria-label="Ensurdecido" />}
+            {state?.micOn && <Mic className="size-3.5 shrink-0 text-fog-400" aria-label="Microfone ligado" />}
             {state && !state.micOn && <MicOff className="size-3.5 shrink-0 text-fog-500" aria-label="Microfone desligado" />}
           </li>
         );
@@ -475,6 +482,10 @@ function ChannelList({ view, selected, voice, onPick, onModal, onOpenChat }: {
   onModal: (modal: ModalState) => void;
   onOpenChat: (channel: ChannelView) => void;
 }) {
+  const liveState = useSyncExternalStore(
+    voice?.session.store.subscribe ?? (() => () => {}),
+    () => voice?.session.store.get() ?? null,
+  );
   const [memberOver, setMemberOver] = useState<{ channelId: string; allowed: boolean } | null>(null);
   const { run } = useAction();
   const collapsedKey = `shareroom:categorias:${view.group.id}`;
@@ -545,7 +556,10 @@ function ChannelList({ view, selected, voice, onPick, onModal, onOpenChat }: {
       : {};
 
   const row = (channel: ChannelView) => {
-    const inside = (view.voice[channel.id] ?? []).map((userId) => view.members.find((member) => member.userId === userId)).filter((member) => member !== undefined);
+    const backendPeople = (view.voice[channel.id] ?? []).map((userId) => view.members.find((member) => member.userId === userId)).filter((member) => member !== undefined);
+    const inside = voice?.channelId === channel.id && liveState
+      ? voiceRoster(backendPeople, view.members, liveState.participants, liveState.phase)
+      : backendPeople;
     const Icon = channel.private ? Lock : channel.kind === 'voz' ? Volume2 : Hash;
     const news = unreadOf(view, channel.id);
     // Soltar alguém arrastado aqui: só em canal de voz diferente, onde quem move pode conectar.
@@ -647,7 +661,7 @@ function ChannelList({ view, selected, voice, onPick, onModal, onOpenChat }: {
             </span>
           )}
         </div>
-        {inside.length > 0 && <VoicePeopleRows people={inside} session={connected ? voice.session : null} channel={channel} />}
+        {(inside.length > 0 || connected) && <VoicePeopleRows members={view.members} people={inside} session={connected ? voice.session : null} channel={channel} />}
       </li>
     );
   };
@@ -890,7 +904,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
   };
   const voiceChatPanel = (target: ChannelView) =>
     voiceChat && has(target.permissions, P.VIEW_CHANNEL) ? (
-      <aside className="flex w-[min(26rem,40%)] min-w-72 shrink-0 flex-col border-l border-brand-500/15" data-testid="voice-chat">
+      <aside className="flex w-full min-w-0 basis-1/2 lg:w-[min(26rem,40%)] lg:min-w-64 lg:basis-auto shrink-0 flex-col border-l border-brand-500/15" data-testid="voice-chat">
         <Chat key={target.id} view={current!} channel={target} />
       </aside>
     ) : null;
@@ -900,7 +914,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
       <Button
         size="sm"
         variant={voiceChat ? 'quiet' : 'outline'}
-        className="absolute top-2 right-3 z-10"
+        className="shrink-0"
         onClick={() => setVoiceChat(!voiceChat)}
         aria-pressed={voiceChat}
         data-testid="voice-chat-toggle"
@@ -1032,12 +1046,13 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
           </div>
         )}
         {voice && (
-          <div className={cx('relative min-h-0 flex-1', inThisVoice ? 'flex' : 'hidden')}>
+          <div className={cx('relative min-h-0 flex-1', inThisVoice ? 'flex flex-col lg:flex-row' : 'hidden')}>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="voice-room">
               <RoomView
                 session={voice.session}
                 invite=""
                 embedded
+                headerActions={inThisVoice && voiceChannel ? voiceChatToggle(voiceChannel) : undefined}
                 onLeave={() => void leave()}
                 lookup={(identity) => {
                   const member = view?.group.id === voice.groupId ? view.members.find((item) => item.userId === identity) : undefined;
@@ -1046,7 +1061,6 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
               />
             </div>
             {inThisVoice && voiceChannel && voiceChatPanel(voiceChannel)}
-            {inThisVoice && voiceChannel && voiceChatToggle(voiceChannel)}
           </div>
         )}
         {dm && (dm === 'inicio' ? <FriendsHome /> : <DmChat key={dm} dmId={dm} />)}
@@ -1055,10 +1069,12 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
             channel.kind === 'texto' ? (
               <Chat key={channel.id} view={current} channel={channel} membersOpen={membersPanel.open} onToggleMembers={wide ? membersPanel.toggle : undefined} />
             ) : (
-              <div className="relative flex min-h-0 flex-1">
-                <VoiceLobby view={current} channel={channel} joining={joining === channel.id} onJoin={() => void join(current.group.id, channel.id)} />
-                {voiceChatPanel(channel)}
-                {voiceChatToggle(channel)}
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex justify-end border-b border-ink-700 px-3 py-2">{voiceChatToggle(channel)}</div>
+                <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+                  <VoiceLobby view={current} channel={channel} joining={joining === channel.id} onJoin={() => void join(current.group.id, channel.id)} />
+                  {voiceChatPanel(channel)}
+                </div>
               </div>
             )
           ) : (

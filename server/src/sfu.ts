@@ -18,6 +18,8 @@ export interface TokenRequest {
   identity: string;
   name: string;
   host: boolean;
+  accountId?: string;
+  avatar?: string | null;
   ttlSeconds: number;
 }
 
@@ -132,7 +134,7 @@ export class LiveKitSfu implements Sfu {
       identity: request.identity,
       name: request.name,
       ttl: request.ttlSeconds,
-      metadata: JSON.stringify({ host: request.host }),
+      metadata: JSON.stringify({ host: request.host, ...(request.accountId ? { accountId: request.accountId, avatar: request.avatar ?? null } : {}) }),
     });
     token.addGrant({
       roomJoin: true,

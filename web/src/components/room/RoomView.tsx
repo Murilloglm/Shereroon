@@ -1,5 +1,5 @@
 import { Crown, LoaderCircle } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { canCaptureScreen, captureUnavailableReason } from '../../lib/capture.ts';
 import { desktop as app } from '../../lib/desktop.ts';
 import { AppMixer, SYSTEM_KEY } from '../../lib/helper/mixer.ts';
@@ -42,7 +42,7 @@ function MobilePeople({ session }: { session: RoomSession }) {
       <ul className="mt-2.5 flex gap-4 overflow-x-auto pb-1">
         {participants.map((person) => (
           <li key={person.identity} className="flex shrink-0 items-center gap-2" data-testid="participant">
-            <Avatar id={person.identity} name={person.name} size={36} online speaking={person.speaking} />
+            <Avatar id={person.accountId ?? person.identity} name={person.name} image={person.avatar} size={36} online speaking={person.speaking} />
             <span className="max-w-24 truncate text-sm font-semibold" data-testid="participant-name">
               {person.isLocal ? 'Você' : person.name}
             </span>
@@ -59,6 +59,7 @@ export function RoomView({
   invite,
   onLeave,
   embedded = false,
+  headerActions,
   lookup,
 }: {
   session: RoomSession;
@@ -67,6 +68,7 @@ export function RoomView({
   onLeave: () => void;
   /** Dentro da tela de um grupo: ocupa o espaço que recebe, sem logo, sem cartão da sala e sem lista de participantes. */
   embedded?: boolean;
+  headerActions?: ReactNode;
   /** Fotos de perfil de quem está na chamada (nos grupos). */
   lookup?: PersonLookup;
 }) {
@@ -151,7 +153,7 @@ export function RoomView({
 
   return (
     <div className={cx('flex flex-col', embedded ? 'h-full min-h-0 overflow-y-auto lg:overflow-hidden' : desktop ? 'h-(--app-h) overflow-hidden' : 'min-h-(--app-h)')} data-testid="room">
-      {!cinema && <Header session={session} onLeave={onLeave} embedded={embedded} />}
+      {!cinema && <Header session={session} onLeave={onLeave} embedded={embedded} actions={headerActions} />}
 
       {phase === 'reconnecting' && (
         <div className="flex items-center justify-center gap-2.5 bg-warn-400/15 px-4 py-2 text-sm font-bold text-warn-400" role="status">

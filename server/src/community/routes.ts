@@ -301,7 +301,7 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
   app.post('/api/channels/:channelId/messages', async (c) => {
     const user = await who(c);
     const input = await body(c, MESSAGE);
-    return c.json({ message: await community.sendMessage(user, id(c, 'channelId'), input.content, { replyTo: input.replyTo, attachments: input.attachments }) });
+    return c.json({ message: await community.sendMessage(user, id(c, 'channelId'), input.content, { replyTo: input.replyTo, attachments: input.attachments, clientId: input.clientId }) });
   });
 
   app.post('/api/channels/:channelId/read', async (c) => {
@@ -362,6 +362,13 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
     const user = await who(c);
     if (!limiter.take(`voz:${user.id}`, 30, 60_000)) throw new ApiError(429, 'devagar', 'Muitas entradas em canais de voz. Espere um instante.');
     return c.json(await community.joinVoice(user, id(c, 'channelId')));
+  });
+
+  app.post('/api/channels/:channelId/voice/sync', async (c) => {
+    const user = await who(c);
+    if (!limiter.take(`voz-sync:${user.id}`, 60, 60_000)) throw new ApiError(429, 'devagar', 'Espere um instante.');
+    await community.syncVoice(user, id(c, 'channelId'));
+    return c.json({ ok: true });
   });
 
   app.post('/api/voice/leave', async (c) => {
