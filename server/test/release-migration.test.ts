@@ -21,12 +21,12 @@ async function legacyDatabase() {
   await db.query("INSERT INTO sessions (token_hash,user_id,expires_at) VALUES ('legacy-session','legacy',now()+interval '1 day')");
 }
 
-describe('migração de produção da 0.3.2 para 0.3.3', () => {
-  it('aplica somente a migração 7 e preserva conta, saldo, histórico, inventário, equipamento e sessão', async () => {
+describe('migrações de produção a partir da 0.3.2', () => {
+  it('aplica as migrações 7 e 8 e preserva conta, saldo, histórico, inventário, equipamento e sessão', async () => {
     await legacyDatabase();
     const userBefore = await db.query("SELECT * FROM users WHERE id='legacy'");
     const ledgerBefore = await db.query('SELECT * FROM points_ledger');
-    expect(await migrate(db)).toEqual([7]);
+    expect(await migrate(db)).toEqual([7, 8]);
     expect(await db.query("SELECT * FROM users WHERE id='legacy'")).toEqual(userBefore);
     expect(await db.query('SELECT * FROM points_ledger')).toEqual(ledgerBefore);
     expect((await db.query('SELECT * FROM user_items'))[0]).toMatchObject({ user_id: 'legacy', item_id: 'anel-aurora', price: 150, admin_grant: false, acquisition_id: null });
@@ -34,6 +34,20 @@ describe('migração de produção da 0.3.2 para 0.3.3', () => {
     expect((await db.query('SELECT * FROM sessions'))[0]).toMatchObject({ token_hash: 'legacy-session', admin_verified_until: null });
     expect(await db.query('SELECT * FROM global_permissions')).toEqual([]);
     expect(await migrate(db)).toEqual([]);
+  });
+  it('a migração 8 não dispensa MFA nem altera os fatores e sessões já existentes', async () => {
+    await legacyDatabase();
+    const seven = MIGRATIONS.find((entry) => entry.id === 7)!;
+    await db.exec(seven.sql);
+    await db.query('INSERT INTO schema_migrations (id,name) VALUES ($1,$2)', [seven.id, seven.name]);
+    await db.query("INSERT INTO global_permissions (user_id,is_primary,mfa_secret,recovery_hashes) VALUES ('legacy',true,'segredo-cifrado-existente','[\"hash-existente\"]'::jsonb)");
+    await db.query("UPDATE sessions SET admin_verified_until=now()+interval '5 minutes' WHERE user_id='legacy'");
+    const [before] = await db.query('SELECT * FROM global_permissions');
+    const sessions = await db.query('SELECT * FROM sessions');
+    expect(await migrate(db)).toEqual([8]);
+    expect((await db.query('SELECT * FROM global_permissions'))[0]).toEqual({ ...before, mfa_exempt: false });
+    expect(await db.query('SELECT * FROM sessions')).toEqual(sessions);
+    expect(await db.query('SELECT * FROM admin_audit')).toEqual([]);
   });
   it('reverte a migração inteira em caso de colisão, sem conceder permissões ou alterar saldo', async () => {
     await legacyDatabase();

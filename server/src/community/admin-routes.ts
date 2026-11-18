@@ -72,7 +72,7 @@ export function mountAdmin(app: Hono, { economy, community, limiter, who, tokenO
   });
   app.get('/api/admin/permissions', async (c) => {
     await guard(c);
-    return c.json({ rows: await db.query('SELECT gp.user_id, u.username, gp.role, gp.unlimited_cosmetics, gp.is_primary, gp.mfa_secret IS NOT NULL AS mfa_enabled, gp.created_at FROM global_permissions gp JOIN users u ON u.id = gp.user_id ORDER BY gp.created_at') });
+    return c.json({ rows: await db.query('SELECT gp.user_id, u.username, gp.role, gp.unlimited_cosmetics, gp.is_primary, gp.mfa_exempt, gp.mfa_secret IS NOT NULL AS mfa_enabled, gp.created_at FROM global_permissions gp JOIN users u ON u.id = gp.user_id ORDER BY gp.created_at') });
   });
   app.put('/api/admin/permissions/:userId', async (c) => {
     const actor = await guard(c), input = await body(c), reason = requireReason(input), target = c.req.param('userId');

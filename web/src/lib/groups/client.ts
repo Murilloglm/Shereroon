@@ -8,6 +8,7 @@ import { Store } from '../store.ts';
 export interface Account {
   cosmicAdmin?: boolean;
   adminVerified?: boolean;
+  mfaExempt?: boolean;
   id: string;
   username: string;
   displayName: string;

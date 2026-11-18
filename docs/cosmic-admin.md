@@ -35,7 +35,24 @@ O bootstrap só funciona enquanto não houver administradores globais. Tentativa
 
 ## MFA e recuperação
 
-A confirmação do segundo fator vale **10 minutos por sessão**, é verificada no backend e não se transfere para outro login. Novas sessões preservam o cargo global e precisam confirmar MFA para operações sensíveis. Códigos TOTP já usados são recusados. Tentativas de MFA e de resgate têm limites por conta e IP no PostgreSQL, além do limitador em memória.
+A confirmação do segundo fator vale **10 minutos por sessão**, é verificada no backend e não se transfere para outro login. Novas sessões preservam o cargo global e precisam confirmar MFA para operações sensíveis, salvo a dispensa explícita da conta principal descrita abaixo. Códigos TOTP já usados são recusados. Tentativas de MFA e de resgate têm limites por conta e IP no PostgreSQL, além do limitador em memória.
+
+### Exceção exclusiva de Mg, solicitada pelo proprietário
+
+A migração 8 acrescenta `global_permissions.mfa_exempt`, inicialmente **false para todas as contas**, e uma restrição que só permite ativá-la na conta principal já inicializada. A exceção não depende de nome de usuário ou nome de perfil e não é concedida a novos Cosmic Admins. Ela deve ser vinculada ao ID imutável de Mg no banco correto.
+
+O operador executa `node server/scripts/owner-mfa.ts --exempt` com `DATABASE_URL`, `NODE_ENV=production` e estas variáveis temporárias injetadas pelo ambiente seguro:
+
+- `COSMIC_OWNER_USER_ID`: ID da conta principal verificada.
+- `COSMIC_OWNER_CONFIRM_ID`: o mesmo ID, conferido antes da operação.
+- `COSMIC_OWNER_PASSWORD`: senha atual dessa conta, sem incluir na linha de comando ou no Git.
+- `COSMIC_OWNER_REASON`: motivo autorizado, com pelo menos dez caracteres.
+
+O procedimento exige a migração 8, valida a senha e confirma no banco que o ID é o da conta principal. Remove somente os fatores e códigos de recuperação dessa conta e registra `admin.mfa_dispensado` na auditoria. O login por senha e a validade normal das sessões continuam obrigatórios. Não são criadas provas artificiais de MFA em `sessions.admin_verified_until`; o backend consulta a política explícita da conta em cada autenticação.
+
+O painel web identifica a dispensa do proprietário. Clientes Windows 0.3.3 continuam compatíveis: o endpoint de estado já informa o acesso autorizado, sem solicitar o código. Os demais administradores continuam usando TOTP por sessão. Nenhuma rota HTTP aceita conceder essa exceção, nem mesmo pelo painel global.
+
+Para voltar a exigir MFA, o operador usa o mesmo procedimento com `--require`; a conta deverá cadastrar novamente o autenticador. A recuperação emergencial da senha não muda automaticamente essa política. A exceção não amplia o acesso a mensagens privadas de terceiros e mantém os logs e as confirmações das operações administrativas.
 
 Com a senha e um código de recuperação, use **Perdi o autenticador** no painel: o código invalida o autenticador anterior e todos os códigos antigos, encerra todas as sessões e exige novo cadastro de MFA no próximo login.
 

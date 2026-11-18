@@ -25,10 +25,12 @@ try {
   const tableNames = ['global_permissions', 'admin_audit', 'security_limits', 'promo_codes', 'promo_redemptions', 'shop_settings', 'gifts', 'global_settings'];
   const collisions = last < 7 ? tableNames.filter((name) => tables.has(name)) : [];
   const missingTables = last >= 7 ? tableNames.filter((name) => !tables.has(name)) : [];
-  const columns = new Set((await client.query("SELECT table_name || '.' || column_name AS name FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('sessions','user_items')")).rows.map((row) => String(row.name)));
+  const columns = new Set((await client.query("SELECT table_name || '.' || column_name AS name FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('sessions','user_items','global_permissions')")).rows.map((row) => String(row.name)));
   const addedColumns = ['sessions.admin_verified_until', 'user_items.admin_grant', 'user_items.acquisition_id'];
   const columnCollisions = last < 7 ? addedColumns.filter((name) => columns.has(name)) : [];
   const missingColumns = last >= 7 ? addedColumns.filter((name) => !columns.has(name)) : [];
+  if (last >= 8 && !columns.has('global_permissions.mfa_exempt')) missingColumns.push('global_permissions.mfa_exempt');
+  if (last < 8 && columns.has('global_permissions.mfa_exempt')) columnCollisions.push('global_permissions.mfa_exempt');
   const ok = last === expected && missingBaseline.length === 0 && collisions.length === 0 && missingTables.length === 0 && columnCollisions.length === 0 && missingColumns.length === 0 && proof.read_only === 'on';
   console.log(JSON.stringify({ ok, databaseFingerprint, mode: afterDeploy ? 'after-deploy' : 'before-deploy', ...proof, applied, pending, expectedSchema: expected, missingBaseline, collisions, missingTables, columnCollisions, missingColumns, mg, admins, bootstrapRequired: admins.length === 0, appSecretConfiguredInThisProcess: Boolean(process.env.APP_SECRET && process.env.APP_SECRET.trim().length >= 16), appSecretProductionValueRead: false, wroteDatabase: false }, null, 2));
   await client.query('ROLLBACK');

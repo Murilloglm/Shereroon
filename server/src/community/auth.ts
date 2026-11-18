@@ -25,6 +25,8 @@ export interface User {
   displayName: string;
   createdAt: string;
   cosmicAdmin?: boolean;
+  mfaExempt?: boolean;
+  /** Acesso global autorizado por segundo fator ou exceção explícita da conta principal. */
   adminVerified?: boolean;
 }
 
@@ -61,8 +63,12 @@ const toUser = (row: Record<string, unknown>): User => ({
   displayName: String(row.display_name),
   createdAt: iso(row.created_at),
   cosmicAdmin: row.cosmic_admin === true,
-  adminVerified: row.admin_verified_until != null && new Date(String(row.admin_verified_until)).getTime() > Date.now(),
+  mfaExempt: row.cosmic_mfa_exempt === true,
+  adminVerified: row.cosmic_mfa_exempt === true || (row.admin_verified_until != null && new Date(String(row.admin_verified_until)).getTime() > Date.now()),
 });
+
+const GLOBAL_ACCOUNT_FIELDS = `EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id) AS cosmic_admin,
+  EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id AND g.is_primary AND g.mfa_exempt) AS cosmic_mfa_exempt`;
 
 export class Accounts {
   readonly #db: Db;
@@ -105,7 +111,7 @@ export class Accounts {
   async login(input: { username: unknown; password: unknown }): Promise<{ user: User; token: string }> {
     const username = typeof input.username === 'string' ? input.username.trim().toLowerCase() : '';
     const password = typeof input.password === 'string' ? input.password : '';
-    const [row] = await this.#db.query('SELECT u.*, EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id) AS cosmic_admin FROM users u WHERE username_key = $1', [username]);
+    const [row] = await this.#db.query(`SELECT u.*, ${GLOBAL_ACCOUNT_FIELDS} FROM users u WHERE username_key = $1`, [username]);
     this.#decoy ??= hashPassword('senha que ninguém usa', this.#cost);
     const ok = password.length <= MAX_PASSWORD && (await verifyPassword(password, row ? String(row.password_hash) : await this.#decoy));
     // A mesma resposta para "conta não existe" e "senha errada": não dá para descobrir nomes de usuário por aqui.
@@ -118,7 +124,7 @@ export class Accounts {
     if (!token || token.length < 20 || token.length > 200) return null;
     const hash = hashToken(token);
     const [row] = await this.#db.query(
-      `SELECT u.*, s.last_seen_at, s.admin_verified_until, EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id) AS cosmic_admin FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()`,
+      `SELECT u.*, s.last_seen_at, s.admin_verified_until, ${GLOBAL_ACCOUNT_FIELDS} FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()`,
       [hash],
     );
     if (!row) return null;
@@ -158,7 +164,7 @@ export class Accounts {
   }
 
   async byId(id: string): Promise<User | null> {
-    const [row] = await this.#db.query('SELECT u.*, EXISTS (SELECT 1 FROM global_permissions g WHERE g.user_id = u.id) AS cosmic_admin FROM users u WHERE id = $1', [id]);
+    const [row] = await this.#db.query(`SELECT u.*, ${GLOBAL_ACCOUNT_FIELDS} FROM users u WHERE id = $1`, [id]);
     return row ? toUser(row) : null;
   }
 

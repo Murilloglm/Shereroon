@@ -600,6 +600,14 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
     `,
   },
 
+  {
+    id: 8,
+    name: 'exceção de MFA exclusiva da conta principal por ID',
+    sql: `
+      ALTER TABLE global_permissions ADD COLUMN mfa_exempt BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE global_permissions ADD CONSTRAINT owner_mfa_exemption_only CHECK (NOT mfa_exempt OR is_primary);
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

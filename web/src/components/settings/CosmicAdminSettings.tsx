@@ -14,11 +14,11 @@ const sections = [
 ] as const;
 type Section = typeof sections[number][0];
 type Row = Record<string, unknown>;
-type Mfa = { enrolled: boolean; verified: boolean; primary: boolean };
+type Mfa = { enrolled: boolean; verified: boolean; primary: boolean; mfaExempt?: boolean };
 const labels: Record<string, string> = {
   id: 'ID', user_id: 'ID da conta', username: 'Usuário', display_name: 'Nome', points: 'Pontos', created_at: 'Data',
   name: 'Nome', owner_id: 'ID do dono', is_public: 'Público', members: 'Membros', role: 'Permissão',
-  unlimited_cosmetics: 'Compras ilimitadas', is_primary: 'Principal', mfa_enabled: 'MFA', code: 'Código',
+  unlimited_cosmetics: 'Compras ilimitadas', is_primary: 'Principal', mfa_enabled: 'MFA', mfa_exempt: 'Dispensa de MFA', code: 'Código',
   uses: 'Resgates', maxUses: 'Limite total', perUser: 'Por conta', expiresAt: 'Validade', active: 'Ativo', revokedAt: 'Revogado em',
   rewardKind: 'Recompensa', itemId: 'Item', delta: 'Quantidade', reason: 'Motivo', detail: 'Detalhes', price: 'Preço',
   transferable: 'Transferível', sender: 'Remetente', recipient: 'Destinatário', item_id: 'Item', kind: 'Tipo',
@@ -29,7 +29,7 @@ const labels: Record<string, string> = {
 const columns: Record<Exclude<Section, 'overview'>, string[]> = {
   users: ['id', 'username', 'display_name', 'points', 'cosmic_admin'],
   servers: ['id', 'name', 'owner_id', 'members', 'is_public'],
-  permissions: ['user_id', 'username', 'role', 'is_primary', 'unlimited_cosmetics', 'mfa_enabled'],
+  permissions: ['user_id', 'username', 'role', 'is_primary', 'unlimited_cosmetics', 'mfa_enabled', 'mfa_exempt'],
   codes: ['code', 'rewardKind', 'points', 'itemId', 'uses', 'maxUses', 'perUser', 'expiresAt', 'active', 'revokedAt'],
   points: ['username', 'user_id', 'delta', 'reason', 'detail', 'created_at'],
   shop: ['id', 'name', 'price', 'active', 'transferable'],
@@ -140,6 +140,7 @@ export function CosmicAdminSettings() {
     <div className="flex items-center gap-3 rounded-2xl border border-neon-400/20 bg-linear-to-r from-brand-900/40 to-ink-950 p-4">
       <Crown className="size-8 shrink-0 text-neon-300" /><div><p className="font-extrabold">Cosmic Admin {status?.primary && '· conta principal'}</p><p className="text-sm text-fog-400">Administração oficial da plataforma. Todas as ações administrativas são auditadas.</p></div>
     </div>
+    {status?.mfaExempt && <p className="rounded-xl border border-neon-400/20 bg-brand-500/10 p-3 text-sm text-neon-300">Acesso do proprietário: esta conta está dispensada do segundo fator. As ações administrativas continuam registradas.</p>}
     {error && <p role="alert" className="rounded-xl bg-live-500/10 p-3 text-sm text-live-300">{error}</p>}
     {!status && !error && <p className="text-fog-400">Verificando acesso…</p>}
     {status && !status.verified && <Block title="Verificação multifator">

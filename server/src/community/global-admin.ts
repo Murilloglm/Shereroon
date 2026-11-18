@@ -72,6 +72,22 @@ export async function bootstrapAdmin(db: Db, userId: string, password: string): 
   });
 }
 
+/** Procedimento local exclusivo do operador. Não há endpoint que conceda esta exceção. */
+export async function setOwnerMfaExemption(db: Db, userId: string, password: string, exempt: boolean, reason: string): Promise<void> {
+  const why = cleanText(reason, 300);
+  if (why.length < 10) throw new ApiError(400, 'motivo_necessario', 'Informe um motivo de pelo menos 10 caracteres.');
+  const [account] = await db.query('SELECT password_hash FROM users WHERE id = $1 AND NOT is_bot', [userId]);
+  if (!account || password.length > 128 || !(await verifyPassword(password, String(account.password_hash)))) throw new ApiError(401, 'senha_incorreta', 'ID ou credencial da conta não confere.');
+  await db.tx(async (tx) => {
+    await tx.query('SELECT pg_advisory_xact_lock(727274007)');
+    const [owner] = await tx.query('SELECT is_primary FROM global_permissions WHERE user_id = $1 FOR UPDATE', [userId]);
+    if (!owner?.is_primary) throw new ApiError(403, 'so_conta_principal', 'A exceção é exclusiva do ID da conta principal já inicializada.');
+    await tx.query("UPDATE global_permissions SET mfa_exempt = $2, mfa_secret = NULL, mfa_pending = NULL, mfa_last_step = -1, recovery_hashes = '[]'::jsonb WHERE user_id = $1", [userId, exempt]);
+    await tx.query('UPDATE sessions SET admin_verified_until = NULL WHERE user_id = $1', [userId]);
+    await adminAudit(tx, userId, exempt ? 'admin.mfa_dispensado' : 'admin.mfa_exigido', userId, why, { ownerOnly: true, mfaExempt: exempt });
+  });
+}
+
 /** MFA ligado à sessão opaca existente; a prova expira e nunca é uma flag enviada pelo cliente. */
 export class CosmicAdmin {
   readonly db: Db;
@@ -85,15 +101,17 @@ export class CosmicAdmin {
   }
   async requireMfa(user: User, token: string | null): Promise<void> {
     await this.require(user);
-    const [session] = await this.db.query('SELECT 1 FROM sessions WHERE user_id = $1 AND token_hash = $2 AND expires_at > now() AND admin_verified_until > now()', [user.id, digest(token ?? '')]);
+    const [session] = await this.db.query(`SELECT 1 FROM sessions s JOIN global_permissions g ON g.user_id = s.user_id
+      WHERE s.user_id = $1 AND s.token_hash = $2 AND s.expires_at > now()
+        AND ((g.is_primary AND g.mfa_exempt) OR s.admin_verified_until > now())`, [user.id, digest(token ?? '')]);
     if (!session) throw new ApiError(403, 'mfa_necessario', 'Verifique o segundo fator em Administração Cosmic. A confirmação vale por 10 minutos.');
   }
   async status(user: User, token: string | null) {
     await this.require(user);
-    const [row] = await this.db.query('SELECT mfa_secret IS NOT NULL AS enrolled, is_primary FROM global_permissions WHERE user_id = $1', [user.id]);
+    const [row] = await this.db.query('SELECT mfa_secret IS NOT NULL AS enrolled, is_primary, mfa_exempt FROM global_permissions WHERE user_id = $1', [user.id]);
     let verified = true;
     try { await this.requireMfa(user, token); } catch { verified = false; }
-    return { enrolled: row!.enrolled === true, primary: row!.is_primary === true, verified };
+    return { enrolled: row!.enrolled === true, primary: row!.is_primary === true, mfaExempt: row!.is_primary === true && row!.mfa_exempt === true, verified };
   }
   #seal(value: string): string {
     if (!this.#key) throw new ApiError(503, 'mfa_configuracao', 'Configure uma APP_SECRET persistente no backend para usar MFA.');
@@ -110,6 +128,8 @@ export class CosmicAdmin {
   }
   async enroll(user: User, password: unknown) {
     await this.require(user);
+    const [policy] = await this.db.query('SELECT is_primary, mfa_exempt FROM global_permissions WHERE user_id = $1', [user.id]);
+    if (policy?.is_primary && policy.mfa_exempt) throw new ApiError(409, 'mfa_dispensado', 'Esta conta principal está dispensada de MFA pelo procedimento administrativo.');
     const [row] = await this.db.query('SELECT password_hash FROM users WHERE id = $1', [user.id]);
     if (typeof password !== 'string' || password.length > 128 || !(await verifyPassword(password, String(row!.password_hash)))) throw new ApiError(401, 'senha_incorreta', 'A senha atual não confere.');
     const secret = base32(randomBytes(20));
@@ -123,6 +143,7 @@ export class CosmicAdmin {
     return this.db.tx(async (tx) => {
       const [row] = await tx.query('SELECT * FROM global_permissions WHERE user_id = $1 FOR UPDATE', [user.id]);
       if (!row) throw new ApiError(403, 'admin_global_necessario', 'Privilégio revogado.');
+      if (row.is_primary && row.mfa_exempt) throw new ApiError(409, 'mfa_dispensado', 'Esta conta principal está dispensada de MFA.');
       const encrypted = row.mfa_secret ?? row.mfa_pending;
       if (!encrypted) throw new ApiError(400, 'mfa_nao_configurado', 'Configure o autenticador primeiro.');
       const secret = this.#open(String(encrypted));
@@ -143,7 +164,8 @@ export class CosmicAdmin {
     if (typeof input.password !== 'string' || input.password.length > 128 || !(await verifyPassword(input.password, String(account!.password_hash)))) throw new ApiError(401, 'senha_incorreta', 'A senha atual não confere.');
     const code = typeof input.recoveryCode === 'string' ? input.recoveryCode.trim() : '';
     await this.db.tx(async (tx) => {
-      const [row] = await tx.query('SELECT recovery_hashes FROM global_permissions WHERE user_id = $1 FOR UPDATE', [user.id]);
+      const [row] = await tx.query('SELECT recovery_hashes, is_primary, mfa_exempt FROM global_permissions WHERE user_id = $1 FOR UPDATE', [user.id]);
+      if (row?.is_primary && row.mfa_exempt) throw new ApiError(409, 'mfa_dispensado', 'Esta conta principal está dispensada de MFA.');
       const hashes = row?.recovery_hashes as string[] | undefined;
       if (!hashes?.includes(digest(code))) throw new ApiError(401, 'recuperacao_invalida', 'Código de recuperação inválido.');
       await tx.query("UPDATE global_permissions SET mfa_secret = NULL, mfa_pending = NULL, recovery_hashes = '[]'::jsonb, mfa_last_step = -1 WHERE user_id = $1", [user.id]);
