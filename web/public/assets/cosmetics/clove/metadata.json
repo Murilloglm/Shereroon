@@ -1,0 +1,283 @@
+{
+  "id": "clove",
+  "name": "Clove",
+  "franchise": "Valorant",
+  "colors": [
+    "#f4bdff",
+    "#cb70ff"
+  ],
+  "avatarScale": 1.8,
+  "resolution": "sheet",
+  "notes": [
+    "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
+  ],
+  "files": {
+    "cover.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1029,
+        8,
+        1273,
+        128
+      ],
+      "size": [
+        244,
+        120
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
+      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "crop": [
+        90,
+        326,
+        510,
+        704
+      ],
+      "size": [
+        420,
+        378
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": {
+        "outer": [
+          [
+            15,
+            80
+          ],
+          [
+            90,
+            30
+          ],
+          [
+            220,
+            0
+          ],
+          [
+            310,
+            38
+          ],
+          [
+            395,
+            45
+          ],
+          [
+            420,
+            180
+          ],
+          [
+            394,
+            288
+          ],
+          [
+            230,
+            378
+          ],
+          [
+            100,
+            367
+          ],
+          [
+            10,
+            290
+          ],
+          [
+            0,
+            163
+          ]
+        ],
+        "ellipse": [
+          94,
+          93,
+          322,
+          293
+        ]
+      },
+      "processing": []
+    },
+    "profile-frame.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1037,
+        289,
+        1265,
+        342
+      ],
+      "size": [
+        228,
+        53
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": {
+        "outer": [
+          [
+            0,
+            8
+          ],
+          [
+            12,
+            2
+          ],
+          [
+            216,
+            2
+          ],
+          [
+            227,
+            8
+          ],
+          [
+            227,
+            45
+          ],
+          [
+            216,
+            51
+          ],
+          [
+            12,
+            51
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "hole": [
+          [
+            19,
+            18
+          ],
+          [
+            98.03999999999999,
+            18
+          ],
+          [
+            114.0,
+            28
+          ],
+          [
+            129.95999999999998,
+            18
+          ],
+          [
+            209,
+            18
+          ],
+          [
+            212,
+            35
+          ],
+          [
+            203,
+            40
+          ],
+          [
+            23,
+            40
+          ],
+          [
+            16,
+            34
+          ]
+        ]
+      },
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
+      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "crop": [
+        44,
+        721,
+        1212,
+        987
+      ],
+      "size": [
+        1168,
+        266
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1152,
+        455,
+        1256,
+        487
+      ],
+      "size": [
+        104,
+        32
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "crop": [
+        783,
+        606,
+        1093,
+        665
+      ],
+      "size": [
+        310,
+        59
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1182,
+        183,
+        1258,
+        259
+      ],
+      "size": [
+        76,
+        76
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

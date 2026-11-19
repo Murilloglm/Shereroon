@@ -2,7 +2,7 @@
 // duas ou mais); um débito só, um presente só no histórico, mesmo com o pedido repetido; só entre amigos.
 import { randomUUID } from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CATALOG, packById, packPrice, SLOTS } from '../../shared/cosmetics.ts';
+import { CATALOG, packById, packPrice, PACK_SLOTS as SLOTS } from '../../shared/cosmetics.ts';
 import { createWorld, type Person, type World } from './world.ts';
 
 let w: World;

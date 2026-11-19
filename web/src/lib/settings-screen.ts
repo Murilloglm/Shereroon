@@ -4,7 +4,7 @@ import type { NoiseControl } from './noise-control.ts';
 import type { RoomSession } from './session.ts';
 import { Store } from './store.ts';
 
-export type SettingsSection = 'conta' | 'perfil' | 'privacidade' | 'amigos' | 'aparencia' | 'notificacoes' | 'acessibilidade' | 'voz' | 'inicializacao' | 'atualizacoes' | 'jogos' | 'inventario' | 'loja' | 'pontos' | 'presentes' | 'admin';
+export type SettingsSection = 'conta' | 'perfil' | 'privacidade' | 'amigos' | 'aparencia' | 'notificacoes' | 'acessibilidade' | 'voz' | 'inicializacao' | 'atualizacoes' | 'jogos' | 'inventario' | 'efeitos-nome' | 'loja' | 'pontos' | 'presentes' | 'admin';
 
 export interface ActiveCall {
   session: RoomSession;

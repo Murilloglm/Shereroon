@@ -1,0 +1,232 @@
+{
+  "id": "night-fury",
+  "name": "Fúria da Noite",
+  "franchise": "Como Treinar Seu Dragão",
+  "colors": [
+    "#dcafff",
+    "#9465ff"
+  ],
+  "avatarScale": 1.52,
+  "resolution": "sheet",
+  "notes": [
+    "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
+  ],
+  "files": {
+    "cover.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        8,
+        8,
+        253,
+        128
+      ],
+      "size": [
+        245,
+        120
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png",
+      "sha256": "d1612b1660609c296fa688f46a3af613a259ec3cdc1f0d72e6967402887a0e98",
+      "crop": [
+        0,
+        0,
+        1254,
+        1254
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": [
+        "Lanczos downsample to max 512px (no upscaling)"
+      ]
+    },
+    "profile-frame.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        16,
+        289,
+        245,
+        342
+      ],
+      "size": [
+        229,
+        53
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": {
+        "outer": [
+          [
+            0,
+            8
+          ],
+          [
+            12,
+            2
+          ],
+          [
+            217,
+            2
+          ],
+          [
+            228,
+            8
+          ],
+          [
+            228,
+            45
+          ],
+          [
+            217,
+            51
+          ],
+          [
+            12,
+            51
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "hole": [
+          [
+            19,
+            18
+          ],
+          [
+            98.47,
+            18
+          ],
+          [
+            114.5,
+            28
+          ],
+          [
+            130.53,
+            18
+          ],
+          [
+            210,
+            18
+          ],
+          [
+            213,
+            35
+          ],
+          [
+            204,
+            40
+          ],
+          [
+            23,
+            40
+          ],
+          [
+            16,
+            34
+          ]
+        ]
+      },
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Pacote Fúria da Noite em Neon-1.png",
+      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "crop": [
+        44,
+        632,
+        1208,
+        911
+      ],
+      "size": [
+        1164,
+        279
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        131,
+        455,
+        236,
+        487
+      ],
+      "size": [
+        105,
+        32
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "crop": [
+        783,
+        284,
+        1093,
+        343
+      ],
+      "size": [
+        310,
+        59
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        161,
+        183,
+        238,
+        259
+      ],
+      "size": [
+        77,
+        76
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

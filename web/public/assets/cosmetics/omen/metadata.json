@@ -1,0 +1,230 @@
+{
+  "id": "omen",
+  "name": "Omen",
+  "franchise": "Valorant",
+  "colors": [
+    "#d4b1ff",
+    "#9b71ff"
+  ],
+  "avatarScale": 1.85,
+  "resolution": "overview-only",
+  "notes": [
+    "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick.",
+    "Avatar, moldura, banner e capa disponíveis somente na grade; enviar elementos separados em alta resolução para maior definição."
+  ],
+  "files": {
+    "cover.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        12,
+        520,
+        304,
+        630
+      ],
+      "size": [
+        292,
+        110
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        41,
+        672,
+        155,
+        759
+      ],
+      "size": [
+        114,
+        87
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": "explicit ring aperture and outer ellipse"
+    },
+    "profile-frame.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        30,
+        779,
+        286,
+        832
+      ],
+      "size": [
+        256,
+        53
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": {
+        "outer": [
+          [
+            0,
+            8
+          ],
+          [
+            12,
+            2
+          ],
+          [
+            244,
+            2
+          ],
+          [
+            255,
+            8
+          ],
+          [
+            255,
+            45
+          ],
+          [
+            244,
+            51
+          ],
+          [
+            12,
+            51
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "hole": [
+          [
+            19,
+            18
+          ],
+          [
+            110.08,
+            18
+          ],
+          [
+            128.0,
+            28
+          ],
+          [
+            145.92,
+            18
+          ],
+          [
+            237,
+            18
+          ],
+          [
+            240,
+            35
+          ],
+          [
+            231,
+            40
+          ],
+          [
+            23,
+            40
+          ],
+          [
+            16,
+            34
+          ]
+        ]
+      },
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        25,
+        855,
+        291,
+        924
+      ],
+      "size": [
+        266,
+        69
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        145,
+        956,
+        268,
+        993
+      ],
+      "size": [
+        123,
+        37
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "crop": [
+        783,
+        764,
+        1093,
+        823
+      ],
+      "size": [
+        310,
+        59
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        194,
+        678,
+        276,
+        757
+      ],
+      "size": [
+        82,
+        79
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

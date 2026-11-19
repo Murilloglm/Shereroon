@@ -1,0 +1,232 @@
+{
+  "id": "rimuru",
+  "name": "Rimuru Tempest",
+  "franchise": "Tensei Shitara Slime",
+  "colors": [
+    "#b7f6ff",
+    "#40d7ff"
+  ],
+  "avatarScale": 1.55,
+  "resolution": "sheet",
+  "notes": [
+    "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
+  ],
+  "files": {
+    "cover.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        775,
+        8,
+        1018,
+        128
+      ],
+      "size": [
+        243,
+        120
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png",
+      "sha256": "89e1e4ed94c9facd322ee35a2bc54242b431e970a03118efe0376db220f31d24",
+      "crop": [
+        0,
+        0,
+        1254,
+        1254
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": [
+        "Lanczos downsample to max 512px (no upscaling)"
+      ]
+    },
+    "profile-frame.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        783,
+        289,
+        1010,
+        342
+      ],
+      "size": [
+        227,
+        53
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": {
+        "outer": [
+          [
+            0,
+            8
+          ],
+          [
+            12,
+            2
+          ],
+          [
+            215,
+            2
+          ],
+          [
+            226,
+            8
+          ],
+          [
+            226,
+            45
+          ],
+          [
+            215,
+            51
+          ],
+          [
+            12,
+            51
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "hole": [
+          [
+            19,
+            18
+          ],
+          [
+            97.61,
+            18
+          ],
+          [
+            113.5,
+            28
+          ],
+          [
+            129.39,
+            18
+          ],
+          [
+            208,
+            18
+          ],
+          [
+            211,
+            35
+          ],
+          [
+            202,
+            40
+          ],
+          [
+            23,
+            40
+          ],
+          [
+            16,
+            34
+          ]
+        ]
+      },
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Pacote Cósmico de Slime Azul-7.png",
+      "sha256": "a8ffd88eb6dded188b96b3d7744f4430d5e9d8857202cc838e363dc1c77531be",
+      "crop": [
+        45,
+        513,
+        1208,
+        839
+      ],
+      "size": [
+        1163,
+        326
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        898,
+        455,
+        1001,
+        487
+      ],
+      "size": [
+        103,
+        32
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "crop": [
+        783,
+        526,
+        1093,
+        585
+      ],
+      "size": [
+        310,
+        59
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        928,
+        183,
+        1003,
+        259
+      ],
+      "size": [
+        75,
+        76
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

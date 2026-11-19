@@ -1,0 +1,232 @@
+{
+  "id": "madu-kaiden",
+  "name": "Madu Kaiden",
+  "franchise": "Eleceed",
+  "colors": [
+    "#fff0a3",
+    "#ffc32e"
+  ],
+  "avatarScale": 1.64,
+  "resolution": "sheet",
+  "notes": [
+    "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
+  ],
+  "files": {
+    "cover.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        521,
+        8,
+        764,
+        128
+      ],
+      "size": [
+        243,
+        120
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png",
+      "sha256": "7f0655a205696384d4ad94290c8de816389cf5929f0bf1c2d587588415d7c02d",
+      "crop": [
+        0,
+        0,
+        1254,
+        1254
+      ],
+      "size": [
+        512,
+        512
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": [
+        "Lanczos downsample to max 512px (no upscaling)"
+      ]
+    },
+    "profile-frame.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        529,
+        289,
+        756,
+        342
+      ],
+      "size": [
+        227,
+        53
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": {
+        "outer": [
+          [
+            0,
+            8
+          ],
+          [
+            12,
+            2
+          ],
+          [
+            215,
+            2
+          ],
+          [
+            226,
+            8
+          ],
+          [
+            226,
+            45
+          ],
+          [
+            215,
+            51
+          ],
+          [
+            12,
+            51
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "hole": [
+          [
+            19,
+            18
+          ],
+          [
+            97.61,
+            18
+          ],
+          [
+            113.5,
+            28
+          ],
+          [
+            129.39,
+            18
+          ],
+          [
+            208,
+            18
+          ],
+          [
+            211,
+            35
+          ],
+          [
+            202,
+            40
+          ],
+          [
+            23,
+            40
+          ],
+          [
+            16,
+            34
+          ]
+        ]
+      },
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Pacote Neon do Gato Elétrico-5.png",
+      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
+      "crop": [
+        24,
+        564,
+        1231,
+        924
+      ],
+      "size": [
+        1207,
+        360
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        644,
+        455,
+        747,
+        487
+      ],
+      "size": [
+        103,
+        32
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "crop": [
+        783,
+        446,
+        1093,
+        505
+      ],
+      "size": [
+        310,
+        59
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        674,
+        183,
+        749,
+        259
+      ],
+      "size": [
+        75,
+        76
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

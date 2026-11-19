@@ -38,6 +38,14 @@ export interface Inventory {
   equipped: UserCosmetics;
 }
 
+export interface CollectionQuote {
+  collectionId: string;
+  itemIds: string[];
+  ownedIds: string[];
+  price: number;
+  available: boolean;
+}
+
 export interface Gift {
   id: string; senderId: string; senderName: string; recipientId: string; recipientName: string;
   itemId: string; kind: string; message: string; price: number; at: string; unread: boolean;
@@ -72,6 +80,9 @@ class CosmeticsClient {
   #batch: ReturnType<typeof setTimeout> | null = null;
   #lastInput = 0;
   #lastPing = 0;
+  #generation = 0;
+  readonly #versions = new Map<string, number>();
+  readonly #observed = new Set<string>();
 
   constructor() {
     let accountId: string | null = null;
@@ -79,6 +90,10 @@ class CosmeticsClient {
       const next = groups.store.get().account?.id ?? null;
       if (next === accountId) return;
       accountId = next;
+      this.#generation++;
+      this.#wanted.clear();
+      this.#versions.clear();
+      this.#observed.clear();
       this.store.set({ byUser: {}, points: null, shop: null, packs: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
       if (next) void this.loadGifts().then(() => {
         const unread = this.store.get().gifts?.filter((gift) => gift.unread).length ?? 0;
@@ -91,11 +106,18 @@ class CosmeticsClient {
         void Promise.all([this.loadGifts(), this.loadInventory(), this.loadShop()]).catch(() => undefined);
       }
       if (event.t === 'points.changed') void this.loadPoints().catch(() => undefined);
-      if (event.t === 'inventory.changed') void this.loadInventory().catch(() => undefined);
+      if (event.t === 'inventory.changed') void Promise.all([this.loadInventory(), this.loadShop()]).catch(() => undefined);
+      if (event.t === 'ready') {
+        // Uma troca pode ter acontecido durante a desconexão, em qualquer servidor ou sessão.
+        const known = [...this.#observed];
+        this.#generation++;
+        for (const id of known) this.request(id, true);
+        void this.loadInventory().catch(() => undefined);
+      }
       // Alguém trocou o que tem equipado: busca de novo só essa pessoa.
-      if (event.t === 'profile.changed' && typeof event.userId === 'string' && this.store.get().byUser[event.userId]) {
+      if (event.t === 'profile.changed' && typeof event.userId === 'string') {
         this.#forget(event.userId);
-        this.request(event.userId);
+        this.request(event.userId, true);
       }
     });
     if (typeof window !== 'undefined') {
@@ -106,8 +128,9 @@ class CosmeticsClient {
   }
 
   /** Pede (em lote, logo depois) o que essa pessoa tem equipado, se ainda não sabe. */
-  request(userId: string): void {
-    if (!userId || userId in this.store.get().byUser || this.#wanted.has(userId)) return;
+  request(userId: string, refresh = false): void {
+    if (userId) this.#observed.add(userId);
+    if (!userId || (!refresh && userId in this.store.get().byUser) || this.#wanted.has(userId)) return;
     this.#wanted.add(userId);
     this.#batch ??= setTimeout(() => void this.#flush(), 40);
   }
@@ -118,20 +141,20 @@ class CosmeticsClient {
     for (const id of ids) this.#wanted.delete(id);
     if (this.#wanted.size > 0) this.#batch = setTimeout(() => void this.#flush(), 40);
     if (ids.length === 0 || !groups.store.get().account) return;
+    const generation = this.#generation;
+    const versions = new Map(ids.map((id) => [id, this.#versions.get(id) ?? 0]));
     try {
       const { cosmetics } = await groups.call<{ cosmetics: Record<string, UserCosmetics> }>('GET', `/api/cosmetics?ids=${ids.join(',')}`);
-      this.store.set((state) => ({ byUser: { ...state.byUser, ...cosmetics } }));
+      if (generation !== this.#generation) return;
+      const fresh = Object.fromEntries(Object.entries(cosmetics).filter(([id]) => versions.get(id) === (this.#versions.get(id) ?? 0)));
+      this.store.set((state) => ({ byUser: { ...state.byUser, ...fresh } }));
     } catch {
       // sem conexão: tenta de novo quando pedirem de novo
     }
   }
 
   #forget(userId: string): void {
-    this.store.set((state) => {
-      const next = { ...state.byUser };
-      delete next[userId];
-      return { byUser: next };
-    });
+    this.#versions.set(userId, (this.#versions.get(userId) ?? 0) + 1);
   }
 
   async #ping(): Promise<void> {
@@ -171,13 +194,28 @@ class CosmeticsClient {
   async loadInventory(): Promise<void> {
     const me = groups.store.get().account?.id;
     const inventory = await groups.call<Inventory>('GET', '/api/me/inventory');
-    if (groups.store.get().account?.id === me) this.store.set({ inventory });
+    if (me && groups.store.get().account?.id === me) this.store.set((state) => ({ inventory, byUser: { ...state.byUser, [me]: inventory.equipped } }));
   }
 
   async buy(itemId: string, expectedPrice?: number): Promise<void> {
     const inventory = await groups.call<Inventory>('POST', '/api/shop/buy', { itemId, expectedPrice });
     this.store.set({ inventory });
     await Promise.all([this.loadShop(), this.loadPoints()]);
+  }
+
+  quoteCollection(collectionId: string, recipientId?: string): Promise<CollectionQuote> {
+    return groups.call('GET', `/api/shop/collections/${collectionId}/quote${recipientId ? `?recipientId=${encodeURIComponent(recipientId)}` : ''}`);
+  }
+
+  async buyCollection(quote: CollectionQuote): Promise<void> {
+    const inventory = await groups.call<Inventory>('POST', `/api/shop/collections/${quote.collectionId}/buy`, { expectedPrice: quote.price, expectedItemIds: quote.itemIds });
+    this.store.set({ inventory });
+    await Promise.all([this.loadShop(), this.loadPoints()]);
+  }
+
+  async giftCollection(quote: CollectionQuote, input: { recipientId: string; message: string; requestId: string }): Promise<void> {
+    await groups.call('POST', `/api/shop/collections/${quote.collectionId}/gift`, { ...input, expectedPrice: quote.price, expectedItemIds: quote.itemIds, confirm: true });
+    await Promise.all([this.loadGifts(), this.loadPoints()]);
   }
 
   async loadGifts(page = 0): Promise<void> {

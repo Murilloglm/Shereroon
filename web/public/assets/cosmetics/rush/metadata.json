@@ -1,0 +1,230 @@
+{
+  "id": "rush",
+  "name": "Rush",
+  "franchise": "Deadlock",
+  "colors": [
+    "#ffb3df",
+    "#ff59aa"
+  ],
+  "avatarScale": 1.85,
+  "resolution": "overview-only",
+  "notes": [
+    "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick.",
+    "Avatar, moldura, banner e capa disponíveis somente na grade; enviar elementos separados em alta resolução para maior definição."
+  ],
+  "files": {
+    "cover.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1228,
+        520,
+        1522,
+        630
+      ],
+      "size": [
+        294,
+        110
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1257,
+        672,
+        1371,
+        759
+      ],
+      "size": [
+        114,
+        87
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": "explicit ring aperture and outer ellipse"
+    },
+    "profile-frame.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1246,
+        779,
+        1504,
+        832
+      ],
+      "size": [
+        258,
+        53
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": {
+        "outer": [
+          [
+            0,
+            8
+          ],
+          [
+            12,
+            2
+          ],
+          [
+            246,
+            2
+          ],
+          [
+            257,
+            8
+          ],
+          [
+            257,
+            45
+          ],
+          [
+            246,
+            51
+          ],
+          [
+            12,
+            51
+          ],
+          [
+            0,
+            45
+          ]
+        ],
+        "hole": [
+          [
+            19,
+            18
+          ],
+          [
+            110.94,
+            18
+          ],
+          [
+            129.0,
+            28
+          ],
+          [
+            147.05999999999997,
+            18
+          ],
+          [
+            239,
+            18
+          ],
+          [
+            242,
+            35
+          ],
+          [
+            233,
+            40
+          ],
+          [
+            23,
+            40
+          ],
+          [
+            16,
+            34
+          ]
+        ]
+      },
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1241,
+        855,
+        1509,
+        924
+      ],
+      "size": [
+        268,
+        69
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1361,
+        956,
+        1486,
+        993
+      ],
+      "size": [
+        125,
+        37
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "crop": [
+        783,
+        1078,
+        1093,
+        1137
+      ],
+      "size": [
+        310,
+        59
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        1410,
+        678,
+        1494,
+        757
+      ],
+      "size": [
+        84,
+        79
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

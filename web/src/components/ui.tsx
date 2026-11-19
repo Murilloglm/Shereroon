@@ -477,7 +477,7 @@ export function Avatar({
         {photo ? <AvatarImage key={photo} src={photo} alt="" size={size} onError={() => setFailed(photo)} /> : initials(name)}
       </span>
       {online && (
-        <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-ink-850 bg-ok-400" />
+        <span className="absolute -right-0.5 -bottom-0.5 z-10 size-3 rounded-full border-2 border-ink-850 bg-ok-400" data-avatar-status="online" />
       )}
     </span>
   );

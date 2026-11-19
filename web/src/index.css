@@ -215,6 +215,76 @@
   .cn-deco {
     transition: filter 160ms ease-out, transform 160ms ease-out;
   }
+
+  .cn-member-row {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .cn-member-effect {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: inherit;
+    contain: paint;
+  }
+  /* A lista de voz contém menus: só a camada da arte recorta, para não cortar os controles. */
+  [data-server-member] {
+    position: relative;
+  }
+  [data-server-member] > :not(.cn-member-effect) {
+    position: relative;
+  }
+  .cn-member-effect > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: right center;
+  }
+  .cn-member-effect-live > img {
+    animation: cn-member-energy 5s ease-in-out infinite alternate;
+  }
+  .cn-member-effect-veil {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, #080a16cc 0%, #080a16b8 48%, #080a1600 88%);
+  }
+  .cn-member-row:has(.cn-member-effect) {
+    opacity: 1;
+    text-shadow: 0 1px 3px #000;
+  }
+  .cn-member-row[data-online='false']:has(.cn-member-effect) > [data-user-trigger] {
+    opacity: .8;
+  }
+  .cn-profile-nameplate {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    align-items: center;
+    min-height: 64px;
+    text-shadow: 0 1px 3px #000;
+  }
+  .cn-profile-nameplate > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+  @keyframes cn-member-energy {
+    from { opacity: .85; }
+    to { opacity: 1; }
+  }
+  :root[data-motion='reduzida'] .cn-member-effect-live > img,
+  :root[data-cosmetic-motion='reduzida'] .cn-member-effect-live > img {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cn-member-effect-live > img { animation: none; }
+  }
   .cn-deco:not(.cn-deco-live) * {
     animation: none !important;
   }

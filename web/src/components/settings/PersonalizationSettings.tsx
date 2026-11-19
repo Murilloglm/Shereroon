@@ -1,16 +1,19 @@
 import { Check, Eye, Gift, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { CATALOG, itemById, KIND_NAMES, PACK_DISCOUNT, PACKS, POINTS, RARITY, SLOTS, type CosmeticItem, type CosmeticPack, type ItemKind } from '../../../../shared/cosmetics.ts';
+import { CATALOG, itemById, KIND_NAMES, PACK_DISCOUNT, PACKS, POINTS, RARITY, SLOTS, PACK_SLOTS, type CosmeticItem, type CosmeticPack, type PackItemKind, type ItemKind } from '../../../../shared/cosmetics.ts';
 import { cosmetics, type ShopItem, type ShopPack, type UserCosmetics } from '../../lib/cosmetics.ts';
 import { dialogs } from '../../lib/dialogs.ts';
 import { groups, type Account } from '../../lib/groups/client.ts';
 import { social } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
-import { Adornment, BackgroundArt, backgroundStyle, DecoratedAvatar, nameStyle } from '../cosmetics/Decoration.tsx';
+import { Adornment, BackgroundArt, backgroundStyle, DecoratedAvatar, nameStyle, ProfileNameplate } from '../cosmetics/Decoration.tsx';
 import { ProfilePreview } from '../cosmetics/ProfilePreview.tsx';
 import { errorText } from '../groups/common.tsx';
 import { GiftDialog, PackGiftDialog, RedeemCode } from './GiftsSettings.tsx';
-import { Button, cx } from '../ui.tsx';
+import { Button, cx, Toggle } from '../ui.tsx';
+import { MemberNamePreview } from '../cosmetics/CosmeticPreview.tsx';
+import { appearance, setAppearance } from '../../lib/appearance.ts';
+import { CollectionsShop } from './CollectionsShop.tsx';
 
 const formatPoints = (value: number) => value.toLocaleString('pt-BR');
 const NO_COSMETICS: UserCosmetics = {};
@@ -37,6 +40,8 @@ function Price({ value }: { value: number }) {
 function ItemPreview({ account, item, variant, size = 64 }: { account: Account; item: CosmeticItem; variant: string; size?: number }) {
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   const preview: UserCosmetics = { [item.kind]: { item: item.id, variant } };
+  if (item.kind === 'efeito-nome') return <MemberNamePreview account={account} preview={preview} />;
+  if (item.kind === 'moldura' && item.asset) return <ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold">{account.displayName}</p></ProfileNameplate>;
   if (item.kind === 'fundo') {
     return (
       <div className="relative h-20 w-full overflow-hidden rounded-xl" style={backgroundStyle(preview)} aria-hidden="true">
@@ -149,7 +154,7 @@ export function PointsSettings() {
 // --- Pacotes ---------------------------------------------------------------------------------------
 
 /** O visual completo de um pacote (cada peça na cor original). */
-export const packLook = (pack: CosmeticPack): UserCosmetics => Object.fromEntries(SLOTS.map((kind) => [kind, { item: pack.items[kind], variant: 'original' }]));
+export const packLook = (pack: CosmeticPack): UserCosmetics => Object.fromEntries(PACK_SLOTS.map((kind) => [kind, { item: pack.items[kind], variant: 'original' }]));
 
 function Palette({ pack }: { pack: CosmeticPack }) {
   return (
@@ -178,9 +183,9 @@ function PackCard({ account, avatar, pack, info, items, points, unlimited, equip
   onGift: (item: CosmeticItem) => void;
   onGiftPack: (pack: CosmeticPack) => void;
 }) {
-  const [focus, setFocus] = useState<ItemKind | null>(null);
+  const [focus, setFocus] = useState<PackItemKind | null>(null);
   const look = focus ? { ...equipped, [focus]: { item: pack.items[focus], variant: 'original' } } : packLook(pack);
-  const missing = info?.missing.length ?? SLOTS.length;
+  const missing = info?.missing.length ?? PACK_SLOTS.length;
   const price = info?.price ?? 0;
   const short = !unlimited && points < price ? price - points : 0;
   /** Quanto custariam, somadas, as peças que faltam compradas uma a uma. */
@@ -229,7 +234,7 @@ function PackCard({ account, avatar, pack, info, items, points, unlimited, equip
         )}
       </p>
       <ul className="grid gap-1">
-        {SLOTS.map((kind) => {
+        {PACK_SLOTS.map((kind) => {
           const item = items.find((entry) => entry.id === pack.items[kind]) ?? { ...itemById(pack.items[kind])!, owned: false };
           const needs = !unlimited && points < item.price ? item.price - points : 0;
           return (
@@ -300,6 +305,7 @@ export function ShopSettings({ account }: { account: Account }) {
   const [gift, setGift] = useState<CosmeticItem | null>(null);
   const [giftPack, setGiftPack] = useState<CosmeticPack | null>(null);
   const [variants, setVariants] = useState<Record<string, string>>({});
+  const [category, setCategory] = useState<'itens' | 'colecoes'>('itens');
   useEffect(() => {
     void cosmetics.loadShop().catch(() => undefined);
     void cosmetics.loadPoints().catch(() => undefined);
@@ -329,6 +335,11 @@ export function ShopSettings({ account }: { account: Account }) {
       </p>
       <RedeemCode />
       {gift && <GiftDialog item={gift} onClose={() => setGift(null)} />}
+      <div role="tablist" aria-label="Categorias da loja" className="flex gap-2">
+        <Button role="tab" aria-selected={category === 'itens'} onClick={() => setCategory('itens')}>Itens</Button>
+        <Button role="tab" aria-selected={category === 'colecoes'} onClick={() => setCategory('colecoes')} data-testid="shop-collections">Coleções</Button>
+      </div>
+      {category === 'colecoes' ? <CollectionsShop account={account} /> : <>
       {giftPack && <PackGiftDialog pack={giftPack} onClose={() => setGiftPack(null)} />}
       <Block title="Pacotes">
         <p className="text-[13px] leading-snug text-fog-400">
@@ -353,9 +364,9 @@ export function ShopSettings({ account }: { account: Account }) {
           ))}
         </div>
       </Block>
-      {SLOTS.map((kind) => {
+      {SLOTS.filter((kind) => kind !== 'efeito-nome').map((kind) => {
         // Peças de pacote ficam nos cartões de pacote; aqui, só os itens avulsos.
-        const items = (shop ?? CATALOG.map((item) => ({ ...item, owned: false }))).filter((item) => item.kind === kind && !item.pack);
+        const items = (shop ?? CATALOG.map((item) => ({ ...item, owned: false }))).filter((item) => item.kind === kind && !item.pack && !item.collectionId);
         if (items.length === 0) return null;
         return (
           <Block key={kind} title={KIND_NAMES[kind]}>
@@ -396,14 +407,16 @@ export function ShopSettings({ account }: { account: Account }) {
           </Block>
         );
       })}
+      </>}
     </>
   );
 }
 
 // --- Inventário -----------------------------------------------------------------------------------
 
-export function InventorySettings({ account }: { account: Account }) {
+export function InventorySettings({ account, filter }: { account: Account; filter?: ItemKind }) {
   const inventory = useStore(cosmetics.store, (state) => state.inventory);
+  const animations = useStore(appearance, (state) => state.cosmeticAnimations);
   const [transferItem, setTransferItem] = useState<CosmeticItem | null>(null);
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   useEffect(() => {
@@ -411,7 +424,7 @@ export function InventorySettings({ account }: { account: Account }) {
     void social.profile(account.id).catch(() => undefined);
   }, [account.id]);
   if (!inventory) return <p className="text-sm text-fog-400">Carregando…</p>;
-  const owned = inventory.items.map((entry) => itemById(entry.id)).filter((item): item is CosmeticItem => Boolean(item));
+  const owned = inventory.items.map((entry) => itemById(entry.id)).filter((item): item is CosmeticItem => Boolean(item) && (!filter || item!.kind === filter));
   const equip = async (slot: ItemKind, itemId: string | null, variant?: string) => {
     try {
       await cosmetics.equip(slot, itemId, variant);
@@ -422,6 +435,12 @@ export function InventorySettings({ account }: { account: Account }) {
   return (
     <>
       {transferItem && <GiftDialog item={transferItem} transfer onClose={() => setTransferItem(null)} />}
+      {filter === 'efeito-nome' && <Block title="Efeitos de Nome do Servidor">
+        <MemberNamePreview account={account} preview={inventory.equipped} />
+        <label className="flex items-center justify-between gap-3 text-sm"><span>Animar efeitos de nome neste aparelho</span><Toggle label="Animar efeitos de nome" on={animations} onChange={(on) => setAppearance({ cosmeticAnimations: on })} /></label>
+        <p className="text-xs text-fog-400">O movimento reduzido do sistema também é respeitado. Sua escolha fica salva neste aparelho.</p>
+      </Block>}
+      {!filter &&
       <Block>
         <div className="flex items-center gap-5">
           <div className="flex size-28 items-center justify-center" data-testid="inventory-preview">
@@ -435,21 +454,21 @@ export function InventorySettings({ account }: { account: Account }) {
             <p className="text-sm text-fog-400">É assim que os outros veem seu avatar na chamada e no perfil. Nas listas e no chat, a decoração e o enfeite aparecem parados.</p>
           </div>
         </div>
-      </Block>
+      </Block>}
       {owned.length === 0 && <p className="text-sm text-fog-400">Nenhum item ainda. Ganhe Cosmic Points participando e adquira na Loja.</p>}
-      {PACKS.some((pack) => owned.some((item) => item.pack === pack.id)) && (
+      {!filter && PACKS.some((pack) => owned.some((item) => item.pack === pack.id)) && (
         <Block title="Pacotes">
           <ul className="grid gap-2">
             {PACKS.filter((pack) => owned.some((item) => item.pack === pack.id)).map((pack) => {
               const have = owned.filter((item) => item.pack === pack.id).length;
-              const wearing = SLOTS.every((kind) => !owned.some((item) => item.id === pack.items[kind]) || inventory.equipped[kind]?.item === pack.items[kind]);
+              const wearing = PACK_SLOTS.every((kind) => !owned.some((item) => item.id === pack.items[kind]) || inventory.equipped[kind]?.item === pack.items[kind]);
               return (
                 <li key={pack.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-ink-850/60 p-2" data-testid="inventory-pack" data-pack={pack.id}>
                   <Palette pack={pack} />
                   <div className="min-w-0 flex-1">
                     <p className="font-bold">{pack.name}</p>
                     <p className="text-xs text-fog-500">
-                      {have} de {SLOTS.length} peças
+                      {have} de {PACK_SLOTS.length} peças
                     </p>
                   </div>
                   {wearing ? (
@@ -465,7 +484,7 @@ export function InventorySettings({ account }: { account: Account }) {
           </ul>
         </Block>
       )}
-      {SLOTS.map((kind) => {
+      {SLOTS.filter((kind) => !filter || kind === filter).map((kind) => {
         const items = owned.filter((item) => item.kind === kind);
         if (items.length === 0) return null;
         const current = inventory.equipped[kind];
@@ -476,11 +495,12 @@ export function InventorySettings({ account }: { account: Account }) {
                 const isOn = current?.item === item.id;
                 return (
                   <li key={item.id} className={cx('flex flex-wrap items-center gap-3 rounded-xl p-2', isOn ? 'bg-brand-500/15' : 'bg-ink-850/60')} data-testid="inventory-item" data-item={item.id} data-equipped={isOn}>
-                    <div className="w-24 shrink-0">
+                    <div className={cx('shrink-0', kind === 'efeito-nome' ? 'w-full sm:w-64' : 'w-24')}>
                       <ItemPreview account={account} item={item} variant={isOn ? current!.variant : item.variants[0]!.id} size={44} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-bold">{item.name}</p>
+                      {isOn && item.collectionId && <p className="text-xs font-bold text-ok-400">Selecionado</p>}
                       <p className="text-xs font-bold" style={{ color: RARITY[item.rarity].color }}>
                         {RARITY[item.rarity].name}
                       </p>
@@ -489,7 +509,7 @@ export function InventorySettings({ account }: { account: Account }) {
                     {inventory.items.find((entry) => entry.id === item.id)?.transferable && <Button size="sm" onClick={() => setTransferItem(item)}>Transferir para amigo</Button>}
                     {isOn ? (
                       <Button size="sm" onClick={() => void equip(kind, null)} data-testid={`unequip-${item.id}`}>
-                        Tirar
+                        {kind === 'efeito-nome' || item.collectionId ? 'Desequipar' : 'Tirar'}
                       </Button>
                     ) : (
                       <Button size="sm" variant="primary" onClick={() => void equip(kind, item.id, item.variants[0]!.id)} data-testid={`equip-${item.id}`}>

@@ -6,7 +6,7 @@
  * verdade (teclado, mouse ou voz nos últimos minutos, informado pelo próprio aplicativo); cada recompensa tem uma
  * chave única (não conta duas vezes, nem com pedidos simultâneos) e há limites por dia.
  */
-import { itemById, packById, POINTS, SLOTS, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
+import { itemById, packById, PACK_SLOTS, POINTS, SLOTS, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
 import { iso, type Db, type Row } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
 import { CosmicAdmin, unlimitedCosmetics } from './global-admin.ts';
@@ -208,10 +208,10 @@ export class Economy {
     if (!pack) throw new ApiError(404, 'pacote_inexistente', 'Pacote não encontrado.');
     await this.#db.tx(async (tx) => {
       await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
-      const ids = SLOTS.map((kind) => pack.items[kind]);
+      const ids = PACK_SLOTS.map((kind) => pack.items[kind]);
       const owned = new Set((await tx.query('SELECT item_id FROM user_items WHERE user_id = $1 AND item_id = ANY($2::text[])', [user.id, ids])).map((row) => String(row.item_id)));
       if (owned.size === 0) throw new ApiError(403, 'item_nao_adquirido', 'Adquira alguma peça deste pacote antes de usar.');
-      for (const kind of SLOTS) {
+      for (const kind of PACK_SLOTS) {
         const item = itemById(pack.items[kind])!;
         if (!owned.has(item.id)) continue;
         await tx.query('INSERT INTO user_equipped (user_id, slot, item_id, variant) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, slot) DO UPDATE SET item_id = $3, variant = $4', [user.id, kind, item.id, item.variants[0]!.id]);
@@ -234,7 +234,12 @@ export class Economy {
     const slot = input.slot as ItemKind;
     if (!SLOTS.includes(slot)) throw new ApiError(400, 'espaco_invalido', 'Espaço inválido.');
     if (input.itemId === null || input.itemId === undefined) {
-      await this.#db.query('DELETE FROM user_equipped WHERE user_id = $1 AND slot = $2', [user.id, slot]);
+      await this.#db.tx(async (tx) => {
+        await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
+        await tx.query('DELETE FROM user_equipped WHERE user_id = $1 AND slot = $2', [user.id, slot]);
+      });
+      await this.#community.social.announceProfileChange(user.id);
+      this.#community.hub.toUser(user.id, { t: 'inventory.changed' });
       return this.inventory(user);
     }
     const item = typeof input.itemId === 'string' ? itemById(input.itemId) : undefined;
@@ -248,7 +253,8 @@ export class Economy {
       if (!owned) throw new ApiError(403, 'item_nao_adquirido', 'Adquira o item na loja antes de equipar.');
       await tx.query('INSERT INTO user_equipped (user_id, slot, item_id, variant) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, slot) DO UPDATE SET item_id = $3, variant = $4', [user.id, slot, item.id, variant.id]);
     });
-    void this.#community.social.announceProfileChange(user.id);
+    await this.#community.social.announceProfileChange(user.id);
+    this.#community.hub.toUser(user.id, { t: 'inventory.changed' });
     return this.inventory(user);
   }
 

@@ -13,14 +13,16 @@ export interface AppearancePrefs {
   theme: ThemeId;
   motion: MotionChoice;
   adornments: AdornmentChoice;
+  cosmeticAnimations: boolean;
 }
 
 const KEY = 'cosmic:aparencia';
-const DEFAULTS: AppearancePrefs = { theme: 'cosmic', motion: 'sistema', adornments: 'animados' };
+const DEFAULTS: AppearancePrefs = { theme: 'cosmic', motion: 'sistema', adornments: 'animados', cosmeticAnimations: true };
 
 function load(): AppearancePrefs {
   const saved = storage.get<Partial<AppearancePrefs>>(KEY, {}) ?? {};
   return {
+    cosmeticAnimations: saved.cosmeticAnimations !== false,
     theme: isThemeId(saved.theme) ? saved.theme : DEFAULTS.theme,
     motion: ['sistema', 'reduzir', 'normal'].includes(String(saved.motion)) ? (saved.motion as MotionChoice) : DEFAULTS.motion,
     adornments: ['animados', 'parados', 'ocultos'].includes(String(saved.adornments)) ? (saved.adornments as AdornmentChoice) : DEFAULTS.adornments,
@@ -40,6 +42,7 @@ function apply(): void {
   if (typeof document === 'undefined') return;
   const prefs = appearance.get();
   applyTheme(prefs.theme);
+  document.documentElement.dataset.cosmeticMotion = prefs.cosmeticAnimations ? 'normal' : 'reduzida';
   document.documentElement.dataset.motion = reducedMotion(prefs) ? 'reduzida' : 'normal';
 }
 

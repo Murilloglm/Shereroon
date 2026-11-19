@@ -1,0 +1,1279 @@
+{
+  "version": "0.3.8",
+  "date": "2026-11-19",
+  "status": "integrated-validated-ready-for-authorized-publication",
+  "collections": 11,
+  "equippableItems": 55,
+  "legacyItemsPreserved": 14,
+  "imagesReviewed": [
+    "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+    "Conjunto de Cosméticos do Slime Azul-3.png",
+    "Cosméticos de Rimuru em Néon Celestial-8.png",
+    "Grade de skins sci-fi neon em português-2.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png",
+    "Kit Cosmético Neon de Clove-4.png",
+    "Kit cosmético neon de Valorant-12.png",
+    "Kit de Interface Neon da Clove-10.png",
+    "Kit de Perfil Felino Elétrico Neon-6.png",
+    "Kit de UI Neon com Energia Elétrica-5.png",
+    "Pacote Cósmico de Slime Azul-7.png",
+    "Pacote Fúria da Noite em Neon-1.png",
+    "Pacote Neon do Gato Elétrico-5.png",
+    "Pacote Visual Gato Elétrico Neon-2.png",
+    "Pacote de Avatar Dragão Luminoso-3.png",
+    "Pacote de Cosméticos Neon Roxo da Clove-9.png",
+    "Pacote de UI Light Fury com Aurora-1.png",
+    "Painel Neon da Fúria da Luz-4.png",
+    "Painel Neon_ Arsenal Elétrico Futurista-11.png"
+  ],
+  "imagesUsed": [
+    "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+    "Grade de skins sci-fi neon em português-2.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png",
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png",
+    "Pacote Cósmico de Slime Azul-7.png",
+    "Pacote Fúria da Noite em Neon-1.png",
+    "Pacote Neon do Gato Elétrico-5.png",
+    "Pacote de Avatar Dragão Luminoso-3.png",
+    "Pacote de Cosméticos Neon Roxo da Clove-9.png",
+    "Painel Neon_ Arsenal Elétrico Futurista-11.png"
+  ],
+  "sourceUsage": {
+    "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png": [
+      {
+        "collection": "clove",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          606,
+          1093,
+          665
+        ]
+      },
+      {
+        "collection": "jett",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          841,
+          1093,
+          898
+        ]
+      },
+      {
+        "collection": "light-fury",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          365,
+          1093,
+          424
+        ]
+      },
+      {
+        "collection": "madu-kaiden",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          446,
+          1093,
+          505
+        ]
+      },
+      {
+        "collection": "neon",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          685,
+          1093,
+          743
+        ]
+      },
+      {
+        "collection": "night-fury",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          284,
+          1093,
+          343
+        ]
+      },
+      {
+        "collection": "omen",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          764,
+          1093,
+          823
+        ]
+      },
+      {
+        "collection": "raze",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          919,
+          1093,
+          977
+        ]
+      },
+      {
+        "collection": "rimuru",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          526,
+          1093,
+          585
+        ]
+      },
+      {
+        "collection": "rush",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          1078,
+          1093,
+          1137
+        ]
+      },
+      {
+        "collection": "tejo",
+        "element": "member-name-effect.webp",
+        "crop": [
+          783,
+          998,
+          1093,
+          1055
+        ]
+      }
+    ],
+    "Grade de skins sci-fi neon em português-2.png": [
+      {
+        "collection": "clove",
+        "element": "cover.webp",
+        "crop": [
+          1029,
+          8,
+          1273,
+          128
+        ]
+      },
+      {
+        "collection": "clove",
+        "element": "profile-frame.png",
+        "crop": [
+          1037,
+          289,
+          1265,
+          342
+        ]
+      },
+      {
+        "collection": "clove",
+        "element": "username-effect.png",
+        "crop": [
+          1152,
+          455,
+          1256,
+          487
+        ]
+      },
+      {
+        "collection": "clove",
+        "element": "server-badge.png",
+        "crop": [
+          1182,
+          183,
+          1258,
+          259
+        ]
+      },
+      {
+        "collection": "jett",
+        "element": "cover.webp",
+        "crop": [
+          317,
+          520,
+          607,
+          630
+        ]
+      },
+      {
+        "collection": "jett",
+        "element": "avatar-decoration.png",
+        "crop": [
+          346,
+          672,
+          460,
+          759
+        ]
+      },
+      {
+        "collection": "jett",
+        "element": "profile-frame.png",
+        "crop": [
+          335,
+          779,
+          589,
+          832
+        ]
+      },
+      {
+        "collection": "jett",
+        "element": "profile-banner.webp",
+        "crop": [
+          330,
+          855,
+          594,
+          924
+        ]
+      },
+      {
+        "collection": "jett",
+        "element": "username-effect.png",
+        "crop": [
+          450,
+          956,
+          571,
+          993
+        ]
+      },
+      {
+        "collection": "jett",
+        "element": "server-badge.png",
+        "crop": [
+          499,
+          678,
+          579,
+          757
+        ]
+      },
+      {
+        "collection": "light-fury",
+        "element": "cover.webp",
+        "crop": [
+          266,
+          8,
+          510,
+          128
+        ]
+      },
+      {
+        "collection": "light-fury",
+        "element": "profile-frame.png",
+        "crop": [
+          274,
+          289,
+          502,
+          342
+        ]
+      },
+      {
+        "collection": "light-fury",
+        "element": "username-effect.png",
+        "crop": [
+          389,
+          455,
+          493,
+          487
+        ]
+      },
+      {
+        "collection": "light-fury",
+        "element": "server-badge.png",
+        "crop": [
+          419,
+          183,
+          495,
+          259
+        ]
+      },
+      {
+        "collection": "madu-kaiden",
+        "element": "cover.webp",
+        "crop": [
+          521,
+          8,
+          764,
+          128
+        ]
+      },
+      {
+        "collection": "madu-kaiden",
+        "element": "profile-frame.png",
+        "crop": [
+          529,
+          289,
+          756,
+          342
+        ]
+      },
+      {
+        "collection": "madu-kaiden",
+        "element": "username-effect.png",
+        "crop": [
+          644,
+          455,
+          747,
+          487
+        ]
+      },
+      {
+        "collection": "madu-kaiden",
+        "element": "server-badge.png",
+        "crop": [
+          674,
+          183,
+          749,
+          259
+        ]
+      },
+      {
+        "collection": "neon",
+        "element": "cover.webp",
+        "crop": [
+          1285,
+          8,
+          1529,
+          128
+        ]
+      },
+      {
+        "collection": "neon",
+        "element": "profile-frame.png",
+        "crop": [
+          1293,
+          289,
+          1521,
+          342
+        ]
+      },
+      {
+        "collection": "neon",
+        "element": "username-effect.png",
+        "crop": [
+          1408,
+          455,
+          1512,
+          487
+        ]
+      },
+      {
+        "collection": "neon",
+        "element": "server-badge.png",
+        "crop": [
+          1438,
+          183,
+          1514,
+          259
+        ]
+      },
+      {
+        "collection": "night-fury",
+        "element": "cover.webp",
+        "crop": [
+          8,
+          8,
+          253,
+          128
+        ]
+      },
+      {
+        "collection": "night-fury",
+        "element": "profile-frame.png",
+        "crop": [
+          16,
+          289,
+          245,
+          342
+        ]
+      },
+      {
+        "collection": "night-fury",
+        "element": "username-effect.png",
+        "crop": [
+          131,
+          455,
+          236,
+          487
+        ]
+      },
+      {
+        "collection": "night-fury",
+        "element": "server-badge.png",
+        "crop": [
+          161,
+          183,
+          238,
+          259
+        ]
+      },
+      {
+        "collection": "omen",
+        "element": "cover.webp",
+        "crop": [
+          12,
+          520,
+          304,
+          630
+        ]
+      },
+      {
+        "collection": "omen",
+        "element": "avatar-decoration.png",
+        "crop": [
+          41,
+          672,
+          155,
+          759
+        ]
+      },
+      {
+        "collection": "omen",
+        "element": "profile-frame.png",
+        "crop": [
+          30,
+          779,
+          286,
+          832
+        ]
+      },
+      {
+        "collection": "omen",
+        "element": "profile-banner.webp",
+        "crop": [
+          25,
+          855,
+          291,
+          924
+        ]
+      },
+      {
+        "collection": "omen",
+        "element": "username-effect.png",
+        "crop": [
+          145,
+          956,
+          268,
+          993
+        ]
+      },
+      {
+        "collection": "omen",
+        "element": "server-badge.png",
+        "crop": [
+          194,
+          678,
+          276,
+          757
+        ]
+      },
+      {
+        "collection": "raze",
+        "element": "cover.webp",
+        "crop": [
+          619,
+          520,
+          910,
+          630
+        ]
+      },
+      {
+        "collection": "raze",
+        "element": "avatar-decoration.png",
+        "crop": [
+          648,
+          672,
+          762,
+          759
+        ]
+      },
+      {
+        "collection": "raze",
+        "element": "profile-frame.png",
+        "crop": [
+          637,
+          779,
+          892,
+          832
+        ]
+      },
+      {
+        "collection": "raze",
+        "element": "profile-banner.webp",
+        "crop": [
+          632,
+          855,
+          897,
+          924
+        ]
+      },
+      {
+        "collection": "raze",
+        "element": "username-effect.png",
+        "crop": [
+          752,
+          956,
+          874,
+          993
+        ]
+      },
+      {
+        "collection": "raze",
+        "element": "server-badge.png",
+        "crop": [
+          801,
+          678,
+          882,
+          757
+        ]
+      },
+      {
+        "collection": "rimuru",
+        "element": "cover.webp",
+        "crop": [
+          775,
+          8,
+          1018,
+          128
+        ]
+      },
+      {
+        "collection": "rimuru",
+        "element": "profile-frame.png",
+        "crop": [
+          783,
+          289,
+          1010,
+          342
+        ]
+      },
+      {
+        "collection": "rimuru",
+        "element": "username-effect.png",
+        "crop": [
+          898,
+          455,
+          1001,
+          487
+        ]
+      },
+      {
+        "collection": "rimuru",
+        "element": "server-badge.png",
+        "crop": [
+          928,
+          183,
+          1003,
+          259
+        ]
+      },
+      {
+        "collection": "rush",
+        "element": "cover.webp",
+        "crop": [
+          1228,
+          520,
+          1522,
+          630
+        ]
+      },
+      {
+        "collection": "rush",
+        "element": "avatar-decoration.png",
+        "crop": [
+          1257,
+          672,
+          1371,
+          759
+        ]
+      },
+      {
+        "collection": "rush",
+        "element": "profile-frame.png",
+        "crop": [
+          1246,
+          779,
+          1504,
+          832
+        ]
+      },
+      {
+        "collection": "rush",
+        "element": "profile-banner.webp",
+        "crop": [
+          1241,
+          855,
+          1509,
+          924
+        ]
+      },
+      {
+        "collection": "rush",
+        "element": "username-effect.png",
+        "crop": [
+          1361,
+          956,
+          1486,
+          993
+        ]
+      },
+      {
+        "collection": "rush",
+        "element": "server-badge.png",
+        "crop": [
+          1410,
+          678,
+          1494,
+          757
+        ]
+      },
+      {
+        "collection": "tejo",
+        "element": "cover.webp",
+        "crop": [
+          921,
+          520,
+          1215,
+          630
+        ]
+      },
+      {
+        "collection": "tejo",
+        "element": "avatar-decoration.png",
+        "crop": [
+          950,
+          672,
+          1064,
+          759
+        ]
+      },
+      {
+        "collection": "tejo",
+        "element": "profile-frame.png",
+        "crop": [
+          939,
+          779,
+          1197,
+          832
+        ]
+      },
+      {
+        "collection": "tejo",
+        "element": "profile-banner.webp",
+        "crop": [
+          934,
+          855,
+          1202,
+          924
+        ]
+      },
+      {
+        "collection": "tejo",
+        "element": "username-effect.png",
+        "crop": [
+          1054,
+          956,
+          1179,
+          993
+        ]
+      },
+      {
+        "collection": "tejo",
+        "element": "server-badge.png",
+        "crop": [
+          1103,
+          678,
+          1187,
+          757
+        ]
+      }
+    ],
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png": [
+      {
+        "collection": "night-fury",
+        "element": "avatar-decoration.png",
+        "crop": [
+          0,
+          0,
+          1254,
+          1254
+        ]
+      }
+    ],
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png": [
+      {
+        "collection": "light-fury",
+        "element": "avatar-decoration.png",
+        "crop": [
+          0,
+          0,
+          1254,
+          1254
+        ]
+      }
+    ],
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png": [
+      {
+        "collection": "madu-kaiden",
+        "element": "avatar-decoration.png",
+        "crop": [
+          0,
+          0,
+          1254,
+          1254
+        ]
+      }
+    ],
+    "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png": [
+      {
+        "collection": "rimuru",
+        "element": "avatar-decoration.png",
+        "crop": [
+          0,
+          0,
+          1254,
+          1254
+        ]
+      }
+    ],
+    "Pacote Cósmico de Slime Azul-7.png": [
+      {
+        "collection": "rimuru",
+        "element": "profile-banner.webp",
+        "crop": [
+          45,
+          513,
+          1208,
+          839
+        ]
+      }
+    ],
+    "Pacote Fúria da Noite em Neon-1.png": [
+      {
+        "collection": "night-fury",
+        "element": "profile-banner.webp",
+        "crop": [
+          44,
+          632,
+          1208,
+          911
+        ]
+      }
+    ],
+    "Pacote Neon do Gato Elétrico-5.png": [
+      {
+        "collection": "madu-kaiden",
+        "element": "profile-banner.webp",
+        "crop": [
+          24,
+          564,
+          1231,
+          924
+        ]
+      }
+    ],
+    "Pacote de Avatar Dragão Luminoso-3.png": [
+      {
+        "collection": "light-fury",
+        "element": "profile-banner.webp",
+        "crop": [
+          40,
+          683,
+          1204,
+          969
+        ]
+      }
+    ],
+    "Pacote de Cosméticos Neon Roxo da Clove-9.png": [
+      {
+        "collection": "clove",
+        "element": "avatar-decoration.png",
+        "crop": [
+          90,
+          326,
+          510,
+          704
+        ]
+      },
+      {
+        "collection": "clove",
+        "element": "profile-banner.webp",
+        "crop": [
+          44,
+          721,
+          1212,
+          987
+        ]
+      }
+    ],
+    "Painel Neon_ Arsenal Elétrico Futurista-11.png": [
+      {
+        "collection": "neon",
+        "element": "avatar-decoration.png",
+        "crop": [
+          40,
+          287,
+          504,
+          710
+        ]
+      },
+      {
+        "collection": "neon",
+        "element": "profile-banner.webp",
+        "crop": [
+          56,
+          736,
+          1199,
+          1002
+        ]
+      }
+    ]
+  },
+  "collectionStatus": [
+    {
+      "id": "clove",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "sheet",
+      "originalAlpha": false
+    },
+    {
+      "id": "jett",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "overview-only",
+      "originalAlpha": false
+    },
+    {
+      "id": "light-fury",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "sheet",
+      "originalAlpha": true
+    },
+    {
+      "id": "madu-kaiden",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "sheet",
+      "originalAlpha": true
+    },
+    {
+      "id": "neon",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "sheet",
+      "originalAlpha": false
+    },
+    {
+      "id": "night-fury",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "sheet",
+      "originalAlpha": true
+    },
+    {
+      "id": "omen",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "overview-only",
+      "originalAlpha": false
+    },
+    {
+      "id": "raze",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "overview-only",
+      "originalAlpha": false
+    },
+    {
+      "id": "rimuru",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "sheet",
+      "originalAlpha": true
+    },
+    {
+      "id": "rush",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "overview-only",
+      "originalAlpha": false
+    },
+    {
+      "id": "tejo",
+      "fiveItemsImplemented": true,
+      "sourceResolution": "overview-only",
+      "originalAlpha": false
+    }
+  ],
+  "manualArtworkReview": {
+    "higherResolutionOriginals": [
+      "omen",
+      "jett",
+      "raze",
+      "tejo",
+      "rush"
+    ],
+    "filesPerCollection": [
+      "avatar-decoration.png",
+      "profile-frame.png",
+      "profile-banner.webp",
+      "cover.webp"
+    ],
+    "optionalAlphaRefinement": [
+      "clove/avatar-decoration.png",
+      "neon/avatar-decoration.png"
+    ],
+    "missingProvidedImages": []
+  },
+  "pricing": "Existing per-kind price references, with shop_settings administrator overrides; bundle totals include missing items only.",
+  "database": {
+    "newMigrationRequired": false,
+    "existingMigrationsModifiedByThisTask": false
+  },
+  "tests": {
+    "server": 299,
+    "web": 217,
+    "desktopScripts": 39,
+    "newEndToEnd": 11,
+    "regressionEndToEnd": 19,
+    "typecheck": "passed",
+    "webBuild": "passed",
+    "originalPreparationTotalUniquePassed": 556,
+    "releaseIntegration": {
+      "serverPassed": 299,
+      "webPassed": 217,
+      "desktopScriptsPassed": 39,
+      "newEndToEndPassed": 11,
+      "publishedPackRegressionEndToEndPassed": 11,
+      "totalUniquePassed": 577
+    }
+  },
+  "interfaceValidation": {
+    "screenshots": [
+      "shop-collections.png",
+      "night-fury-preview.png",
+      "mixed-profile.png",
+      "members-admin-owner.png",
+      "name-effects-inventory.png",
+      "offline-effect.png",
+      "desktop-name-effects.png",
+      "voice-member-effect.png"
+    ],
+    "geometry": [
+      {
+        "width": 1440,
+        "member": {
+          "x": 1185,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1419,
+          "bottom": 212.75,
+          "left": 1185
+        },
+        "effect": {
+          "x": 1185,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1419,
+          "bottom": 212.75,
+          "left": 1185
+        }
+      },
+      {
+        "width": 1100,
+        "member": {
+          "x": 845,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1079,
+          "bottom": 212.75,
+          "left": 845
+        },
+        "effect": {
+          "x": 845,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1079,
+          "bottom": 212.75,
+          "left": 845
+        }
+      },
+      {
+        "width": 900,
+        "member": {
+          "x": 193,
+          "y": 490.375,
+          "width": 514,
+          "height": 48,
+          "top": 490.375,
+          "right": 707,
+          "bottom": 538.375,
+          "left": 193
+        },
+        "effect": {
+          "x": 193,
+          "y": 490.375,
+          "width": 514,
+          "height": 48,
+          "top": 490.375,
+          "right": 707,
+          "bottom": 538.375,
+          "left": 193
+        }
+      },
+      {
+        "width": 390,
+        "member": {
+          "x": 31,
+          "y": 741,
+          "width": 328,
+          "height": 48,
+          "top": 741,
+          "right": 359,
+          "bottom": 789,
+          "left": 31
+        },
+        "effect": {
+          "x": 31,
+          "y": 741,
+          "width": 328,
+          "height": 48,
+          "top": 741,
+          "right": 359,
+          "bottom": 789,
+          "left": 31
+        }
+      }
+    ],
+    "loadedImages": {
+      "web": 77,
+      "desktop": 77
+    },
+    "checks": [
+      "Compra de coleção e item avulso pela interface",
+      "Mistura de coleções; perfil; equipar/desequipar sincronizado; altura preservada",
+      "Todos os 11 efeitos na conta de administrador",
+      "Presente de coleção e item; recebimento e equipamento pelo destinatário",
+      "Apelido, cargo, offline e efeitos entre servidores",
+      "Redimensionamento; desligar movimento persistido; prefers-reduced-motion",
+      "77 imagens carregadas no navegador e no Electron",
+      "Resposta antiga descartada sem apagar o efeito durante atualização",
+      "Efeito na lista de voz, duas contas LiveKit e menu de moderação acessível",
+      "Reinício real com banco em disco; sessão, slots e item antigo preservados"
+    ],
+    "performance": {
+      "baseline": {
+        "meanMs": 3.6650000000000014,
+        "p95Ms": 3.5
+      },
+      "decorated": {
+        "meanMs": 4.444999999999997,
+        "p95Ms": 6.799999999999727
+      },
+      "rows": 200
+    }
+  },
+  "assetValidation": {
+    "collections": 11,
+    "images": 77,
+    "member_effects_pixel_identical": 11,
+    "original_files": {
+      "Grade de skins sci-fi neon em português-2.png": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "Pacote de Cosméticos Neon Roxo da Clove-9.png": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png": "06091ca7dd704ba6cd85e3ecd22570096e1cefadfcbf183c3e54d852086cc452",
+      "Pacote de Avatar Dragão Luminoso-3.png": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
+      "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png": "7f0655a205696384d4ad94290c8de816389cf5929f0bf1c2d587588415d7c02d",
+      "Pacote Neon do Gato Elétrico-5.png": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
+      "Painel Neon_ Arsenal Elétrico Futurista-11.png": "328afc4d962cbf86f049fa463117a8ced144bdac526d61ac1ea787ec72cf8b82",
+      "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png": "d1612b1660609c296fa688f46a3af613a259ec3cdc1f0d72e6967402887a0e98",
+      "Pacote Fúria da Noite em Neon-1.png": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png": "89e1e4ed94c9facd322ee35a2bc54242b431e970a03118efe0376db220f31d24",
+      "Pacote Cósmico de Slime Azul-7.png": "a8ffd88eb6dded188b96b3d7744f4430d5e9d8857202cc838e363dc1c77531be"
+    },
+    "bytes": 5081931
+  },
+  "installer": {
+    "version": "0.3.8",
+    "file": "C:\\Users\\Pichau\\OneDrive\\Área de Trabalho\\seila\\desktop\\release-preview\\prepared-0.3.8-final\\CosmicNight-Setup-0.3.8.exe",
+    "bytes": 128627723,
+    "sha256": "f5ab376d6ccfbf0091eb745a5cdb0e2d2945a0eac3a9fdafb881361e1fccae0b",
+    "authenticode": "NotSigned",
+    "executableProductVersion": "0.3.8.0",
+    "publish": "never"
+  },
+  "packagedAssets": {
+    "files": 88,
+    "byteIdenticalToWebBuild": true
+  },
+  "changedFiles": [
+    "desktop/package-lock.json",
+    "desktop/package.json",
+    "desktop/src/main.mjs",
+    "docs/cosmetic-collections.md",
+    "docs/releases/0.3.8-cosmetics.json",
+    "docs/releases/0.3.8-notes.md",
+    "e2e/cosmetic-collections.test.mjs",
+    "enfeites/Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
+    "enfeites/Grade de skins sci-fi neon em português-2.png",
+    "enfeites/Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png",
+    "enfeites/Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png",
+    "enfeites/Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png",
+    "enfeites/Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png",
+    "enfeites/Pacote Cósmico de Slime Azul-7.png",
+    "enfeites/Pacote Fúria da Noite em Neon-1.png",
+    "enfeites/Pacote Neon do Gato Elétrico-5.png",
+    "enfeites/Pacote de Avatar Dragão Luminoso-3.png",
+    "enfeites/Pacote de Cosméticos Neon Roxo da Clove-9.png",
+    "enfeites/Painel Neon_ Arsenal Elétrico Futurista-11.png",
+    "scripts/extract-cosmetics.py",
+    "scripts/verify-cosmetics.py",
+    "server/src/community/commerce.ts",
+    "server/src/community/economy.ts",
+    "server/src/community/routes.ts",
+    "server/test/cosmetic-collections.test.ts",
+    "server/test/cosmetic-packs.test.ts",
+    "server/test/gift-packs.test.ts",
+    "shared/cosmetic-collections.ts",
+    "shared/cosmetics.ts",
+    "web/public/assets/cosmetics/clove/avatar-decoration.png",
+    "web/public/assets/cosmetics/clove/cover.webp",
+    "web/public/assets/cosmetics/clove/member-name-effect.webp",
+    "web/public/assets/cosmetics/clove/metadata.json",
+    "web/public/assets/cosmetics/clove/profile-banner.webp",
+    "web/public/assets/cosmetics/clove/profile-frame.png",
+    "web/public/assets/cosmetics/clove/server-badge.png",
+    "web/public/assets/cosmetics/clove/username-effect.png",
+    "web/public/assets/cosmetics/jett/avatar-decoration.png",
+    "web/public/assets/cosmetics/jett/cover.webp",
+    "web/public/assets/cosmetics/jett/member-name-effect.webp",
+    "web/public/assets/cosmetics/jett/metadata.json",
+    "web/public/assets/cosmetics/jett/profile-banner.webp",
+    "web/public/assets/cosmetics/jett/profile-frame.png",
+    "web/public/assets/cosmetics/jett/server-badge.png",
+    "web/public/assets/cosmetics/jett/username-effect.png",
+    "web/public/assets/cosmetics/light-fury/avatar-decoration.png",
+    "web/public/assets/cosmetics/light-fury/cover.webp",
+    "web/public/assets/cosmetics/light-fury/member-name-effect.webp",
+    "web/public/assets/cosmetics/light-fury/metadata.json",
+    "web/public/assets/cosmetics/light-fury/profile-banner.webp",
+    "web/public/assets/cosmetics/light-fury/profile-frame.png",
+    "web/public/assets/cosmetics/light-fury/server-badge.png",
+    "web/public/assets/cosmetics/light-fury/username-effect.png",
+    "web/public/assets/cosmetics/madu-kaiden/avatar-decoration.png",
+    "web/public/assets/cosmetics/madu-kaiden/cover.webp",
+    "web/public/assets/cosmetics/madu-kaiden/member-name-effect.webp",
+    "web/public/assets/cosmetics/madu-kaiden/metadata.json",
+    "web/public/assets/cosmetics/madu-kaiden/profile-banner.webp",
+    "web/public/assets/cosmetics/madu-kaiden/profile-frame.png",
+    "web/public/assets/cosmetics/madu-kaiden/server-badge.png",
+    "web/public/assets/cosmetics/madu-kaiden/username-effect.png",
+    "web/public/assets/cosmetics/neon/avatar-decoration.png",
+    "web/public/assets/cosmetics/neon/cover.webp",
+    "web/public/assets/cosmetics/neon/member-name-effect.webp",
+    "web/public/assets/cosmetics/neon/metadata.json",
+    "web/public/assets/cosmetics/neon/profile-banner.webp",
+    "web/public/assets/cosmetics/neon/profile-frame.png",
+    "web/public/assets/cosmetics/neon/server-badge.png",
+    "web/public/assets/cosmetics/neon/username-effect.png",
+    "web/public/assets/cosmetics/night-fury/avatar-decoration.png",
+    "web/public/assets/cosmetics/night-fury/cover.webp",
+    "web/public/assets/cosmetics/night-fury/member-name-effect.webp",
+    "web/public/assets/cosmetics/night-fury/metadata.json",
+    "web/public/assets/cosmetics/night-fury/profile-banner.webp",
+    "web/public/assets/cosmetics/night-fury/profile-frame.png",
+    "web/public/assets/cosmetics/night-fury/server-badge.png",
+    "web/public/assets/cosmetics/night-fury/username-effect.png",
+    "web/public/assets/cosmetics/omen/avatar-decoration.png",
+    "web/public/assets/cosmetics/omen/cover.webp",
+    "web/public/assets/cosmetics/omen/member-name-effect.webp",
+    "web/public/assets/cosmetics/omen/metadata.json",
+    "web/public/assets/cosmetics/omen/profile-banner.webp",
+    "web/public/assets/cosmetics/omen/profile-frame.png",
+    "web/public/assets/cosmetics/omen/server-badge.png",
+    "web/public/assets/cosmetics/omen/username-effect.png",
+    "web/public/assets/cosmetics/raze/avatar-decoration.png",
+    "web/public/assets/cosmetics/raze/cover.webp",
+    "web/public/assets/cosmetics/raze/member-name-effect.webp",
+    "web/public/assets/cosmetics/raze/metadata.json",
+    "web/public/assets/cosmetics/raze/profile-banner.webp",
+    "web/public/assets/cosmetics/raze/profile-frame.png",
+    "web/public/assets/cosmetics/raze/server-badge.png",
+    "web/public/assets/cosmetics/raze/username-effect.png",
+    "web/public/assets/cosmetics/rimuru/avatar-decoration.png",
+    "web/public/assets/cosmetics/rimuru/cover.webp",
+    "web/public/assets/cosmetics/rimuru/member-name-effect.webp",
+    "web/public/assets/cosmetics/rimuru/metadata.json",
+    "web/public/assets/cosmetics/rimuru/profile-banner.webp",
+    "web/public/assets/cosmetics/rimuru/profile-frame.png",
+    "web/public/assets/cosmetics/rimuru/server-badge.png",
+    "web/public/assets/cosmetics/rimuru/username-effect.png",
+    "web/public/assets/cosmetics/rush/avatar-decoration.png",
+    "web/public/assets/cosmetics/rush/cover.webp",
+    "web/public/assets/cosmetics/rush/member-name-effect.webp",
+    "web/public/assets/cosmetics/rush/metadata.json",
+    "web/public/assets/cosmetics/rush/profile-banner.webp",
+    "web/public/assets/cosmetics/rush/profile-frame.png",
+    "web/public/assets/cosmetics/rush/server-badge.png",
+    "web/public/assets/cosmetics/rush/username-effect.png",
+    "web/public/assets/cosmetics/tejo/avatar-decoration.png",
+    "web/public/assets/cosmetics/tejo/cover.webp",
+    "web/public/assets/cosmetics/tejo/member-name-effect.webp",
+    "web/public/assets/cosmetics/tejo/metadata.json",
+    "web/public/assets/cosmetics/tejo/profile-banner.webp",
+    "web/public/assets/cosmetics/tejo/profile-frame.png",
+    "web/public/assets/cosmetics/tejo/server-badge.png",
+    "web/public/assets/cosmetics/tejo/username-effect.png",
+    "web/src/components/cosmetics/CosmeticPreview.tsx",
+    "web/src/components/cosmetics/Decoration.tsx",
+    "web/src/components/groups/GroupsPage.tsx",
+    "web/src/components/groups/Voice.tsx",
+    "web/src/components/room/Sidebar.tsx",
+    "web/src/components/settings/CollectionsShop.tsx",
+    "web/src/components/settings/GiftsSettings.tsx",
+    "web/src/components/settings/PersonalizationSettings.tsx",
+    "web/src/components/settings/SettingsScreen.tsx",
+    "web/src/components/social/UserInteractions.tsx",
+    "web/src/components/ui.tsx",
+    "web/src/index.css",
+    "web/src/lib/appearance.ts",
+    "web/src/lib/cosmetics.ts",
+    "web/src/lib/settings-screen.ts"
+  ],
+  "preservedExistingWork": true,
+  "published": false,
+  "limitations": [
+    "Five collections rely on low-resolution overview artwork.",
+    "Alpha edges of Clove and Neon can be refined with original transparent exports.",
+    "Local Chrome/Electron/PGlite verification; no production deployment or physical installer upgrade was performed."
+  ],
+  "supersededInstaller": "desktop/release-preview/prepared-0.3.8/CosmicNight-Setup-0.3.8.exe",
+  "packagedFrontend": {
+    "files": 109,
+    "byteIdenticalToWebBuild": true
+  },
+  "integration": {
+    "base": "f5e84bc014ac049167035ef17212cdf72cb8eeab",
+    "publishedVersion": "0.3.7",
+    "previousCatalogItemsPreserved": 69,
+    "newCollectionItems": 55,
+    "totalCatalogItems": 124,
+    "publishedMigration11Preserved": true,
+    "originalWorkspaceModifiedByIntegration": false
+  },
+  "validationNotes": [
+    "The initial integrated run lacked the Electron runtime; the validated local runtime was copied and all image loading checks passed.",
+    "One real-voice run timed out while the entire server suite was running concurrently; the complete 11-case UI suite passed when rerun independently.",
+    "The GitHub Actions build is the publication artifact; earlier local installers are preparation artifacts."
+  ]
+}

@@ -1,4 +1,4 @@
-import { CATALOG, itemById, packById, packPrice, PACKS, SLOTS } from '../../../shared/cosmetics.ts';
+import { CATALOG, collectionById, itemById, packById, packPrice, PACKS, PACK_SLOTS as SLOTS } from '../../../shared/cosmetics.ts';
 import { iso, isoOrNull, type Db } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
 import { cleanText, newId, type User } from './auth.ts';
@@ -58,6 +58,78 @@ export class Commerce {
       await tx.query('INSERT INTO user_items (user_id, item_id, price, admin_grant, acquisition_id) VALUES ($1,$2,$3,$4,$5)', [user.id, item.id, free ? 0 : item.price, free, acquisition]);
       if (free) await adminAudit(tx, user.id, 'loja.compra_teste', item.id, 'Aquisição cosmética sem débito', { price: item.price });
     });
+    this.#community.hub.toUser(user.id, { t: 'inventory.changed' });
+  }
+
+  /** Preço é a soma dos itens que faltam; usa as mesmas configurações dos itens avulsos. */
+  async collectionQuote(collectionId: string, userId: string, db = this.db) {
+    const collection = collectionById(collectionId);
+    if (!collection) throw new ApiError(404, 'colecao_inexistente', 'Coleção não encontrada.');
+    const items = (await this.catalog(db)).filter((item) => item.collectionId === collection.id);
+    const owned = new Set((await db.query('SELECT item_id FROM user_items WHERE user_id = $1', [userId])).map((row) => String(row.item_id)));
+    const missing = items.filter((item) => !owned.has(item.id));
+    return { collectionId, itemIds: missing.map((item) => item.id), ownedIds: items.filter((item) => owned.has(item.id)).map((item) => item.id), price: missing.reduce((sum, item) => sum + item.price, 0), available: missing.every((item) => item.active) };
+  }
+
+  #checkQuote(input: Record<string, unknown>, quote: Awaited<ReturnType<Commerce['collectionQuote']>>) {
+    if (!quote.itemIds.length) throw new ApiError(409, 'colecao_adquirida', 'Todos os itens desta coleção já foram adquiridos.');
+    if (!quote.available) throw new ApiError(409, 'item_indisponivel', 'Um dos itens desta coleção está fora da loja.');
+    if (input.expectedPrice !== quote.price || !Array.isArray(input.expectedItemIds) ||
+        [...input.expectedItemIds].sort().join('\n') !== [...quote.itemIds].sort().join('\n')) {
+      throw new ApiError(409, 'preco_alterado', 'O preço ou os itens que faltam mudaram. Atualize a coleção e confirme novamente.');
+    }
+  }
+
+  async purchaseCollection(user: User, collectionId: string, input: Record<string, unknown>) {
+    await this.db.tx(async (tx) => {
+      await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
+      await tx.query('SELECT item_id FROM shop_settings FOR SHARE');
+      const quote = await this.collectionQuote(collectionId, user.id, tx);
+      this.#checkQuote(input, quote);
+      const free = await unlimitedCosmetics(tx, user.id), acquisition = newId(18);
+      await postPoints(tx, user.id, free ? 0 : -quote.price, free ? 'compra_admin' : 'compra', collectionById(collectionId)!.name, `colecao:${acquisition}`);
+      const items = await this.catalog(tx);
+      for (const id of quote.itemIds) await tx.query('INSERT INTO user_items (user_id,item_id,price,admin_grant,acquisition_id) VALUES ($1,$2,$3,$4,$5)', [user.id, id, free ? 0 : items.find((item) => item.id === id)!.price, free, acquisition]);
+      if (free) await adminAudit(tx, user.id, 'loja.colecao_teste', collectionId, 'Aquisição de coleção sem débito', quote);
+    });
+    this.#community.hub.toUser(user.id, { t: 'inventory.changed' });
+  }
+
+  async requireFriend(userId: string, recipient: string, db = this.db) {
+    if (userId === recipient) throw new ApiError(400, 'presente_invalido', 'Escolha um amigo para presentear.');
+    const pair = [userId, recipient].sort();
+    const [friend] = await db.query("SELECT 1 FROM friendships WHERE user_low = $1 AND user_high = $2 AND status = 'amigos' FOR SHARE", pair);
+    const [blocked] = await db.query('SELECT 1 FROM user_blocks WHERE (user_id = $1 AND blocked_id = $2) OR (user_id = $2 AND blocked_id = $1)', [userId, recipient]);
+    if (!friend || blocked) throw new ApiError(403, 'amigo_necessario', 'O destinatário precisa ser um amigo sem bloqueios.');
+  }
+
+  /** Um único presente e débito, cinco espaços independentes; repetir a chave não duplica. */
+  async giftCollection(user: User, collectionId: string, input: Record<string, unknown>) {
+    const key = requestId(input.requestId), recipient = String(input.recipientId ?? '');
+    const message = cleanText(input.message, 300, true), itemId = `collection:${collectionId}`;
+    if (input.confirm !== true) throw new ApiError(400, 'confirmacao_necessaria', 'Confirme o envio do presente.');
+    const result = await this.db.tx(async (tx) => {
+      if (!(await this.enabled('gifts_enabled', tx))) throw new ApiError(409, 'presentes_pausados', 'Os presentes estão temporariamente pausados.');
+      await tx.query('SELECT id FROM users WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE', [[user.id, recipient]]);
+      const [prior] = await tx.query('SELECT * FROM gifts WHERE sender_id = $1 AND request_id = $2', [user.id, key]);
+      if (prior) {
+        if (prior.recipient_id !== recipient || prior.item_id !== itemId || prior.message !== message || prior.kind !== 'purchase') throw new ApiError(409, 'pedido_reutilizado', 'Esta chave já foi usada em outro presente.');
+        return { id: String(prior.id), replay: true };
+      }
+      await this.requireFriend(user.id, recipient, tx);
+      await tx.query('SELECT item_id FROM shop_settings FOR SHARE');
+      const quote = await this.collectionQuote(collectionId, recipient, tx);
+      this.#checkQuote(input, quote);
+      const free = await unlimitedCosmetics(tx, user.id), id = newId(18);
+      await postPoints(tx, user.id, free ? 0 : -quote.price, free ? 'presente_admin' : 'presente', `Presente: ${collectionById(collectionId)!.name}`, `presente:${id}`);
+      const items = await this.catalog(tx);
+      for (const item of quote.itemIds) await tx.query('INSERT INTO user_items (user_id,item_id,price,admin_grant,acquisition_id) VALUES ($1,$2,$3,$4,$5)', [recipient, item, free ? 0 : items.find((entry) => entry.id === item)!.price, free, id]);
+      await tx.query("INSERT INTO gifts (id,sender_id,recipient_id,item_id,kind,message,price,request_id) VALUES ($1,$2,$3,$4,'purchase',$5,$6,$7)", [id, user.id, recipient, itemId, message, free ? 0 : quote.price, key]);
+      if (free) await adminAudit(tx, user.id, 'presente.colecao_administrativa', recipient, 'Presente de coleção sem débito', { collectionId });
+      return { id, replay: false };
+    });
+    if (!result.replay) this.#community.hub.toUser(recipient, { t: 'gift.received', giftId: result.id, senderName: user.displayName });
+    return result;
   }
 
   /**

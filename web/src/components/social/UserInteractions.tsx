@@ -36,7 +36,7 @@ import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { activities, playingFor, type CurrentActivity } from '../../lib/activities.ts';
 import { GameIcon } from '../settings/GameIcon.tsx';
-import { BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, ProfileFrame, useUserCosmetics } from '../cosmetics/Decoration.tsx';
+import { BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, ProfileFrame, ProfileNameplate, useUserCosmetics } from '../cosmetics/Decoration.tsx';
 import { PersonVolume } from '../room/PersonVolume.tsx';
 import { Avatar, cx } from '../ui.tsx';
 import { errorText, memberName, nameColor } from '../groups/common.tsx';
@@ -200,10 +200,10 @@ function Banner({ profile }: { profile: Pick<Profile, 'banner' | 'id'> }) {
   return (
     <div
       className="relative h-24 w-full overflow-hidden bg-cover bg-center"
-      style={image ? undefined : equipped ?? { background: color ? color : 'linear-gradient(120deg, #4b348e, #6c4dff 55%, #74d7ff)' }}
+      style={equipped ?? (image ? undefined : { background: color ? color : 'linear-gradient(120deg, #4b348e, #6c4dff 55%, #74d7ff)' })}
       data-testid="profile-banner"
     >
-      {image ? <img src={image} alt="" className="size-full object-cover" /> : <BackgroundArt equipped={cosmeticsOf} />}
+      {image && !equipped ? <img src={image} alt="" className="size-full object-cover" /> : <BackgroundArt equipped={cosmeticsOf} />}
     </div>
   );
 }
@@ -254,11 +254,13 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
             <div className="-mt-10 mb-2 w-fit rounded-full border-4 border-ink-900">
               <DecoratedAvatar userId={profile.id} name={profile.displayName} size={76} image={profile.avatar} animate />
             </div>
+            <ProfileNameplate userId={profile.id}>
             <p className="flex items-center text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
               <CosmeticName userId={profile.id} className="min-w-0 truncate" animate>
                 {name}
               </CosmeticName>
             </p>
+            </ProfileNameplate>
             <p className="text-sm text-fog-400">
               @{profile.username}
               {profile.nickname && <span className="ml-1 text-xs text-neon-300">(apelido seu)</span>}

@@ -16,6 +16,9 @@ function packOf(item: CosmeticItem | undefined): { art: PackArt; palette: PackPa
 /** Tamanho da arte em relação ao avatar: a decoração ocupa o anel em volta dele. */
 const SCALE = 1.36;
 
+/** Caminhos relativos preservam instalações em subpastas e o protocolo local do Electron. */
+export const cosmeticAssetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
+
 /** Desenhos originais do Cosmic Night, num quadro de -50 a 50 com o avatar no centro (raio ~37). */
 function drawing(id: string, a: string, b: string, gradient: string) {
   const fill = `url(#${gradient})`;
@@ -176,6 +179,13 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
   const pack = packOf(item);
   const box = size * SCALE;
   const live = animate && !reducedMotion();
+  if (item.asset) {
+    const extent = size * (item.avatarScale ?? SCALE);
+    return <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async"
+      className="pointer-events-none absolute max-w-none object-contain"
+      style={{ width: extent, height: extent, left: (size - extent) / 2, top: (size - extent) / 2 }}
+      data-decoration={item.id} data-variant={variant.id} />;
+  }
   return (
     <svg
       aria-hidden="true"
@@ -201,6 +211,7 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
 function Frame({ equipped, size }: { equipped: Equipped; size: number }) {
   const item = itemById(equipped.item);
   if (!item || item.kind !== 'moldura') return null;
+  if (item.asset) return null;
   const [a, b] = (item.variants.find((option) => option.id === equipped.variant) ?? item.variants[0]!).colors;
   const pack = packOf(item);
   const ring = Math.max(2, Math.round(size / (pack ? 14 : 18)));
@@ -266,7 +277,7 @@ export function nameStyle(equipped: UserCosmetics): React.CSSProperties | undefi
   if (!item) return undefined;
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
   const pack = packOf(item);
-  return { backgroundImage: pack ? pack.art.name(pack.palette) : `linear-gradient(90deg, ${a}, ${b})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' };
+  return { backgroundImage: pack ? pack.art.name(pack.palette) : `linear-gradient(90deg, ${a}, ${b})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', textShadow: 'none' };
 }
 
 /**
@@ -294,6 +305,7 @@ export function backgroundStyle(equipped: UserCosmetics): React.CSSProperties | 
   const choice = equipped.fundo;
   const item = choice ? itemById(choice.item) : undefined;
   if (!item) return undefined;
+  if (item.asset) return { backgroundImage: `url("${cosmeticAssetUrl(item.asset)}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
   const pack = packOf(item);
   if (pack) return pack.art.background(pack.palette);
@@ -349,4 +361,27 @@ export function DecoratedAvatar({
       {shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
     </span>
   );
+}
+
+export function ProfileNameplate({ userId, preview, children }: { userId?: string; preview?: UserCosmetics; children: React.ReactNode }) {
+  const equipped = useUserCosmetics(preview ? null : userId);
+  const choice = (preview ?? equipped).moldura;
+  const item = choice ? itemById(choice.item) : undefined;
+  if (!item?.asset) return <>{children}</>;
+  return <div className="cn-profile-nameplate" data-profile-frame={item.id}>
+    <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async" />
+    <div className="relative min-w-0 px-6 py-3">{children}</div>
+  </div>;
+}
+
+/** Uma única imagem por membro; a camada não participa do layout nem recebe cliques. */
+export function MemberNameEffect({ userId, preview, animate = true }: { userId?: string; preview?: UserCosmetics; animate?: boolean }) {
+  const equipped = useUserCosmetics(preview ? null : userId);
+  const choice = (preview ?? equipped)['efeito-nome'];
+  const item = choice ? itemById(choice.item) : undefined;
+  if (!item?.asset || item.kind !== 'efeito-nome') return null;
+  return <span className={cx('cn-member-effect', animate && 'cn-member-effect-live')} aria-hidden="true" data-name-effect={item.id}>
+    <img src={cosmeticAssetUrl(item.asset)} alt="" decoding="async" loading="lazy" />
+    <span className="cn-member-effect-veil" />
+  </span>;
 }

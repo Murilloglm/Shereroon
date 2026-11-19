@@ -2,7 +2,7 @@
 // Comprar o pacote leva tudo o que falta numa transação só, com desconto; cada peça continua avulsa (compra,
 // equipa e mistura com outras); "usar o pacote completo" equipa de uma vez o que a conta tem dele.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CATALOG, PACKS, packById, packPrice, SLOTS } from '../../shared/cosmetics.ts';
+import { CATALOG, PACKS, packById, packPrice, PACK_SLOTS as SLOTS } from '../../shared/cosmetics.ts';
 import { createWorld, type Person, type World } from './world.ts';
 
 let w: World;

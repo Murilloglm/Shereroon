@@ -57,7 +57,7 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
   const who = async (c: Context): Promise<User> => timed('auth', async () => {
     const user = await accounts.authenticate(tokenOf(c));
     if (!user) throw new ApiError(401, 'sessao_invalida', 'Sua sessão terminou. Entre de novo.');
-    if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/buy-pack', '/api/shop/gifts', '/api/shop/gift-pack'].includes(c.req.path))) {
+    if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/buy-pack', '/api/shop/gifts', '/api/shop/gift-pack'].includes(c.req.path) || /^\/api\/shop\/collections\/[^/]+\/(buy|gift)$/.test(c.req.path))) {
       await economy.admin.requireMfa(user, tokenOf(c));
     }
     return user;
@@ -429,6 +429,22 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
       return c.json(await economy.buyPack(user, input.packId, input.expectedPrice));
     });
     app.put('/api/me/equipped/pack', async (c) => c.json(await economy.equipPack(await who(c), (await body(c)).packId)));
+    app.get('/api/shop/collections/:collectionId/quote', async (c) => {
+      const user = await who(c), recipient = c.req.query('recipientId');
+      if (recipient) await economy.commerce.requireFriend(user.id, recipient);
+      return c.json(await economy.commerce.collectionQuote(c.req.param('collectionId'), recipient || user.id));
+    });
+    app.post('/api/shop/collections/:collectionId/buy', async (c) => {
+      const user = await who(c);
+      if (!limiter.take(`compra:${user.id}`, 20, 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Compras demais. Espere um pouco.');
+      await economy.commerce.purchaseCollection(user, c.req.param('collectionId'), await body(c));
+      return c.json(await economy.inventory(user));
+    });
+    app.post('/api/shop/collections/:collectionId/gift', async (c) => {
+      const user = await who(c);
+      if (!limiter.take(`presentes:${user.id}`, 20, 10 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Aguarde antes de enviar mais presentes.');
+      return c.json(await economy.commerce.giftCollection(user, c.req.param('collectionId'), await body(c)));
+    });
     app.post('/api/shop/buy', async (c) => {
       const user = await who(c);
       if (!limiter.take(`compra:${user.id}`, 20, 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Compras demais. Espere um pouco.');

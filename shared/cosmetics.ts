@@ -1,13 +1,16 @@
+import { COLLECTIONS } from './cosmetic-collections.ts';
+export { COLLECTIONS, collectionById, type CosmeticCollection } from './cosmetic-collections.ts';
+
 /**
  * Catálogo de itens cosméticos e regras dos Cosmic Points. Usado pelo servidor (preços, posse, regras) e pela
  * interface (nomes, raridade, como desenhar). Para lançar um item novo basta acrescentá-lo aqui e, se for uma
  * decoração com desenho novo, o desenho em web/src/components/cosmetics: a loja e o inventário são genéricos.
  *
- * Todos os desenhos são originais do Cosmic Night. Os Cosmic Points são gratuitos, ganhos por participação, sem
- * dinheiro real, sem apostas e sem conversão em valores.
+ * As coleções usam recortes das referências fornecidas em enfeites/, com procedência em metadata.json.
+ * Os Cosmic Points são gratuitos, ganhos por participação, sem dinheiro real ou conversão em valores.
  */
 
-export type ItemKind = 'decoracao' | 'moldura' | 'fundo' | 'cor-nome' | 'enfeite';
+export type ItemKind = 'decoracao' | 'moldura' | 'fundo' | 'cor-nome' | 'enfeite' | 'efeito-nome';
 export type Rarity = 'comum' | 'rara' | 'epica' | 'lendaria';
 
 export interface CosmeticVariant {
@@ -31,6 +34,9 @@ export interface CosmeticItem {
   variants: CosmeticVariant[];
   /** Pacote a que o item pertence (os desenhos e a paleta vêm do pacote). */
   pack?: string;
+  collectionId?: string;
+  asset?: string;
+  avatarScale?: number;
 }
 
 export const KIND_NAMES: Record<ItemKind, string> = {
@@ -39,6 +45,7 @@ export const KIND_NAMES: Record<ItemKind, string> = {
   fundo: 'Fundo de perfil',
   'cor-nome': 'Cor do nome',
   enfeite: 'Enfeite no nome do servidor',
+  'efeito-nome': 'Efeitos de Nome do Servidor',
 };
 
 export const RARITY: Record<Rarity, { name: string; color: string }> = {
@@ -71,7 +78,11 @@ export const CATALOG: CosmeticItem[] = [
   { id: 'nome-aurora', kind: 'cor-nome', name: 'Nome Aurora', description: 'Seu nome em gradiente nas mensagens e na lista de membros.', price: 250, rarity: 'rara', animated: false, reactsToVoice: false, variants: [NEON, ROSA, OURO] },
 ];
 
-export const SLOTS: ItemKind[] = ['decoracao', 'moldura', 'fundo', 'cor-nome', 'enfeite'];
+export type PackItemKind = Exclude<ItemKind, 'efeito-nome'>;
+export type CollectionItemKind = Exclude<ItemKind, 'enfeite'>;
+export const PACK_SLOTS: PackItemKind[] = ['decoracao', 'moldura', 'fundo', 'cor-nome', 'enfeite'];
+export const COLLECTION_SLOTS: CollectionItemKind[] = ['decoracao', 'moldura', 'fundo', 'cor-nome', 'efeito-nome'];
+export const SLOTS: ItemKind[] = [...PACK_SLOTS, 'efeito-nome'];
 
 // --- Pacotes -----------------------------------------------------------------------------------------
 //
@@ -102,14 +113,14 @@ export interface CosmeticPack {
   /** Regras visuais do tema: o que toda peça nova do pacote deve seguir. */
   rules: string[];
   /** O item de cada categoria. */
-  items: Record<ItemKind, string>;
+  items: Record<PackItemKind, string>;
 }
 
 /** Desconto ao levar de uma vez dois ou mais itens que faltam de um pacote. */
 export const PACK_DISCOUNT = 0.25;
 
 /** Preço de cada categoria, conforme a raridade do pacote. */
-const PACK_PRICES: Record<Rarity, Record<ItemKind, number>> = {
+const PACK_PRICES: Record<Rarity, Record<PackItemKind, number>> = {
   comum: { decoracao: 250, moldura: 120, fundo: 150, 'cor-nome': 120, enfeite: 150 },
   rara: { decoracao: 400, moldura: 200, fundo: 250, 'cor-nome': 200, enfeite: 250 },
   epica: { decoracao: 600, moldura: 300, fundo: 350, 'cor-nome': 300, enfeite: 350 },
@@ -117,10 +128,10 @@ const PACK_PRICES: Record<Rarity, Record<ItemKind, number>> = {
 };
 
 /** Itens animados em cada categoria (o fundo e a cor do nome são parados, para não pesar). */
-const PACK_ANIMATED: Record<ItemKind, boolean> = { decoracao: true, moldura: false, fundo: false, 'cor-nome': false, enfeite: true };
+const PACK_ANIMATED: Record<PackItemKind, boolean> = { decoracao: true, moldura: false, fundo: false, 'cor-nome': false, enfeite: true };
 
 interface PackSpec extends Omit<CosmeticPack, 'items'> {
-  pieces: Record<ItemKind, { name: string; description: string }>;
+  pieces: Record<PackItemKind, { name: string; description: string }>;
 }
 
 const PACK_SPECS: PackSpec[] = [
@@ -291,15 +302,15 @@ const PACK_SPECS: PackSpec[] = [
   },
 ];
 
-const PACK_ITEM_ID: Record<ItemKind, string> = { decoracao: 'deco', moldura: 'moldura', fundo: 'fundo', 'cor-nome': 'nome', enfeite: 'enfeite' };
+const PACK_ITEM_ID: Record<PackItemKind, string> = { decoracao: 'deco', moldura: 'moldura', fundo: 'fundo', 'cor-nome': 'nome', enfeite: 'enfeite' };
 
 export const PACKS: CosmeticPack[] = PACK_SPECS.map(({ pieces, ...pack }) => ({
   ...pack,
-  items: Object.fromEntries(SLOTS.map((kind) => [kind, `${pack.id}-${PACK_ITEM_ID[kind]}`])) as Record<ItemKind, string>,
+  items: Object.fromEntries(PACK_SLOTS.map((kind) => [kind, `${pack.id}-${PACK_ITEM_ID[kind]}`])) as Record<PackItemKind, string>,
 }));
 
 for (const spec of PACK_SPECS) {
-  for (const kind of SLOTS) {
+  for (const kind of PACK_SLOTS) {
     const piece = spec.pieces[kind];
     CATALOG.push({
       id: `${spec.id}-${PACK_ITEM_ID[kind]}`,
@@ -315,6 +326,28 @@ for (const spec of PACK_SPECS) {
     });
   }
 }
+
+const ASSET_FILES: Record<CollectionItemKind, string> = {
+  decoracao: 'avatar-decoration.png', moldura: 'profile-frame.png', fundo: 'profile-banner.webp',
+  'cor-nome': 'username-effect.png', 'efeito-nome': 'member-name-effect.webp',
+};
+// Reutiliza os preços dos tipos existentes. Todos continuam configuráveis na Administração Cosmic.
+const PRICE_REFERENCE: Record<CollectionItemKind, string> = {
+  decoracao: 'anel-aurora', moldura: 'moldura-neon', fundo: 'fundo-nebulosa',
+  'cor-nome': 'nome-aurora', 'efeito-nome': 'nome-aurora',
+};
+
+CATALOG.push(...COLLECTIONS.flatMap((collection) => COLLECTION_SLOTS.map((kind): CosmeticItem => ({
+  id: `${collection.id}-${kind}`, kind, collectionId: collection.id,
+  name: `${collection.name} · ${KIND_NAMES[kind]}`,
+  description: `${KIND_NAMES[kind]} da coleção ${collection.name}, com a arte da referência original.`,
+  price: CATALOG.find((item) => item.id === PRICE_REFERENCE[kind])!.price,
+  rarity: 'epica', animated: kind === 'efeito-nome', reactsToVoice: false,
+  variants: [{ id: 'original', name: 'Original', colors: collection.colors }],
+  asset: `assets/cosmetics/${collection.id}/${ASSET_FILES[kind]}`,
+  avatarScale: kind === 'decoracao' ? collection.avatarScale : undefined,
+}))));
+
 
 export const itemById = (id: string): CosmeticItem | undefined => CATALOG.find((item) => item.id === id);
 export const packById = (id: string): CosmeticPack | undefined => PACKS.find((pack) => pack.id === id);

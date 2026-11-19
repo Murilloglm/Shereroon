@@ -4,7 +4,7 @@ import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
 import { searchMembers } from '../../lib/groups/member-search.ts';
-import { CosmeticName, DecoratedAvatar, NameAdornment } from '../cosmetics/Decoration.tsx';
+import { CosmeticName, DecoratedAvatar, NameAdornment, MemberNameEffect } from '../cosmetics/Decoration.tsx';
 // A detecção de jogos (se a pessoa ligou) acompanha a conta conectada.
 import '../../lib/activities.ts';
 import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
@@ -285,10 +285,11 @@ function MemberList({ view, className }: { view: GroupView; className?: string }
     const role = topRole(view, member);
     const status = !member.online ? 'Offline' : inVoice.has(member.userId) ? 'Em chamada' : 'Online';
     return (
-      <li key={member.userId} className={cx('rounded-lg hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
-        <UserTrigger userId={member.userId} className="flex items-center gap-2.5 px-2 py-1.5">
+      <li key={member.userId} className={cx('cn-member-row rounded-lg hover:bg-white/5', !member.online && 'opacity-50')} data-testid="member" data-user={member.username} data-online={member.online}>
+        <MemberNameEffect userId={member.userId} />
+        <UserTrigger userId={member.userId} className="relative z-10 flex min-w-0 items-center gap-2.5 px-2 py-1.5">
         <DecoratedAvatar userId={member.userId} name={memberName(member)} size={34} online={member.online} image={member.avatar} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 truncate text-sm font-bold text-neon-300" style={{ color: nameColor(view, member) }}>
             <CosmeticName userId={member.userId} className="truncate">
               <span data-testid="member-name">{memberName(member)}</span>

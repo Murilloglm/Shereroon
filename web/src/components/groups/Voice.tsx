@@ -224,6 +224,7 @@ export function VoicePeople({ view, voice, className }: { view: GroupView; voice
   return (
     <ParticipantsCard
       session={voice.session}
+      serverNameEffects
       invite=""
       className={className}
       actions={(person) =>

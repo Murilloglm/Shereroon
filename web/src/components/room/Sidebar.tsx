@@ -9,6 +9,7 @@ import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, Card, cx, IconButton, Toggle } from '../ui.tsx';
 import { UserTrigger } from '../social/UserInteractions.tsx';
 import { StreamHover } from './StreamHover.tsx';
+import { CosmeticName, MemberNameEffect } from '../cosmetics/Decoration.tsx';
 
 export function copyInvite(session: RoomSession, invite: string): void {
   void copyText(inviteLink(invite)).then((done) =>
@@ -136,6 +137,7 @@ export function ParticipantsCard({
   invite,
   className,
   actions,
+  serverNameEffects = false,
 }: {
   session: RoomSession;
   /** Vazio nos canais de voz de grupos: sem botão de convite. */
@@ -143,6 +145,7 @@ export function ParticipantsCard({
   className?: string;
   /** Controles extras por pessoa (volume e moderação nos canais de voz). */
   actions?: (person: ParticipantView) => ReactNode;
+  serverNameEffects?: boolean;
 }) {
   const participants = useStore(session.store, (state) => state.participants);
   const isHost = useStore(session.store, (state) => state.isHost);
@@ -166,15 +169,17 @@ export function ParticipantsCard({
             key={person.identity}
             data-testid="participant"
             data-identity={person.identity}
+            data-server-member={serverNameEffects || undefined}
             className="group flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink-800"
           >
+            {serverNameEffects && <MemberNameEffect userId={person.accountId ?? person.identity} />}
             <StreamHover session={session} identity={person.identity} name={person.name} enabled={person.sharing} className="flex min-w-0 flex-1 items-center gap-3">
             <UserTrigger userId={person.isLocal ? null : person.accountId ?? person.identity} className="flex min-w-0 flex-1 items-center gap-3">
             <Avatar id={person.accountId ?? person.identity} name={person.name} image={person.avatar} online speaking={person.speaking} />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate font-bold">
                 <span className="truncate" data-testid="participant-name">
-                  {person.isLocal ? 'Você' : person.name}
+                  {serverNameEffects ? <CosmeticName userId={person.accountId ?? person.identity}>{person.isLocal ? 'Você' : person.name}</CosmeticName> : person.isLocal ? 'Você' : person.name}
                 </span>
                 {person.isHost && (
                   <>
