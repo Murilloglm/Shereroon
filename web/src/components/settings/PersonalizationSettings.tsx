@@ -1,4 +1,4 @@
-import { Check, Eye, Sparkles } from 'lucide-react';
+import { Check, Eye, Gift, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { CATALOG, itemById, KIND_NAMES, PACK_DISCOUNT, PACKS, POINTS, RARITY, SLOTS, type CosmeticItem, type CosmeticPack, type ItemKind } from '../../../../shared/cosmetics.ts';
 import { cosmetics, type ShopItem, type ShopPack, type UserCosmetics } from '../../lib/cosmetics.ts';
@@ -9,7 +9,7 @@ import { useStore } from '../../lib/store.ts';
 import { Adornment, BackgroundArt, backgroundStyle, DecoratedAvatar, nameStyle } from '../cosmetics/Decoration.tsx';
 import { ProfilePreview } from '../cosmetics/ProfilePreview.tsx';
 import { errorText } from '../groups/common.tsx';
-import { GiftDialog, RedeemCode } from './GiftsSettings.tsx';
+import { GiftDialog, PackGiftDialog, RedeemCode } from './GiftsSettings.tsx';
 import { Button, cx } from '../ui.tsx';
 
 const formatPoints = (value: number) => value.toLocaleString('pt-BR');
@@ -165,7 +165,7 @@ function Palette({ pack }: { pack: CosmeticPack }) {
  * Um pacote na loja: prévia do pacote inteiro (ou de uma peça combinada com o que a pessoa já usa), as 5 peças com
  * compra avulsa e a compra de tudo o que falta com desconto.
  */
-function PackCard({ account, avatar, pack, info, items, points, unlimited, equipped, onBuyItem, onGift }: {
+function PackCard({ account, avatar, pack, info, items, points, unlimited, equipped, onBuyItem, onGift, onGiftPack }: {
   account: Account;
   avatar: string | null;
   pack: CosmeticPack;
@@ -176,6 +176,7 @@ function PackCard({ account, avatar, pack, info, items, points, unlimited, equip
   equipped: UserCosmetics;
   onBuyItem: (item: CosmeticItem) => void;
   onGift: (item: CosmeticItem) => void;
+  onGiftPack: (pack: CosmeticPack) => void;
 }) {
   const [focus, setFocus] = useState<ItemKind | null>(null);
   const look = focus ? { ...equipped, [focus]: { item: pack.items[focus], variant: 'original' } } : packLook(pack);
@@ -262,13 +263,19 @@ function PackCard({ account, avatar, pack, info, items, points, unlimited, equip
           );
         })}
       </ul>
-      {info && missing === 0 ? (
-        <p className="text-sm font-bold text-ok-400">Pacote completo. Use em Decorações e inventário.</p>
-      ) : (
-        <Button variant="primary" disabled={!info || !info.active || short > 0} title={short > 0 ? `Faltam ${formatPoints(short)} Cosmic Points` : undefined} onClick={buyPack} data-testid={`shop-buy-pack-${pack.id}`}>
-          {!info?.active && info ? 'Indisponível no momento' : short > 0 ? `Faltam ${formatPoints(short)} para o pacote` : `Adquirir pacote${missing >= 2 ? ` (−${Math.round(PACK_DISCOUNT * 100)}%)` : ''}`}
+      <div className="flex flex-wrap items-center gap-2">
+        {info && missing === 0 ? (
+          <p className="flex-1 text-sm font-bold text-ok-400">Pacote completo. Use em Decorações e inventário.</p>
+        ) : (
+          <Button className="flex-1" variant="primary" disabled={!info || !info.active || short > 0} title={short > 0 ? `Faltam ${formatPoints(short)} Cosmic Points` : undefined} onClick={buyPack} data-testid={`shop-buy-pack-${pack.id}`}>
+            {!info?.active && info ? 'Indisponível no momento' : short > 0 ? `Faltam ${formatPoints(short)} para o pacote` : `Adquirir pacote${missing >= 2 ? ` (−${Math.round(PACK_DISCOUNT * 100)}%)` : ''}`}
+          </Button>
+        )}
+        <Button disabled={info?.active === false} onClick={() => onGiftPack(pack)} title="O amigo recebe as peças que ainda não tem, com o desconto do pacote" data-testid={`shop-gift-pack-${pack.id}`}>
+          <Gift className="size-4" aria-hidden="true" />
+          Presentear pacote
         </Button>
-      )}
+      </div>
       <details className="text-[13px] text-fog-400">
         <summary className="cursor-pointer font-semibold text-fog-300">Regras visuais do tema</summary>
         <ul className="mt-1 grid gap-0.5">
@@ -291,6 +298,7 @@ export function ShopSettings({ account }: { account: Account }) {
   const equipped = useStore(cosmetics.store, (state) => state.inventory?.equipped ?? NO_COSMETICS);
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   const [gift, setGift] = useState<CosmeticItem | null>(null);
+  const [giftPack, setGiftPack] = useState<CosmeticPack | null>(null);
   const [variants, setVariants] = useState<Record<string, string>>({});
   useEffect(() => {
     void cosmetics.loadShop().catch(() => undefined);
@@ -321,6 +329,7 @@ export function ShopSettings({ account }: { account: Account }) {
       </p>
       <RedeemCode />
       {gift && <GiftDialog item={gift} onClose={() => setGift(null)} />}
+      {giftPack && <PackGiftDialog pack={giftPack} onClose={() => setGiftPack(null)} />}
       <Block title="Pacotes">
         <p className="text-[13px] leading-snug text-fog-400">
           Cada pacote tem decoração, moldura, fundo, cor do nome e enfeite no nome, com o mesmo tema. Leve tudo com desconto ou só as peças que quiser: cada uma é equipada separada e combina com as de outros pacotes.
@@ -339,6 +348,7 @@ export function ShopSettings({ account }: { account: Account }) {
               equipped={equipped}
               onBuyItem={buy}
               onGift={setGift}
+              onGiftPack={setGiftPack}
             />
           ))}
         </div>

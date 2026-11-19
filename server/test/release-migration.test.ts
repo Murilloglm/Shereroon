@@ -28,7 +28,7 @@ describe('migrações de produção a partir da 0.3.2', () => {
     await legacyDatabase();
     const userBefore = await db.query("SELECT * FROM users WHERE id='legacy'");
     const ledgerBefore = await db.query('SELECT * FROM points_ledger');
-    expect(await migrate(db)).toEqual([7, 8, 9, 10]);
+    expect(await migrate(db)).toEqual([7, 8, 9, 10, 11]);
     expect(await db.query("SELECT * FROM users WHERE id='legacy'")).toEqual(userBefore);
     expect(await db.query('SELECT * FROM points_ledger')).toEqual(ledgerBefore);
     expect((await db.query('SELECT * FROM user_items'))[0]).toMatchObject({ user_id: 'legacy', item_id: 'anel-aurora', price: 150, admin_grant: false, acquisition_id: null });
@@ -36,7 +36,8 @@ describe('migrações de produção a partir da 0.3.2', () => {
     expect((await db.query('SELECT * FROM sessions'))[0]).toMatchObject({ token_hash: 'legacy-session', admin_verified_until: null });
     expect(await db.query('SELECT * FROM global_permissions')).toEqual([]);
     expect(await migrate(db)).toEqual([]);
-  });
+    // Aplica cinco migrações num PGlite novo: com a suíte inteira rodando junto passa dos 5 s padrão.
+  }, 30_000);
   it('a migração 8 não dispensa MFA nem altera os fatores e sessões já existentes', async () => {
     await legacyDatabase();
     const seven = MIGRATIONS.find((entry) => entry.id === 7)!;
@@ -46,7 +47,7 @@ describe('migrações de produção a partir da 0.3.2', () => {
     await db.query("UPDATE sessions SET admin_verified_until=now()+interval '5 minutes' WHERE user_id='legacy'");
     const [before] = await db.query('SELECT * FROM global_permissions');
     const sessions = await db.query('SELECT * FROM sessions');
-    expect(await migrate(db)).toEqual([8, 9, 10]);
+    expect(await migrate(db)).toEqual([8, 9, 10, 11]);
     expect((await db.query('SELECT * FROM global_permissions'))[0]).toEqual({ ...before, mfa_exempt: false });
     expect(await db.query('SELECT * FROM sessions')).toEqual(sessions);
     expect(await db.query('SELECT * FROM admin_audit')).toEqual([]);
@@ -76,8 +77,24 @@ it('atualiza a 0.3.4 com a migração 10 sem alterar migrações publicadas ou m
   await db.query("INSERT INTO messages (channel_id,author_id,content,client_id) VALUES ('old-channel','legacy','Confirmada antes do upgrade','client-original-034')");
   const messagesBefore = await db.query('SELECT * FROM messages');
   const before = await db.query('SELECT * FROM users');
-  expect(await migrate(db)).toEqual([10]);
+  expect(await migrate(db)).toEqual([10, 11]);
   expect(await db.query('SELECT * FROM users')).toEqual(before);
   expect(await db.query('SELECT * FROM messages')).toEqual(messagesBefore.map(message => ({ ...message, client_hash: null })));
+  expect(await migrate(db)).toEqual([]);
+}, 30_000);
+
+it('atualiza a 0.3.6 com a migração 11 (presentes de pacote) sem alterar os presentes já enviados', async () => {
+  await legacyDatabase();
+  for (const migration of MIGRATIONS.filter((entry) => entry.id > 6 && entry.id <= 10)) {
+    await db.exec(migration.sql);
+    await db.query('INSERT INTO schema_migrations (id,name) VALUES ($1,$2)', [migration.id, migration.name]);
+  }
+  await db.query("INSERT INTO users (id,username,username_key,display_name,password_hash) VALUES ('amigo','amigo','amigo','Amigo','hash')");
+  await db.query("INSERT INTO gifts (id,sender_id,recipient_id,item_id,kind,message,price,request_id) VALUES ('presente-antigo','legacy','amigo','anel-aurora','purchase','Antes da 0.3.7',150,'pedido-antigo')");
+  const [giftBefore] = await db.query('SELECT * FROM gifts');
+  const usersBefore = await db.query('SELECT * FROM users ORDER BY id');
+  expect(await migrate(db)).toEqual([11]);
+  expect((await db.query('SELECT * FROM gifts'))[0]).toEqual({ ...giftBefore, pack_id: null, items: [] });
+  expect(await db.query('SELECT * FROM users ORDER BY id')).toEqual(usersBefore);
   expect(await migrate(db)).toEqual([]);
 }, 30_000);

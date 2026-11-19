@@ -57,7 +57,7 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
   const who = async (c: Context): Promise<User> => timed('auth', async () => {
     const user = await accounts.authenticate(tokenOf(c));
     if (!user) throw new ApiError(401, 'sessao_invalida', 'Sua sessão terminou. Entre de novo.');
-    if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/buy-pack', '/api/shop/gifts'].includes(c.req.path))) {
+    if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/buy-pack', '/api/shop/gifts', '/api/shop/gift-pack'].includes(c.req.path))) {
       await economy.admin.requireMfa(user, tokenOf(c));
     }
     return user;
@@ -406,6 +406,13 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
       const user = await who(c);
       if (!limiter.take(`presentes:${user.id}`, 20, 10 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Aguarde antes de enviar mais presentes.');
       return c.json(await economy.commerce.gift(user, await body(c)));
+    });
+    app.get('/api/shop/packs/:packId/gift-quote', async (c) => c.json(await economy.commerce.packGiftQuote(await who(c), c.req.param('packId'), c.req.query('recipientId'))));
+    app.post('/api/shop/gift-pack', async (c) => {
+      const user = await who(c);
+      // Mesmo limite dos presentes de item: um pacote conta como um presente.
+      if (!limiter.take(`presentes:${user.id}`, 20, 10 * 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Aguarde antes de enviar mais presentes.');
+      return c.json(await economy.commerce.giftPack(user, await body(c)));
     });
     app.post('/api/me/gifts/:giftId/read', async (c) => {
       await economy.commerce.readGift(await who(c), id(c, 'giftId'));

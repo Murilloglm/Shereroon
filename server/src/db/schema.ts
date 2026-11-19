@@ -626,6 +626,15 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       ALTER TABLE dm_messages ADD COLUMN client_hash TEXT;
     `,
   },
+  {
+    id: 11,
+    name: 'presentes de pacote: o pacote e as peças entregues',
+    // Só acrescenta colunas: os presentes de item continuam iguais (pack_id nulo, items vazio).
+    sql: `
+      ALTER TABLE gifts ADD COLUMN pack_id TEXT;
+      ALTER TABLE gifts ADD COLUMN items JSONB NOT NULL DEFAULT '[]'::jsonb;
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

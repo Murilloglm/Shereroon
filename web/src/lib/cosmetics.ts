@@ -41,6 +41,16 @@ export interface Inventory {
 export interface Gift {
   id: string; senderId: string; senderName: string; recipientId: string; recipientName: string;
   itemId: string; kind: string; message: string; price: number; at: string; unread: boolean;
+  /** Presente de pacote: o pacote e as peças entregues (só as que o amigo ainda não tinha). */
+  packId?: string | null; items?: string[];
+}
+
+/** Quanto custa presentear um pacote a um amigo (só as peças que ele ainda não tem). */
+export interface PackGiftQuote {
+  packId: string;
+  missing: string[];
+  price: number;
+  active: boolean;
 }
 
 interface CosmeticsState {
@@ -185,6 +195,15 @@ class CosmeticsClient {
   async gift(input: { recipientId: string; itemId: string; message: string; kind: string; expectedPrice: number; requestId: string }): Promise<void> {
     await groups.call('POST', '/api/shop/gifts', { ...input, confirm: true });
     await Promise.all([this.loadGifts(), this.loadPoints(), this.loadInventory(), this.loadShop()]);
+  }
+
+  packGiftQuote(packId: string, recipientId: string): Promise<PackGiftQuote> {
+    return groups.call<PackGiftQuote>('GET', `/api/shop/packs/${encodeURIComponent(packId)}/gift-quote?recipientId=${encodeURIComponent(recipientId)}`);
+  }
+
+  async giftPack(input: { recipientId: string; packId: string; message: string; expectedPrice: number; requestId: string }): Promise<void> {
+    await groups.call('POST', '/api/shop/gift-pack', { ...input, confirm: true });
+    await Promise.all([this.loadGifts(), this.loadPoints()]);
   }
 
   async equip(slot: ItemKind, itemId: string | null, variant?: string): Promise<void> {

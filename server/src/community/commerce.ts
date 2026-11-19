@@ -12,6 +12,17 @@ export async function postPoints(tx: Db, userId: string, delta: number, reason: 
   await tx.query('INSERT INTO points_ledger (id, user_id, delta, reason, detail, ref, day) VALUES ($1,$2,$3,$4,$5,$6,$7)', [newId(14), userId, delta, reason, detail.slice(0, 120), ref, day]);
 }
 
+/** Divide o valor pago entre as peças, na proporção do preço de cada uma (a última fica com o resto do arredondamento). */
+function splitPrice(paid: number, items: readonly { price: number }[]): number[] {
+  const total = items.reduce((sum, item) => sum + item.price, 0);
+  let left = paid;
+  return items.map((item, index) => {
+    const share = index === items.length - 1 ? left : Math.round((paid * item.price) / Math.max(1, total));
+    left -= share;
+    return share;
+  });
+}
+
 export class Commerce {
   readonly db: Db;
   readonly #community: Community;
@@ -86,16 +97,86 @@ export class Commerce {
       if (expectedPrice !== undefined && expectedPrice !== price) throw new ApiError(409, 'preco_alterado', 'O preço mudou. Atualize a loja e confirme novamente.');
       const free = await unlimitedCosmetics(tx, user.id), acquisition = newId(18);
       await postPoints(tx, user.id, free ? 0 : -price, free ? 'compra_admin' : 'compra', `Pacote: ${pack.name}`, `pacote:${acquisition}`);
-      // O valor pago se divide entre as peças na proporção do preço de cada uma (a última fica com o resto).
-      const total = missing.reduce((sum, item) => sum + item.price, 0);
-      let left = free ? 0 : price;
+      const shares = splitPrice(free ? 0 : price, missing);
       for (const [index, item] of missing.entries()) {
-        const share = free ? 0 : index === missing.length - 1 ? left : Math.round((price * item.price) / Math.max(1, total));
-        left -= share;
-        await tx.query('INSERT INTO user_items (user_id, item_id, price, admin_grant, acquisition_id) VALUES ($1,$2,$3,$4,$5)', [user.id, item.id, share, free, acquisition]);
+        await tx.query('INSERT INTO user_items (user_id, item_id, price, admin_grant, acquisition_id) VALUES ($1,$2,$3,$4,$5)', [user.id, item.id, shares[index], free, acquisition]);
       }
       if (free) await adminAudit(tx, user.id, 'loja.compra_teste', pack.id, 'Aquisição cosmética de pacote sem débito', { price });
     });
+  }
+
+  /** Só entre amigos e sem bloqueio de nenhum dos lados (vale para presentes de item e de pacote). */
+  async #requireFriend(tx: Db, user: User, recipient: string): Promise<void> {
+    if (recipient === user.id) throw new ApiError(400, 'presente_invalido', 'Escolha um amigo para presentear.');
+    const pair = [user.id, recipient].sort();
+    const [friend] = await tx.query("SELECT 1 FROM friendships WHERE user_low = $1 AND user_high = $2 AND status = 'amigos' FOR SHARE", pair);
+    const [blocked] = await tx.query('SELECT 1 FROM user_blocks WHERE (user_id = $1 AND blocked_id = $2) OR (user_id = $2 AND blocked_id = $1)', [user.id, recipient]);
+    if (!friend || blocked) throw new ApiError(403, 'amigo_necessario', 'O destinatário precisa ser um amigo sem bloqueios.');
+  }
+
+  /** As peças de um pacote que `ownerId` ainda não tem, e o preço de levá-las juntas (com os preços atuais da loja). */
+  async #missingPieces(tx: Db, packId: unknown, ownerId: string) {
+    const pack = typeof packId === 'string' ? packById(packId) : undefined;
+    if (!pack) throw new ApiError(404, 'pacote_inexistente', 'Pacote não encontrado.');
+    const items = [];
+    for (const kind of SLOTS) items.push(await this.item(pack.items[kind], tx));
+    const owned = new Set((await tx.query('SELECT item_id FROM user_items WHERE user_id = $1', [ownerId])).map((row) => String(row.item_id)));
+    const missing = items.filter((item) => !owned.has(item.id));
+    return { pack, missing, price: packPrice(missing.map((item) => item.price)), active: items.every((item) => item.active) };
+  }
+
+  /** Quanto custa presentear este pacote a este amigo: só as peças que ele ainda não tem. */
+  async packGiftQuote(user: User, packId: unknown, recipientId: unknown) {
+    const recipient = String(recipientId ?? '');
+    return this.db.tx(async (tx) => {
+      await this.#requireFriend(tx, user, recipient);
+      const { pack, missing, price, active } = await this.#missingPieces(tx, packId, recipient);
+      return { packId: pack.id, missing: missing.map((item) => item.id), price, active };
+    });
+  }
+
+  /**
+   * Presenteia um pacote a um amigo: as peças que ele ainda não tem, pelo preço do pacote, num débito só e numa
+   * transação só. O pedido repetido com a mesma chave devolve o mesmo presente, sem cobrar de novo.
+   */
+  async giftPack(user: User, input: Record<string, unknown>) {
+    const key = requestId(input.requestId), recipient = String(input.recipientId ?? '');
+    if (recipient === user.id) throw new ApiError(400, 'presente_invalido', 'Escolha um amigo para presentear.');
+    if (input.confirm !== true) throw new ApiError(400, 'confirmacao_necessaria', 'Confirme o envio do presente.');
+    if (typeof input.packId !== 'string' || !packById(input.packId)) throw new ApiError(404, 'pacote_inexistente', 'Pacote não encontrado.');
+    const message = cleanText(input.message, 300, true);
+    const result = await this.db.tx(async (tx) => {
+      if (!(await this.enabled('gifts_enabled', tx))) throw new ApiError(409, 'presentes_pausados', 'Os presentes estão temporariamente pausados.');
+      await tx.query('SELECT id FROM users WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE', [[user.id, recipient]]);
+      const [prior] = await tx.query('SELECT * FROM gifts WHERE sender_id = $1 AND request_id = $2', [user.id, key]);
+      if (prior) {
+        if (prior.recipient_id !== recipient || prior.pack_id !== input.packId || prior.message !== message) throw new ApiError(409, 'pedido_reutilizado', 'Esta chave já foi usada em outro presente.');
+        return { id: String(prior.id), replay: true };
+      }
+      await this.#requireFriend(tx, user, recipient);
+      const { pack, missing, price, active } = await this.#missingPieces(tx, input.packId, recipient);
+      if (!active) throw new ApiError(409, 'item_indisponivel', 'Uma peça deste pacote está fora da loja.');
+      if (missing.length === 0) throw new ApiError(409, 'pacote_completo', 'Seu amigo já tem todas as peças deste pacote.');
+      if (input.expectedPrice !== price) throw new ApiError(409, 'preco_alterado', 'O preço mudou. Atualize e confirme o presente novamente.');
+      const id = newId(18);
+      // Presentes administrativos não debitam pontos e entregam itens de teste não transferíveis.
+      const free = await unlimitedCosmetics(tx, user.id);
+      await postPoints(tx, user.id, free ? 0 : -price, free ? 'presente_admin' : 'presente', `Presente: pacote ${pack.name}`, `presente:${id}`);
+      const shares = splitPrice(free ? 0 : price, missing);
+      for (const [index, item] of missing.entries()) {
+        await tx.query('INSERT INTO user_items (user_id, item_id, price, acquisition_id, admin_grant) VALUES ($1,$2,$3,$4,$5)', [recipient, item.id, shares[index], id, free]);
+      }
+      if (free) await adminAudit(tx, user.id, 'presente.administrativo', recipient, 'Presente de pacote cosmético de teste, sem débito e sem transferência', { packId: pack.id, items: missing.map((item) => item.id) });
+      await tx.query('INSERT INTO gifts (id, sender_id, recipient_id, item_id, kind, message, price, request_id, pack_id, items) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)', [
+        id, user.id, recipient, pack.id, 'purchase', message, free ? 0 : price, key, pack.id, JSON.stringify(missing.map((item) => item.id)),
+      ]);
+      return { id, replay: false };
+    });
+    if (!result.replay) {
+      this.#community.hub.toUser(recipient, { t: 'gift.received', giftId: result.id, senderName: user.displayName });
+      this.#community.hub.toUser(user.id, { t: 'inventory.changed' });
+    }
+    return result;
   }
 
   async createCode(user: User, input: Record<string, unknown>) {
@@ -183,10 +264,7 @@ export class Commerce {
         if (prior.recipient_id !== recipient || prior.item_id !== input.itemId || prior.kind !== kind || prior.message !== message) throw new ApiError(409, 'pedido_reutilizado', 'Esta chave já foi usada em outro presente.');
         return { id: String(prior.id), replay: true };
       }
-      const pair = [user.id, recipient].sort();
-      const [friend] = await tx.query("SELECT 1 FROM friendships WHERE user_low = $1 AND user_high = $2 AND status = 'amigos' FOR SHARE", pair);
-      const [blocked] = await tx.query('SELECT 1 FROM user_blocks WHERE (user_id = $1 AND blocked_id = $2) OR (user_id = $2 AND blocked_id = $1)', [user.id, recipient]);
-      if (!friend || blocked) throw new ApiError(403, 'amigo_necessario', 'O destinatário precisa ser um amigo sem bloqueios.');
+      await this.#requireFriend(tx, user, recipient);
       const item = await this.item(input.itemId, tx);
       if (kind === 'purchase' && !item.active) throw new ApiError(409, 'item_indisponivel', 'Item indisponível na loja.');
       if (kind === 'purchase' && input.expectedPrice !== item.price) throw new ApiError(409, 'preco_alterado', 'Atualize o preço e confirme o presente novamente.');
@@ -217,7 +295,7 @@ export class Commerce {
   }
   async gifts(user: User, offset = 0) {
     const rows = await this.db.query('SELECT g.*, s.username AS sender_name, r.username AS recipient_name FROM gifts g JOIN users s ON s.id = g.sender_id JOIN users r ON r.id = g.recipient_id WHERE g.sender_id = $1 OR g.recipient_id = $1 ORDER BY g.created_at DESC, g.id DESC LIMIT 100 OFFSET $2', [user.id, offset]);
-    return rows.map((row) => ({ id: String(row.id), senderId: String(row.sender_id), senderName: String(row.sender_name), recipientId: String(row.recipient_id), recipientName: String(row.recipient_name), itemId: String(row.item_id), kind: String(row.kind), message: String(row.message), price: Number(row.price), at: iso(row.created_at), unread: row.recipient_id === user.id && row.read_at == null }));
+    return rows.map((row) => ({ id: String(row.id), senderId: String(row.sender_id), senderName: String(row.sender_name), recipientId: String(row.recipient_id), recipientName: String(row.recipient_name), itemId: String(row.item_id), packId: row.pack_id == null ? null : String(row.pack_id), items: Array.isArray(row.items) ? row.items.map(String) : typeof row.items === 'string' ? (JSON.parse(row.items) as unknown[]).map(String) : [], kind: String(row.kind), message: String(row.message), price: Number(row.price), at: iso(row.created_at), unread: row.recipient_id === user.id && row.read_at == null }));
   }
   async readGift(user: User, id: string): Promise<void> {
     await this.db.query('UPDATE gifts SET read_at = coalesce(read_at, now()) WHERE id = $1 AND recipient_id = $2', [id, user.id]);

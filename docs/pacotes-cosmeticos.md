@@ -162,10 +162,42 @@ Cada cartão de pacote na loja mostra um **perfil de prévia** (`ProfilePreview`
 
 A loja, o inventário, as prévias e o enfeite no nome não precisam mudar.
 
+## Presentear um pacote
+
+Na loja, cada pacote tem **"Presentear pacote"**. O fluxo:
+
+1. A pessoa escolhe um amigo.
+2. O aplicativo pede ao servidor uma cotação (`GET /api/shop/packs/:packId/gift-quote?recipientId=`). Ela traz só as peças que **o amigo ainda não tem** e o preço delas juntas, com o mesmo desconto do pacote (25% com duas ou mais). As peças que ele já tem aparecem como "Ele já tem" e não são cobradas.
+3. A janela mostra o que ele vai receber e o preço, e aceita uma mensagem opcional.
+4. Antes de enviar, pede confirmação. O envio é `POST /api/shop/gift-pack` com `{ packId, recipientId, message, expectedPrice, requestId, confirm: true }`.
+
+**Regras** (as mesmas dos presentes de item):
+
+- só entre amigos e sem bloqueio de nenhum dos lados (a cotação também);
+- confirmação obrigatória;
+- se o preço mudou, pede nova confirmação (`preco_alterado`);
+- presentes pausados pela administração bloqueiam o envio;
+- o mesmo limite de 20 presentes a cada 10 minutos (um pacote conta como um presente);
+- MFA para Cosmic Admin;
+- presentes administrativos (cosméticos ilimitados) não debitam e entregam itens de teste não transferíveis, com auditoria.
+
+**Na transação:** um débito só, com o detalhe "Presente: pacote Nome". As peças entram no inventário do amigo com o valor dividido entre elas, e o presente é **uma linha** no histórico. O mesmo `requestId` repetido devolve o mesmo presente sem cobrar de novo. Se o amigo já tem tudo, a recusa é `pacote_completo`, sem cobrança.
+
+**Histórico.** Em Presentes, aparece "Pacote Nome" com as peças entregues e a mensagem. O amigo recebe o aviso de presente na hora.
+
+**Banco (migração 11).** `gifts` ganha `pack_id` (nulo nos presentes de item) e `items` (JSONB com as peças entregues; vazio nos presentes de item). Só acrescenta colunas: os presentes existentes não mudam. Nos presentes de pacote, `item_id` guarda o id do pacote.
+
+**Arquivos:**
+
+- `server/src/db/schema.ts`: a migração 11.
+- `server/src/community/commerce.ts`: `packGiftQuote()` e `giftPack()`. A checagem de amizade (`#requireFriend`) e a divisão do valor entre as peças (`splitPrice`) agora são as mesmas da compra e dos presentes de item.
+- `server/src/community/routes.ts`: as duas rotas.
+- `web/src/lib/cosmetics.ts`: `packGiftQuote()` e `giftPack()`.
+- `web/src/components/settings/GiftsSettings.tsx`: `PackGiftDialog` e o histórico com pacotes.
+- `web/src/components/settings/PersonalizationSettings.tsx`: o botão no cartão do pacote.
+- Testes: `server/test/gift-packs.test.ts` e `e2e/presente-pacote.test.mjs`.
+
 **Extensões futuras.** Já suportados sem mudar o modelo:
 
 - variações de cor por peça (`variants`);
-- pacotes por tempo limitado (desativando as peças em `shop_settings`);
-- presentear peças de pacote (os presentes funcionam por item).
-
-Presentear o pacote inteiro precisaria de uma rota própria.
+- pacotes por tempo limitado (desativando as peças em `shop_settings`).
