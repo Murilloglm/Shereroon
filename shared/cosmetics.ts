@@ -7,7 +7,7 @@
  * dinheiro real, sem apostas e sem conversão em valores.
  */
 
-export type ItemKind = 'decoracao' | 'moldura' | 'fundo' | 'cor-nome';
+export type ItemKind = 'decoracao' | 'moldura' | 'fundo' | 'cor-nome' | 'enfeite';
 export type Rarity = 'comum' | 'rara' | 'epica' | 'lendaria';
 
 export interface CosmeticVariant {
@@ -29,6 +29,8 @@ export interface CosmeticItem {
   /** Reage quando a pessoa fala. */
   reactsToVoice: boolean;
   variants: CosmeticVariant[];
+  /** Pacote a que o item pertence (os desenhos e a paleta vêm do pacote). */
+  pack?: string;
 }
 
 export const KIND_NAMES: Record<ItemKind, string> = {
@@ -36,6 +38,7 @@ export const KIND_NAMES: Record<ItemKind, string> = {
   moldura: 'Moldura',
   fundo: 'Fundo de perfil',
   'cor-nome': 'Cor do nome',
+  enfeite: 'Enfeite no nome do servidor',
 };
 
 export const RARITY: Record<Rarity, { name: string; color: string }> = {
@@ -68,9 +71,262 @@ export const CATALOG: CosmeticItem[] = [
   { id: 'nome-aurora', kind: 'cor-nome', name: 'Nome Aurora', description: 'Seu nome em gradiente nas mensagens e na lista de membros.', price: 250, rarity: 'rara', animated: false, reactsToVoice: false, variants: [NEON, ROSA, OURO] },
 ];
 
-export const SLOTS: ItemKind[] = ['decoracao', 'moldura', 'fundo', 'cor-nome'];
+export const SLOTS: ItemKind[] = ['decoracao', 'moldura', 'fundo', 'cor-nome', 'enfeite'];
+
+// --- Pacotes -----------------------------------------------------------------------------------------
+//
+// Um pacote é uma coleção de 5 itens comuns do catálogo, um por categoria, com o mesmo tema. Cada item é comprado,
+// presenteado e equipado sozinho como qualquer outro; o pacote só agrupa (prévia conjunta, compra de tudo com
+// desconto, "usar o pacote completo"). Assim dá para usar o pacote inteiro ou misturar peças de vários.
+//
+// Os desenhos ficam em web/src/components/cosmetics/packs.tsx (um por pacote e categoria) e são originais do
+// Cosmic Night: temas como "dragão da noite" ou "gato elétrico", sem personagens, logotipos ou artes de terceiros.
+
+export interface PackPalette {
+  /** Fundo escuro (ou claro, nos pacotes claros) do tema. */
+  base: string;
+  /** Brilho principal. */
+  glow: string;
+  /** Cor de destaque. */
+  accent: string;
+  /** Tom de contorno e sombra. */
+  ink: string;
+}
+
+export interface CosmeticPack {
+  id: string;
+  name: string;
+  description: string;
+  rarity: Rarity;
+  palette: PackPalette;
+  /** Regras visuais do tema: o que toda peça nova do pacote deve seguir. */
+  rules: string[];
+  /** O item de cada categoria. */
+  items: Record<ItemKind, string>;
+}
+
+/** Desconto ao levar de uma vez dois ou mais itens que faltam de um pacote. */
+export const PACK_DISCOUNT = 0.25;
+
+/** Preço de cada categoria, conforme a raridade do pacote. */
+const PACK_PRICES: Record<Rarity, Record<ItemKind, number>> = {
+  comum: { decoracao: 250, moldura: 120, fundo: 150, 'cor-nome': 120, enfeite: 150 },
+  rara: { decoracao: 400, moldura: 200, fundo: 250, 'cor-nome': 200, enfeite: 250 },
+  epica: { decoracao: 600, moldura: 300, fundo: 350, 'cor-nome': 300, enfeite: 350 },
+  lendaria: { decoracao: 900, moldura: 400, fundo: 450, 'cor-nome': 400, enfeite: 450 },
+};
+
+/** Itens animados em cada categoria (o fundo e a cor do nome são parados, para não pesar). */
+const PACK_ANIMATED: Record<ItemKind, boolean> = { decoracao: true, moldura: false, fundo: false, 'cor-nome': false, enfeite: true };
+
+interface PackSpec extends Omit<CosmeticPack, 'items'> {
+  pieces: Record<ItemKind, { name: string; description: string }>;
+}
+
+const PACK_SPECS: PackSpec[] = [
+  {
+    id: 'asa-meia-noite',
+    name: 'Asa da Meia-Noite',
+    description: 'Um dragão de escamas escuras que voa sob a lua, com brilho roxo-azulado.',
+    rarity: 'lendaria',
+    palette: { base: '#0b0820', glow: '#8b5cff', accent: '#4cc3ff', ink: '#1d1446' },
+    rules: ['Escuro como base; o brilho roxo-azulado fica só nas bordas e nos olhos.', 'Asas membranosas, escamas e garras; nenhum rosto de personagem conhecido.', 'Lua cheia e estrelas como única luz do fundo.'],
+    pieces: {
+      decoracao: { name: 'Dragão da Meia-Noite', description: 'Um dragão envolve o avatar e bate as asas devagar.' },
+      moldura: { name: 'Escamas Noturnas', description: 'Contorno de escamas com reflexos roxos e azuis.' },
+      fundo: { name: 'Lua sobre as Nuvens', description: 'Lua cheia, nuvens noturnas e estrelas.' },
+      'cor-nome': { name: 'Brilho Noturno', description: 'Nome em roxo que termina em azul elétrico.' },
+      enfeite: { name: 'Asinhas da Meia-Noite', description: 'Um par de asas pequenas ao lado do nick.' },
+    },
+  },
+  {
+    id: 'asa-aurora',
+    name: 'Asa da Aurora',
+    description: 'Um dragão de luz, branco e azul suave, com brilho delicado de aurora.',
+    rarity: 'lendaria',
+    palette: { base: '#e9f1ff', glow: '#8fd3ff', accent: '#ffffff', ink: '#6f7fc8' },
+    rules: ['Claro como base: branco, azul bebê e lilás bem suaves.', 'Penas, nuvens e estrelas de quatro pontas; brilho delicado, nunca neon forte.', 'Contornos finos em azul-lavanda para não sumir em temas claros.'],
+    pieces: {
+      decoracao: { name: 'Dragão da Aurora', description: 'Um dragão de luz dá a volta no avatar entre penas e brilhos.' },
+      moldura: { name: 'Penas de Luz', description: 'Contorno branco perolado com reflexo azul.' },
+      fundo: { name: 'Céu de Aurora', description: 'Faixas de aurora suave sobre nuvens claras.' },
+      'cor-nome': { name: 'Luz Suave', description: 'Nome em azul claro e lavanda.' },
+      enfeite: { name: 'Estrela da Aurora', description: 'Uma estrela de quatro pontas que cintila ao lado do nick.' },
+    },
+  },
+  {
+    id: 'gato-trovao',
+    name: 'Gato Trovão',
+    description: 'Um gato rabugento e elétrico: amarelo, laranja, raios e muito humor.',
+    rarity: 'epica',
+    palette: { base: '#1a1203', glow: '#ffd23f', accent: '#ff8a1f', ink: '#5a3606' },
+    rules: ['Amarelo e laranja com raios curtos; fundo quase preto.', 'Orelhas, patinhas e rabo listrado; expressão de tédio cômico.', 'Os raios piscam rápido, mas nunca cobrem o avatar.'],
+    pieces: {
+      decoracao: { name: 'Gato Elétrico', description: 'Orelhas de gato, rabo listrado e raios estalando em volta do avatar.' },
+      moldura: { name: 'Faísca de Gato', description: 'Contorno amarelo e laranja com uma patinha.' },
+      fundo: { name: 'Cochilo Elétrico', description: 'Raios cruzando um céu escuro com patinhas.' },
+      'cor-nome': { name: 'Nome Faísca', description: 'Nome em amarelo elétrico e laranja.' },
+      enfeite: { name: 'Gato Rabugento', description: 'Uma carinha de gato entediado soltando faíscas.' },
+    },
+  },
+  {
+    id: 'slime-celeste',
+    name: 'Slime Celeste',
+    description: 'Um slime azul brincalhão, cheio de magia e com uma aura suave.',
+    rarity: 'epica',
+    palette: { base: '#061a33', glow: '#4fc3ff', accent: '#b6f3ff', ink: '#0d3b6e' },
+    rules: ['Azuis translúcidos, como gelatina; brilhos redondos.', 'Gotas, bolhas e runas simples; formas sempre arredondadas.', 'Aura que pulsa devagar, sem flashes.'],
+    pieces: {
+      decoracao: { name: 'Aura de Slime', description: 'Gotas e bolhas mágicas flutuam numa aura azul em volta do avatar.' },
+      moldura: { name: 'Gotas Mágicas', description: 'Contorno azul translúcido com gotinhas.' },
+      fundo: { name: 'Lago Arcano', description: 'Um lago azul com bolhas e runas.' },
+      'cor-nome': { name: 'Azul Gelatina', description: 'Nome em azul celeste translúcido.' },
+      enfeite: { name: 'Slimezinho', description: 'Um slime pequeno e sorridente que balança ao lado do nick.' },
+    },
+  },
+  {
+    id: 'nevoa-eterea',
+    name: 'Névoa Etérea',
+    description: 'Roxo espiritual: névoa, borboletas de luz e energia sombria.',
+    rarity: 'epica',
+    palette: { base: '#160a26', glow: '#c06bff', accent: '#ff7ad9', ink: '#3a1660' },
+    rules: ['Roxo e magenta sobre fundo quase preto.', 'Borboletas de luz e névoa que sobe; nada de símbolos de terceiros.', 'Movimento lento e flutuante.'],
+    pieces: {
+      decoracao: { name: 'Borboletas Espirituais', description: 'Borboletas de luz voam em volta do avatar, entre a névoa.' },
+      moldura: { name: 'Véu Etéreo', description: 'Contorno roxo que se desfaz em névoa rosa.' },
+      fundo: { name: 'Jardim Espiritual', description: 'Névoa roxa com borboletas de luz.' },
+      'cor-nome': { name: 'Rosa Etéreo', description: 'Nome em roxo e rosa espiritual.' },
+      enfeite: { name: 'Borboleta Etérea', description: 'Uma borboleta de luz que bate as asas ao lado do nick.' },
+    },
+  },
+  {
+    id: 'corrente-veloz',
+    name: 'Corrente Veloz',
+    description: 'Velocidade e eletricidade azul, com faíscas amarelas de energia.',
+    rarity: 'rara',
+    palette: { base: '#050b1f', glow: '#2f7bff', accent: '#ffe14d', ink: '#0c2a6b' },
+    rules: ['Azul elétrico com toques de amarelo.', 'Raios em zigue-zague e linhas de velocidade inclinadas.', 'Movimento rápido em giro; sem personagens.'],
+    pieces: {
+      decoracao: { name: 'Anel de Corrente', description: 'Um anel de energia gira rápido, soltando raios.' },
+      moldura: { name: 'Circuito Veloz', description: 'Contorno azul com trilhas de circuito amarelas.' },
+      fundo: { name: 'Pista Elétrica', description: 'Linhas de velocidade e raios sobre azul escuro.' },
+      'cor-nome': { name: 'Azul Voltagem', description: 'Nome em azul elétrico que acende em amarelo.' },
+      enfeite: { name: 'Raio Veloz', description: 'Um raio pequeno que pisca ao lado do nick.' },
+    },
+  },
+  {
+    id: 'veu-sombras',
+    name: 'Véu das Sombras',
+    description: 'Sombra, névoa e azul escuro: um manto que some e reaparece.',
+    rarity: 'epica',
+    palette: { base: '#070816', glow: '#4b4bd6', accent: '#8a7dff', ink: '#14163a' },
+    rules: ['Azul-marinho e índigo; quase sem cor viva.', 'Fumaça, capuzes vazios e portais; os olhos são o único brilho.', 'Aparece e some em fade, sem piscar.'],
+    pieces: {
+      decoracao: { name: 'Fumaça das Sombras', description: 'Fumaça escura gira em volta do avatar e se desfaz.' },
+      moldura: { name: 'Contorno Sombrio', description: 'Contorno índigo que escurece nas bordas.' },
+      fundo: { name: 'Abismo', description: 'Um portal de sombra no meio da névoa.' },
+      'cor-nome': { name: 'Sombra Azul', description: 'Nome em azul profundo e índigo.' },
+      enfeite: { name: 'Capuz Sombrio', description: 'Um capuz vazio com olhos que brilham ao lado do nick.' },
+    },
+  },
+  {
+    id: 'lamina-vento',
+    name: 'Lâmina do Vento',
+    description: 'Vento e leveza, em branco e azul: rajadas e lâminas de ar.',
+    rarity: 'rara',
+    palette: { base: '#0a1626', glow: '#9fe6ff', accent: '#ffffff', ink: '#2a6f9e' },
+    rules: ['Branco e azul-gelo, com muito espaço vazio.', 'Redemoinhos, rajadas e lâminas curvas; traços finos.', 'Movimento leve, como brisa.'],
+    pieces: {
+      decoracao: { name: 'Redemoinho', description: 'Rajadas de vento circulam o avatar.' },
+      moldura: { name: 'Corte de Vento', description: 'Contorno branco e azul com cortes de ar.' },
+      fundo: { name: 'Céu Aberto', description: 'Céu azul com nuvens e rajadas.' },
+      'cor-nome': { name: 'Brisa Gelada', description: 'Nome em branco e azul-gelo.' },
+      enfeite: { name: 'Rajada', description: 'Um redemoinho de vento ao lado do nick.' },
+    },
+  },
+  {
+    id: 'explosao-urbana',
+    name: 'Explosão Urbana',
+    description: 'Explosões, laranja e energia, com cara de arte de rua.',
+    rarity: 'rara',
+    palette: { base: '#1a0a04', glow: '#ff7a1a', accent: '#ffd23a', ink: '#4a1a08' },
+    rules: ['Laranja e amarelo sobre fundo de tijolo escuro.', 'Estouros de quadrinho, respingos de tinta e onomatopeias originais.', 'Pulsa como explosão, sem flash branco.'],
+    pieces: {
+      decoracao: { name: 'Anel Explosivo', description: 'Estouros e respingos de tinta em volta do avatar.' },
+      moldura: { name: 'Grafite', description: 'Contorno laranja com respingos de tinta.' },
+      fundo: { name: 'Muro Grafitado', description: 'Um muro com um estouro de quadrinho: BUM!' },
+      'cor-nome': { name: 'Laranja Pólvora', description: 'Nome em laranja e amarelo.' },
+      enfeite: { name: 'Estouro', description: 'Uma estrela de explosão ao lado do nick.' },
+    },
+  },
+  {
+    id: 'mira-tatica',
+    name: 'Mira Tática',
+    description: 'Tático, moderno e tecnológico: retículas, radar e divisas.',
+    rarity: 'rara',
+    palette: { base: '#0d0f0a', glow: '#ffd84d', accent: '#c9d1d9', ink: '#2b2f24' },
+    rules: ['Amarelo tático e cinza metálico sobre fundo grafite.', 'Retículas, grades, colchetes e divisas; linhas retas.', 'Varredura lenta de radar.'],
+    pieces: {
+      decoracao: { name: 'Retícula Tática', description: 'Uma retícula com colchetes que gira devagar em volta do avatar.' },
+      moldura: { name: 'Moldura Tática', description: 'Contorno metálico com marcas amarelas.' },
+      fundo: { name: 'Radar', description: 'Grade tática com um radar no centro.' },
+      'cor-nome': { name: 'Ouro Tático', description: 'Nome em amarelo tático e prata.' },
+      enfeite: { name: 'Divisa', description: 'Uma divisa dupla ao lado do nick.' },
+    },
+  },
+  {
+    id: 'impacto-rubro',
+    name: 'Impacto Rubro',
+    description: 'Velocidade, combate e impacto visual, em vermelho e rosa.',
+    rarity: 'epica',
+    palette: { base: '#14060c', glow: '#ff3d6e', accent: '#ff9bb5', ink: '#3c0b1d' },
+    rules: ['Vermelho-rubi e rosa sobre fundo quase preto.', 'Setas, marcas de velocidade e ondas de impacto.', 'Avança em pulsos curtos.'],
+    pieces: {
+      decoracao: { name: 'Anel de Impacto', description: 'Ondas de impacto e setas de avanço em volta do avatar.' },
+      moldura: { name: 'Marcas de Velocidade', description: 'Contorno rubro com marcas de velocidade.' },
+      fundo: { name: 'Cidade em Alta Velocidade', description: 'Prédios borrados e linhas de velocidade vermelhas.' },
+      'cor-nome': { name: 'Rubro Veloz', description: 'Nome em vermelho-rubi e rosa.' },
+      enfeite: { name: 'Avanço', description: 'Setas de avanço ao lado do nick.' },
+    },
+  },
+];
+
+const PACK_ITEM_ID: Record<ItemKind, string> = { decoracao: 'deco', moldura: 'moldura', fundo: 'fundo', 'cor-nome': 'nome', enfeite: 'enfeite' };
+
+export const PACKS: CosmeticPack[] = PACK_SPECS.map(({ pieces, ...pack }) => ({
+  ...pack,
+  items: Object.fromEntries(SLOTS.map((kind) => [kind, `${pack.id}-${PACK_ITEM_ID[kind]}`])) as Record<ItemKind, string>,
+}));
+
+for (const spec of PACK_SPECS) {
+  for (const kind of SLOTS) {
+    const piece = spec.pieces[kind];
+    CATALOG.push({
+      id: `${spec.id}-${PACK_ITEM_ID[kind]}`,
+      kind,
+      name: piece.name,
+      description: piece.description,
+      price: PACK_PRICES[spec.rarity][kind],
+      rarity: spec.rarity,
+      animated: PACK_ANIMATED[kind],
+      reactsToVoice: kind === 'decoracao',
+      variants: [{ id: 'original', name: spec.name, colors: [spec.palette.glow, spec.palette.accent] }],
+      pack: spec.id,
+    });
+  }
+}
 
 export const itemById = (id: string): CosmeticItem | undefined => CATALOG.find((item) => item.id === id);
+export const packById = (id: string): CosmeticPack | undefined => PACKS.find((pack) => pack.id === id);
+
+/**
+ * Preço de levar de uma vez os itens que faltam de um pacote (preços de cada um). Com dois ou mais, há o desconto
+ * do pacote, arredondado para múltiplos de 5; um só sai pelo preço normal.
+ */
+export function packPrice(prices: readonly number[]): number {
+  const sum = prices.reduce((total, price) => total + price, 0);
+  return prices.length >= 2 ? Math.round((sum * (1 - PACK_DISCOUNT)) / 5) * 5 : sum;
+}
 
 /** Item equipado: id do item e da variação de cor. */
 export interface Equipped {

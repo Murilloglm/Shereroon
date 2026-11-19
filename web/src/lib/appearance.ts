@@ -6,20 +6,24 @@ import { Store } from './store.ts';
 import { applyTheme, isThemeId, type ThemeId } from './themes.ts';
 
 export type MotionChoice = 'sistema' | 'reduzir' | 'normal';
+/** Enfeites no nome (cosméticos de outras pessoas): animados onde cabe, sempre parados, ou escondidos. */
+export type AdornmentChoice = 'animados' | 'parados' | 'ocultos';
 
 export interface AppearancePrefs {
   theme: ThemeId;
   motion: MotionChoice;
+  adornments: AdornmentChoice;
 }
 
 const KEY = 'cosmic:aparencia';
-const DEFAULTS: AppearancePrefs = { theme: 'cosmic', motion: 'sistema' };
+const DEFAULTS: AppearancePrefs = { theme: 'cosmic', motion: 'sistema', adornments: 'animados' };
 
 function load(): AppearancePrefs {
   const saved = storage.get<Partial<AppearancePrefs>>(KEY, {}) ?? {};
   return {
     theme: isThemeId(saved.theme) ? saved.theme : DEFAULTS.theme,
     motion: ['sistema', 'reduzir', 'normal'].includes(String(saved.motion)) ? (saved.motion as MotionChoice) : DEFAULTS.motion,
+    adornments: ['animados', 'parados', 'ocultos'].includes(String(saved.adornments)) ? (saved.adornments as AdornmentChoice) : DEFAULTS.adornments,
   };
 }
 

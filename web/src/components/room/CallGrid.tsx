@@ -4,7 +4,7 @@ import { hueFor } from '../../lib/format.ts';
 import { bestGrid } from '../../lib/grid.ts';
 import type { ParticipantView, RoomSession, StreamView } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
-import { DecoratedAvatar } from '../cosmetics/Decoration.tsx';
+import { DecoratedAvatar, NameAdornment } from '../cosmetics/Decoration.tsx';
 import { cx } from '../ui.tsx';
 
 /** Foto e nome de quem está na chamada (nos grupos vêm do perfil; nas salas por link, não existem). */
@@ -52,6 +52,7 @@ function CallCard({
         <span className="truncate" data-testid="call-card-name">
           {person.isLocal ? `${person.name} (você)` : person.name}
         </span>
+        {person.accountId && <NameAdornment userId={person.accountId} animate={!compact} />}
       </div>
 
       {person.sharing && (

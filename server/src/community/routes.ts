@@ -57,7 +57,7 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
   const who = async (c: Context): Promise<User> => timed('auth', async () => {
     const user = await accounts.authenticate(tokenOf(c));
     if (!user) throw new ApiError(401, 'sessao_invalida', 'Sua sessão terminou. Entre de novo.');
-    if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/gifts'].includes(c.req.path))) {
+    if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/buy-pack', '/api/shop/gifts'].includes(c.req.path))) {
       await economy.admin.requireMfa(user, tokenOf(c));
     }
     return user;
@@ -411,7 +411,17 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
       await economy.commerce.readGift(await who(c), id(c, 'giftId'));
       return c.json({ ok: true });
     });
-    app.get('/api/shop', async (c) => c.json({ items: await economy.shop(await who(c)) }));
+    app.get('/api/shop', async (c) => {
+      const user = await who(c);
+      return c.json({ items: await economy.shop(user), packs: await economy.packs(user) });
+    });
+    app.post('/api/shop/buy-pack', async (c) => {
+      const user = await who(c);
+      if (!limiter.take(`compra:${user.id}`, 20, 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Compras demais. Espere um pouco.');
+      const input = await body(c);
+      return c.json(await economy.buyPack(user, input.packId, input.expectedPrice));
+    });
+    app.put('/api/me/equipped/pack', async (c) => c.json(await economy.equipPack(await who(c), (await body(c)).packId)));
     app.post('/api/shop/buy', async (c) => {
       const user = await who(c);
       if (!limiter.take(`compra:${user.id}`, 20, 60_000)) throw new ApiError(429, 'muitas_tentativas', 'Compras demais. Espere um pouco.');

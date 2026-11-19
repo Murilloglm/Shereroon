@@ -1,4 +1,4 @@
-import { CATALOG, itemById } from '../../../shared/cosmetics.ts';
+import { CATALOG, itemById, packById, packPrice, PACKS, SLOTS } from '../../../shared/cosmetics.ts';
 import { iso, isoOrNull, type Db } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
 import { cleanText, newId, type User } from './auth.ts';
@@ -46,6 +46,55 @@ export class Commerce {
       await postPoints(tx, user.id, free ? 0 : -item.price, free ? 'compra_admin' : 'compra', item.name, `compra:${acquisition}`);
       await tx.query('INSERT INTO user_items (user_id, item_id, price, admin_grant, acquisition_id) VALUES ($1,$2,$3,$4,$5)', [user.id, item.id, free ? 0 : item.price, free, acquisition]);
       if (free) await adminAudit(tx, user.id, 'loja.compra_teste', item.id, 'Aquisição cosmética sem débito', { price: item.price });
+    });
+  }
+
+  /**
+   * Situação de cada pacote para a conta: o que ela já tem, o que falta e quanto custa levar o que falta de uma vez
+   * (com os preços atuais da loja e o desconto do pacote). Um pacote só está à venda se todos os itens estiverem.
+   */
+  async packs(userId: string, db = this.db) {
+    const owned = new Set((await db.query('SELECT item_id FROM user_items WHERE user_id = $1', [userId])).map((row) => String(row.item_id)));
+    const catalog = await this.catalog(db);
+    return PACKS.map((pack) => {
+      const items = SLOTS.map((kind) => catalog.find((item) => item.id === pack.items[kind])!);
+      const missing = items.filter((item) => !owned.has(item.id));
+      return {
+        id: pack.id,
+        owned: items.filter((item) => owned.has(item.id)).map((item) => item.id),
+        missing: missing.map((item) => item.id),
+        price: packPrice(missing.map((item) => item.price)),
+        fullPrice: items.reduce((total, item) => total + item.price, 0),
+        active: items.every((item) => item.active),
+      };
+    });
+  }
+
+  /** Leva de uma vez o que falta de um pacote: um débito só (com desconto) e todos os itens na mesma transação. */
+  async purchasePack(user: User, packId: unknown, expectedPrice?: unknown): Promise<void> {
+    const pack = typeof packId === 'string' ? packById(packId) : undefined;
+    if (!pack) throw new ApiError(404, 'pacote_inexistente', 'Pacote não encontrado.');
+    await this.db.tx(async (tx) => {
+      await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
+      const items = [];
+      for (const kind of SLOTS) items.push(await this.item(pack.items[kind], tx));
+      if (items.some((item) => !item.active)) throw new ApiError(409, 'item_indisponivel', 'Uma peça deste pacote está fora da loja.');
+      const owned = new Set((await tx.query('SELECT item_id FROM user_items WHERE user_id = $1', [user.id])).map((row) => String(row.item_id)));
+      const missing = items.filter((item) => !owned.has(item.id));
+      if (missing.length === 0) throw new ApiError(409, 'pacote_completo', 'Você já tem todas as peças deste pacote.');
+      const price = packPrice(missing.map((item) => item.price));
+      if (expectedPrice !== undefined && expectedPrice !== price) throw new ApiError(409, 'preco_alterado', 'O preço mudou. Atualize a loja e confirme novamente.');
+      const free = await unlimitedCosmetics(tx, user.id), acquisition = newId(18);
+      await postPoints(tx, user.id, free ? 0 : -price, free ? 'compra_admin' : 'compra', `Pacote: ${pack.name}`, `pacote:${acquisition}`);
+      // O valor pago se divide entre as peças na proporção do preço de cada uma (a última fica com o resto).
+      const total = missing.reduce((sum, item) => sum + item.price, 0);
+      let left = free ? 0 : price;
+      for (const [index, item] of missing.entries()) {
+        const share = free ? 0 : index === missing.length - 1 ? left : Math.round((price * item.price) / Math.max(1, total));
+        left -= share;
+        await tx.query('INSERT INTO user_items (user_id, item_id, price, admin_grant, acquisition_id) VALUES ($1,$2,$3,$4,$5)', [user.id, item.id, share, free, acquisition]);
+      }
+      if (free) await adminAudit(tx, user.id, 'loja.compra_teste', pack.id, 'Aquisição cosmética de pacote sem débito', { price });
     });
   }
 

@@ -1,9 +1,17 @@
 import { useEffect, useId } from 'react';
-import { itemById, type Equipped } from '../../../../shared/cosmetics.ts';
-import { reducedMotion } from '../../lib/appearance.ts';
+import { itemById, packById, type CosmeticItem, type Equipped, type PackPalette } from '../../../../shared/cosmetics.ts';
+import { appearance, reducedMotion } from '../../lib/appearance.ts';
 import { cosmetics, type UserCosmetics } from '../../lib/cosmetics.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, cx } from '../ui.tsx';
+import { PACK_ART, type PackArt } from './packs.tsx';
+
+/** Desenho e paleta do pacote do item (null para itens avulsos). */
+function packOf(item: CosmeticItem | undefined): { art: PackArt; palette: PackPalette } | null {
+  const pack = item?.pack ? packById(item.pack) : undefined;
+  const art = pack ? PACK_ART[pack.id] : undefined;
+  return pack && art ? { art, palette: pack.palette } : null;
+}
 
 /** Tamanho da arte em relação ao avatar: a decoração ocupa o anel em volta dele. */
 const SCALE = 1.36;
@@ -165,6 +173,7 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
   if (!item || item.kind !== 'decoracao') return null;
   const variant = item.variants.find((option) => option.id === equipped.variant) ?? item.variants[0]!;
   const [a, b] = variant.colors;
+  const pack = packOf(item);
   const box = size * SCALE;
   const live = animate && !reducedMotion();
   return (
@@ -182,7 +191,7 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
           <stop offset="1" stopColor={b} />
         </linearGradient>
       </defs>
-      {drawing(item.id, a, b, gradient)}
+      {pack ? pack.art.decoration(pack.palette, gradient) : drawing(item.id, a, b, gradient)}
       {entrance && live && <circle className="cn-anim-burst" r="40" fill="none" stroke={a} strokeWidth="2" />}
     </svg>
   );
@@ -193,15 +202,51 @@ function Frame({ equipped, size }: { equipped: Equipped; size: number }) {
   const item = itemById(equipped.item);
   if (!item || item.kind !== 'moldura') return null;
   const [a, b] = (item.variants.find((option) => option.id === equipped.variant) ?? item.variants[0]!).colors;
-  const ring = Math.max(2, Math.round(size / 18));
+  const pack = packOf(item);
+  const ring = Math.max(2, Math.round(size / (pack ? 14 : 18)));
   return (
     <span
       aria-hidden="true"
       className="pointer-events-none absolute rounded-full"
-      style={{ inset: -ring, padding: ring, background: `linear-gradient(135deg, ${a}, ${b})`, WebkitMask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)', mask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)' }}
+      style={{ inset: -ring, padding: ring, background: pack ? pack.art.frame(pack.palette) : `linear-gradient(135deg, ${a}, ${b})`, ...RING_MASK }}
       data-frame={item.id}
     />
   );
+}
+
+/** Recorta o fundo em anel (só a borda aparece). */
+const RING_MASK: React.CSSProperties = { WebkitMask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)', mask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)' };
+
+/** Moldura de um pacote na borda do cartão de perfil (a mesma do avatar, em volta do cartão). */
+export function ProfileFrame({ equipped }: { equipped: UserCosmetics }) {
+  const item = equipped.moldura ? itemById(equipped.moldura.item) : undefined;
+  const pack = packOf(item);
+  if (!pack) return null;
+  return <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 rounded-[inherit]" style={{ padding: 2, background: pack.art.frame(pack.palette), ...RING_MASK }} data-profile-frame={item!.id} />;
+}
+
+/**
+ * Enfeite no nome do servidor: um ícone pequeno ao lado do nick, do tamanho da letra. Parado por padrão (listas,
+ * chat); anima só com `animate` (chamada, perfil, prévias), se a pessoa não escolheu "parados" e sem animações
+ * reduzidas. Some com "ocultos", em Configurações → Acessibilidade.
+ */
+export function Adornment({ equipped, animate = false, force = false }: { equipped: Equipped; animate?: boolean; force?: boolean }) {
+  const choice = useStore(appearance, (state) => state.adornments);
+  const item = itemById(equipped.item);
+  const pack = packOf(item);
+  if (!item || item.kind !== 'enfeite' || !pack || (choice === 'ocultos' && !force)) return null;
+  const live = animate && choice === 'animados' && !reducedMotion();
+  return (
+    <svg viewBox="-10 -10 20 20" className={cx('cn-adorn', live && 'cn-adorn-live')} role="img" aria-label={item.name} data-adornment={item.id} data-live={live}>
+      {pack.art.adornment(pack.palette)}
+    </svg>
+  );
+}
+
+/** O enfeite que a pessoa equipou (busca em lote como o resto). */
+export function NameAdornment({ userId, animate = false }: { userId: string | null | undefined; animate?: boolean }) {
+  const equipped = useUserCosmetics(userId);
+  return equipped.enfeite ? <Adornment equipped={equipped.enfeite} animate={animate} /> : null;
 }
 
 /** O que a pessoa tem equipado (busca em lote na primeira vez que aparece). */
@@ -220,16 +265,27 @@ export function nameStyle(equipped: UserCosmetics): React.CSSProperties | undefi
   const item = choice ? itemById(choice.item) : undefined;
   if (!item) return undefined;
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
-  return { backgroundImage: `linear-gradient(90deg, ${a}, ${b})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' };
+  const pack = packOf(item);
+  return { backgroundImage: pack ? pack.art.name(pack.palette) : `linear-gradient(90deg, ${a}, ${b})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' };
 }
 
-/** Nome com a cor equipada pela pessoa (gradiente), por cima da cor do cargo. */
-export function CosmeticName({ userId, children, className }: { userId: string | null | undefined; children: React.ReactNode; className?: string }) {
+/**
+ * Nome com a cor equipada pela pessoa (gradiente), por cima da cor do cargo, seguido do enfeite no nome (se houver).
+ * O enfeite fica fora do texto em gradiente, como irmão, para o recorte do nome (truncate) continuar funcionando.
+ */
+export function CosmeticName({ userId, children, className, adornment = true, animate = false }: { userId: string | null | undefined; children: React.ReactNode; className?: string; adornment?: boolean; animate?: boolean }) {
   const equipped = useUserCosmetics(userId);
-  return (
+  const name = (
     <span className={className} style={nameStyle(equipped)} data-name-style={equipped['cor-nome']?.item ?? ''}>
       {children}
     </span>
+  );
+  if (!adornment || !equipped.enfeite) return name;
+  return (
+    <>
+      {name}
+      <Adornment equipped={equipped.enfeite} animate={animate} />
+    </>
   );
 }
 
@@ -239,9 +295,23 @@ export function backgroundStyle(equipped: UserCosmetics): React.CSSProperties | 
   const item = choice ? itemById(choice.item) : undefined;
   if (!item) return undefined;
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
+  const pack = packOf(item);
+  if (pack) return pack.art.background(pack.palette);
   return item.id === 'fundo-aurora'
     ? { background: `linear-gradient(160deg, ${a}66, transparent 45%), linear-gradient(20deg, ${b}88, transparent 55%), var(--color-ink-900)` }
     : { background: `radial-gradient(70% 90% at 25% 30%, ${a}aa, transparent 70%), radial-gradient(60% 80% at 80% 70%, ${b}aa, transparent 70%), var(--color-ink-950)` };
+}
+
+/** Desenho por cima do fundo de perfil de um pacote (lua, raios, nuvens...). Parado: é só um SVG. */
+export function BackgroundArt({ equipped }: { equipped: UserCosmetics }) {
+  const item = equipped.fundo ? itemById(equipped.fundo.item) : undefined;
+  const pack = packOf(item);
+  if (!pack) return null;
+  return (
+    <svg aria-hidden="true" viewBox="0 0 320 96" preserveAspectRatio="xMidYMid slice" className="pointer-events-none absolute inset-0 size-full" data-background-art={item!.id}>
+      {pack.art.backgroundArt(pack.palette)}
+    </svg>
+  );
 }
 
 /**

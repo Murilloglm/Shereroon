@@ -28,7 +28,7 @@ As regras ficam em `POINTS`, em `shared/cosmetics.ts`.
 
 ## Itens
 
-O catálogo fica em `shared/cosmetics.ts`: decorações de avatar, molduras, fundos de perfil e cores de nome, com raridade e variações de cor. Para lançar um item:
+O catálogo fica em `shared/cosmetics.ts`: decorações de avatar, molduras, fundos de perfil, cores de nome e enfeites no nome do servidor, com raridade e variações de cor. Há também **pacotes** temáticos com uma peça de cada categoria, comprados juntos com 25% de desconto ou peça por peça; veja [pacotes-cosmeticos.md](pacotes-cosmeticos.md). Para lançar um item avulso:
 
 1. Acrescente-o ao `CATALOG`, com id, tipo, nome, descrição, preço, raridade e variações.
 2. Se for uma decoração com desenho novo, acrescente o desenho em `drawing()`, em `web/src/components/cosmetics/Decoration.tsx`. São SVGs originais num quadro de −50 a 50, com o avatar no centro.

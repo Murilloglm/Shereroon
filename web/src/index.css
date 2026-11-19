@@ -260,6 +260,81 @@
   .cn-anim-burst {
     animation: cn-burst 900ms ease-out 1 both;
   }
+  .cn-anim-flap {
+    animation: cn-flap 1.6s ease-in-out infinite;
+  }
+  .cn-anim-sway {
+    animation: cn-sway 3s ease-in-out infinite;
+  }
+  .cn-anim-pulse {
+    animation: cn-pulse 2.4s ease-in-out infinite;
+  }
+  .cn-anim-rise {
+    animation: cn-rise 3.4s ease-in-out infinite;
+  }
+  @keyframes cn-flap {
+    0%,
+    100% {
+      transform: scale(1, 1);
+    }
+    50% {
+      transform: scale(0.8, 0.96);
+    }
+  }
+  @keyframes cn-sway {
+    0%,
+    100% {
+      transform: rotate(-7deg);
+    }
+    50% {
+      transform: rotate(7deg);
+    }
+  }
+  @keyframes cn-pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(0.94);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+  @keyframes cn-rise {
+    0% {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    40% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  /*
+   * Enfeite no nome do servidor (Decoration.tsx → Adornment): do tamanho da letra, alinhado ao texto, sempre no
+   * mesmo lugar (logo depois do nick). Parado fora de .cn-adorn-live (listas, chat, "parados", animações reduzidas).
+   */
+  .cn-adorn {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1.15em;
+    height: 1.15em;
+    margin-left: 0.25em;
+    vertical-align: -0.2em;
+    overflow: visible;
+  }
+  .cn-adorn:not(.cn-adorn-live) * {
+    animation: none !important;
+  }
+  .cn-adorn [class*='cn-anim-'] {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
   @keyframes cn-spin {
     to {
       transform: rotate(360deg);

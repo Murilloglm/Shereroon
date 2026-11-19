@@ -1,6 +1,6 @@
 import { Accessibility, Bell, Crown, Gift, Check, Download, Gamepad2, LogOut, ShoppingBag, Sparkles, Wand2, Mic, Palette, Power, Search, ShieldCheck, UserPen, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { appearance, setAppearance, type MotionChoice } from '../../lib/appearance.ts';
+import { appearance, setAppearance, type AdornmentChoice, type MotionChoice } from '../../lib/appearance.ts';
 import { desktop } from '../../lib/desktop.ts';
 import { dialogs } from '../../lib/dialogs.ts';
 import { alertPrefs, allowDesktopAlerts, desktopAlertsSupported } from '../../lib/groups/alerts.ts';
@@ -42,7 +42,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'amigos', group: 'Conta', title: 'Amigos e bloqueios', keywords: 'amizade bloquear desbloquear pedidos', icon: Users, needsAccount: true, render: () => <FriendsSettings /> },
   { id: 'aparencia', group: 'Experiência', title: 'Aparência e temas', keywords: 'tema claro escuro cores cosmic night visual', icon: Palette, render: () => <AppearanceSettings /> },
   { id: 'notificacoes', group: 'Experiência', title: 'Notificações', keywords: 'som aviso alerta mensagem', icon: Bell, render: () => <NotificationSettings /> },
-  { id: 'acessibilidade', group: 'Experiência', title: 'Acessibilidade', keywords: 'animações movimento reduzir gif', icon: Accessibility, render: () => <AccessibilitySettings /> },
+  { id: 'acessibilidade', group: 'Experiência', title: 'Acessibilidade', keywords: 'animações movimento reduzir gif enfeites nome desempenho', icon: Accessibility, render: () => <AccessibilitySettings /> },
   { id: 'voz', group: 'Voz e vídeo', title: 'Voz, vídeo e transmissão', keywords: 'microfone saída fone áudio ruído eco codec qualidade volume transmissão tela', icon: Mic, render: () => <VoiceSettings /> },
   { id: 'inicializacao', group: 'Aplicativo', title: 'Inicialização com o Windows', keywords: 'iniciar bandeja minimizado windows', icon: Power, available: () => Boolean(desktop?.autostart), render: () => <AutostartSettings /> },
   { id: 'jogos', group: 'Jogos', title: 'Jogos e atividades', keywords: 'jogo detectar atividade privacidade executável vincular xbox riot plataforma', icon: Gamepad2, needsAccount: true, render: (account) => account && <GamesSettings userId={account.id} /> },
@@ -456,27 +456,45 @@ const MOTION: { value: MotionChoice; label: string; about: string }[] = [
   { value: 'normal', label: 'Animações completas', about: 'Mesmo que o sistema peça menos movimento.' },
 ];
 
+const ADORNMENTS: { value: AdornmentChoice; label: string; about: string }[] = [
+  { value: 'animados', label: 'Animados', about: 'Animam nas chamadas e nos perfis; nas listas de membros e no chat ficam sempre parados.' },
+  { value: 'parados', label: 'Sempre parados', about: 'Aparecem, mas nunca animam. Bom para computadores mais simples.' },
+  { value: 'ocultos', label: 'Ocultos', about: 'Os enfeites ao lado dos nomes não aparecem para você (os seus continuam visíveis para os outros).' },
+];
+
+function Choices<T extends string>({ label, value, options, onChange, testId }: { label: string; value: T; options: { value: T; label: string; about: string }[]; onChange: (value: T) => void; testId: string }) {
+  return (
+    <div className="grid gap-2" role="radiogroup" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cx('rounded-xl border px-3 py-2.5 text-left transition-colors', value === option.value ? 'border-brand-400 bg-brand-500/15' : 'border-ink-600 hover:border-ink-500')}
+          data-testid={`${testId}-${option.value}`}
+        >
+          <p className="text-sm font-semibold">{option.label}</p>
+          <p className="text-[13px] leading-snug text-fog-400">{option.about}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AccessibilitySettings() {
   const motion = useStore(appearance, (state) => state.motion);
+  const adornments = useStore(appearance, (state) => state.adornments);
   return (
-    <Block title="Movimento">
-      <div className="grid gap-2" role="radiogroup" aria-label="Animações">
-        {MOTION.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={motion === option.value}
-            onClick={() => setAppearance({ motion: option.value })}
-            className={cx('rounded-xl border px-3 py-2.5 text-left transition-colors', motion === option.value ? 'border-brand-400 bg-brand-500/15' : 'border-ink-600 hover:border-ink-500')}
-            data-testid={`motion-${option.value}`}
-          >
-            <p className="text-sm font-semibold">{option.label}</p>
-            <p className="text-[13px] leading-snug text-fog-400">{option.about}</p>
-          </button>
-        ))}
-      </div>
-    </Block>
+    <>
+      <Block title="Movimento">
+        <Choices label="Animações" value={motion} options={MOTION} onChange={(next) => setAppearance({ motion: next })} testId="motion" />
+      </Block>
+      <Block title="Enfeites no nome">
+        <Choices label="Enfeites no nome" value={adornments} options={ADORNMENTS} onChange={(next) => setAppearance({ adornments: next })} testId="adornments" />
+      </Block>
+    </>
   );
 }
 

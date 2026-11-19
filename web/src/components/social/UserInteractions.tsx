@@ -36,7 +36,7 @@ import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { activities, playingFor, type CurrentActivity } from '../../lib/activities.ts';
 import { GameIcon } from '../settings/GameIcon.tsx';
-import { backgroundStyle, DecoratedAvatar, useUserCosmetics } from '../cosmetics/Decoration.tsx';
+import { BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, ProfileFrame, useUserCosmetics } from '../cosmetics/Decoration.tsx';
 import { PersonVolume } from '../room/PersonVolume.tsx';
 import { Avatar, cx } from '../ui.tsx';
 import { errorText, memberName, nameColor } from '../groups/common.tsx';
@@ -195,14 +195,15 @@ function Banner({ profile }: { profile: Pick<Profile, 'banner' | 'id'> }) {
   const color = profile.banner?.startsWith('cor:') ? profile.banner.slice(4) : null;
   const image = mediaUrl(profile.banner);
   // Fundo de perfil equipado (loja), quando a pessoa não enviou uma imagem própria de banner.
-  const equipped = backgroundStyle(useUserCosmetics(profile.id));
+  const cosmeticsOf = useUserCosmetics(profile.id);
+  const equipped = backgroundStyle(cosmeticsOf);
   return (
     <div
-      className="h-24 w-full bg-cover bg-center"
+      className="relative h-24 w-full overflow-hidden bg-cover bg-center"
       style={image ? undefined : equipped ?? { background: color ? color : 'linear-gradient(120deg, #4b348e, #6c4dff 55%, #74d7ff)' }}
       data-testid="profile-banner"
     >
-      {image && <img src={image} alt="" className="size-full object-cover" />}
+      {image ? <img src={image} alt="" className="size-full object-cover" /> : <BackgroundArt equipped={cosmeticsOf} />}
     </div>
   );
 }
@@ -231,6 +232,7 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
   const roles = member && view ? view.roles.filter((role) => !role.isEveryone && member.roleIds.includes(role.id)) : [];
   const name = member ? memberName(member) : profile ? social.nameFor(profile.id, profile.displayName) : '';
   const self = me === userId;
+  const worn = useUserCosmetics(userId);
 
   return createPortal(
     <div
@@ -242,6 +244,7 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
       data-testid="profile-card"
       data-user={userId}
     >
+      <ProfileFrame equipped={worn} />
       {!profile ? (
         <p className="p-5 text-sm text-fog-400">{failure ?? 'Carregando o perfil…'}</p>
       ) : (
@@ -251,8 +254,10 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
             <div className="-mt-10 mb-2 w-fit rounded-full border-4 border-ink-900">
               <DecoratedAvatar userId={profile.id} name={profile.displayName} size={76} image={profile.avatar} animate />
             </div>
-            <p className="text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
-              {name}
+            <p className="flex items-center text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
+              <CosmeticName userId={profile.id} className="min-w-0 truncate" animate>
+                {name}
+              </CosmeticName>
             </p>
             <p className="text-sm text-fog-400">
               @{profile.username}

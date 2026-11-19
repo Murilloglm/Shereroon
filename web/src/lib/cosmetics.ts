@@ -23,6 +23,16 @@ export interface ShopItem extends CosmeticItem {
   transferable?: boolean;
 }
 
+/** Situação de um pacote para a conta (o servidor calcula o preço do que falta, com desconto). */
+export interface ShopPack {
+  id: string;
+  owned: string[];
+  missing: string[];
+  price: number;
+  fullPrice: number;
+  active: boolean;
+}
+
 export interface Inventory {
   items: { id: string; price: number; acquiredAt: string; adminGrant?: boolean; transferable?: boolean }[];
   equipped: UserCosmetics;
@@ -40,13 +50,14 @@ interface CosmeticsState {
   byUser: Record<string, UserCosmetics>;
   points: PointsInfo | null;
   shop: ShopItem[] | null;
+  packs: ShopPack[] | null;
   inventory: Inventory | null;
 }
 
 const ACTIVE_PING_MS = 60_000;
 
 class CosmeticsClient {
-  readonly store = new Store<CosmeticsState>({ byUser: {}, points: null, shop: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
+  readonly store = new Store<CosmeticsState>({ byUser: {}, points: null, shop: null, packs: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
   readonly #wanted = new Set<string>();
   #batch: ReturnType<typeof setTimeout> | null = null;
   #lastInput = 0;
@@ -58,7 +69,7 @@ class CosmeticsClient {
       const next = groups.store.get().account?.id ?? null;
       if (next === accountId) return;
       accountId = next;
-      this.store.set({ byUser: {}, points: null, shop: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
+      this.store.set({ byUser: {}, points: null, shop: null, packs: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
       if (next) void this.loadGifts().then(() => {
         const unread = this.store.get().gifts?.filter((gift) => gift.unread).length ?? 0;
         if (unread) groups.notify(`Você recebeu ${unread} presente(s). Abra Presentes nas configurações.`);
@@ -128,8 +139,23 @@ class CosmeticsClient {
 
   async loadShop(): Promise<void> {
     const me = groups.store.get().account?.id;
-    const { items } = await groups.call<{ items: ShopItem[] }>('GET', '/api/shop');
-    if (groups.store.get().account?.id === me) this.store.set({ shop: items });
+    const { items, packs } = await groups.call<{ items: ShopItem[]; packs?: ShopPack[] }>('GET', '/api/shop');
+    if (groups.store.get().account?.id === me) this.store.set({ shop: items, packs: packs ?? [] });
+  }
+
+  /** Leva de uma vez o que falta do pacote, pelo preço mostrado (se mudou, o servidor pede nova confirmação). */
+  async buyPack(packId: string, expectedPrice: number): Promise<void> {
+    const inventory = await groups.call<Inventory>('POST', '/api/shop/buy-pack', { packId, expectedPrice });
+    this.store.set({ inventory });
+    await Promise.all([this.loadShop(), this.loadPoints()]);
+  }
+
+  /** "Usar o pacote completo": equipa tudo o que a conta tem do pacote. */
+  async equipPack(packId: string): Promise<void> {
+    const inventory = await groups.call<Inventory>('PUT', '/api/me/equipped/pack', { packId });
+    this.store.set({ inventory });
+    const me = groups.store.get().account?.id;
+    if (me) this.store.set((state) => ({ byUser: { ...state.byUser, [me]: inventory.equipped } }));
   }
 
   async loadInventory(): Promise<void> {

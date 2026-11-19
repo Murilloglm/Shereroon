@@ -6,7 +6,7 @@
  * verdade (teclado, mouse ou voz nos últimos minutos, informado pelo próprio aplicativo); cada recompensa tem uma
  * chave única (não conta duas vezes, nem com pedidos simultâneos) e há limites por dia.
  */
-import { itemById, POINTS, SLOTS, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
+import { itemById, packById, POINTS, SLOTS, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
 import { iso, type Db, type Row } from '../db/db.ts';
 import { ApiError } from '../errors.ts';
 import { CosmicAdmin, unlimitedCosmetics } from './global-admin.ts';
@@ -190,6 +190,34 @@ export class Economy {
 
   async buy(user: User, itemId: unknown, expectedPrice?: unknown) {
     await this.commerce.purchase(user, itemId, expectedPrice);
+    return this.inventory(user);
+  }
+
+  packs(user: User) {
+    return this.commerce.packs(user.id);
+  }
+
+  async buyPack(user: User, packId: unknown, expectedPrice?: unknown) {
+    await this.commerce.purchasePack(user, packId, expectedPrice);
+    return this.inventory(user);
+  }
+
+  /** "Usar o pacote completo": equipa de uma vez, cada um no seu espaço, os itens do pacote que a conta tem. */
+  async equipPack(user: User, packId: unknown) {
+    const pack = typeof packId === 'string' ? packById(packId) : undefined;
+    if (!pack) throw new ApiError(404, 'pacote_inexistente', 'Pacote não encontrado.');
+    await this.#db.tx(async (tx) => {
+      await tx.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
+      const ids = SLOTS.map((kind) => pack.items[kind]);
+      const owned = new Set((await tx.query('SELECT item_id FROM user_items WHERE user_id = $1 AND item_id = ANY($2::text[])', [user.id, ids])).map((row) => String(row.item_id)));
+      if (owned.size === 0) throw new ApiError(403, 'item_nao_adquirido', 'Adquira alguma peça deste pacote antes de usar.');
+      for (const kind of SLOTS) {
+        const item = itemById(pack.items[kind])!;
+        if (!owned.has(item.id)) continue;
+        await tx.query('INSERT INTO user_equipped (user_id, slot, item_id, variant) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, slot) DO UPDATE SET item_id = $3, variant = $4', [user.id, kind, item.id, item.variants[0]!.id]);
+      }
+    });
+    void this.#community.social.announceProfileChange(user.id);
     return this.inventory(user);
   }
 

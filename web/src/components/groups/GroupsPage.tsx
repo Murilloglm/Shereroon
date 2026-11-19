@@ -4,7 +4,7 @@ import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
 import { searchMembers } from '../../lib/groups/member-search.ts';
-import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
+import { CosmeticName, DecoratedAvatar, NameAdornment } from '../cosmetics/Decoration.tsx';
 // A detecção de jogos (se a pessoa ligou) acompanha a conta conectada.
 import '../../lib/activities.ts';
 import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
@@ -454,13 +454,17 @@ function VoicePeopleList({ people, live, session, channel }: { people: MemberVie
               <StreamHover session={session} identity={member.userId} name={memberName(member)} enabled={state?.sharing === true} className="flex min-w-0 flex-1 items-center gap-2">
                 <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
                   <DecoratedAvatar userId={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
-                  <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+                  <span className={cx('min-w-0 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+                  <NameAdornment userId={member.userId} />
+                  <span className="flex-1" />
                 </UserTrigger>
               </StreamHover>
             ) : (
               <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
                 <DecoratedAvatar userId={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
-                <span className={cx('min-w-0 flex-1 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+                <span className={cx('min-w-0 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
+                <NameAdornment userId={member.userId} />
+                <span className="flex-1" />
               </UserTrigger>
             )}
             {state?.sharing && <span className="shrink-0 rounded bg-live-500 px-1 text-[10px] font-extrabold text-on-accent">AO VIVO</span>}

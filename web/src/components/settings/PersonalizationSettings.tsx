@@ -1,17 +1,19 @@
-import { Sparkles } from 'lucide-react';
+import { Check, Eye, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { CATALOG, itemById, KIND_NAMES, POINTS, RARITY, SLOTS, type CosmeticItem, type ItemKind } from '../../../../shared/cosmetics.ts';
-import { cosmetics, type UserCosmetics } from '../../lib/cosmetics.ts';
+import { CATALOG, itemById, KIND_NAMES, PACK_DISCOUNT, PACKS, POINTS, RARITY, SLOTS, type CosmeticItem, type CosmeticPack, type ItemKind } from '../../../../shared/cosmetics.ts';
+import { cosmetics, type ShopItem, type ShopPack, type UserCosmetics } from '../../lib/cosmetics.ts';
 import { dialogs } from '../../lib/dialogs.ts';
 import { groups, type Account } from '../../lib/groups/client.ts';
 import { social } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
-import { backgroundStyle, DecoratedAvatar, nameStyle } from '../cosmetics/Decoration.tsx';
+import { Adornment, BackgroundArt, backgroundStyle, DecoratedAvatar, nameStyle } from '../cosmetics/Decoration.tsx';
+import { ProfilePreview } from '../cosmetics/ProfilePreview.tsx';
 import { errorText } from '../groups/common.tsx';
 import { GiftDialog, RedeemCode } from './GiftsSettings.tsx';
 import { Button, cx } from '../ui.tsx';
 
 const formatPoints = (value: number) => value.toLocaleString('pt-BR');
+const NO_COSMETICS: UserCosmetics = {};
 
 function Block({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
@@ -35,11 +37,25 @@ function Price({ value }: { value: number }) {
 function ItemPreview({ account, item, variant, size = 64 }: { account: Account; item: CosmeticItem; variant: string; size?: number }) {
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   const preview: UserCosmetics = { [item.kind]: { item: item.id, variant } };
-  if (item.kind === 'fundo') return <div className="h-20 w-full rounded-xl" style={backgroundStyle(preview)} aria-hidden="true" />;
+  if (item.kind === 'fundo') {
+    return (
+      <div className="relative h-20 w-full overflow-hidden rounded-xl" style={backgroundStyle(preview)} aria-hidden="true">
+        <BackgroundArt equipped={preview} />
+      </div>
+    );
+  }
   if (item.kind === 'cor-nome') {
     return (
       <p className="flex h-20 items-center justify-center text-lg font-extrabold" style={nameStyle(preview)}>
         {account.displayName}
+      </p>
+    );
+  }
+  if (item.kind === 'enfeite') {
+    return (
+      <p className="flex h-20 items-center justify-center text-lg font-extrabold">
+        {account.displayName}
+        <Adornment equipped={preview.enfeite!} animate force />
       </p>
     );
   }
@@ -130,17 +146,156 @@ export function PointsSettings() {
   );
 }
 
+// --- Pacotes ---------------------------------------------------------------------------------------
+
+/** O visual completo de um pacote (cada peça na cor original). */
+export const packLook = (pack: CosmeticPack): UserCosmetics => Object.fromEntries(SLOTS.map((kind) => [kind, { item: pack.items[kind], variant: 'original' }]));
+
+function Palette({ pack }: { pack: CosmeticPack }) {
+  return (
+    <span className="flex gap-1" aria-label={`Paleta de ${pack.name}`}>
+      {Object.values(pack.palette).map((color) => (
+        <span key={color} className="size-3.5 rounded-full ring-1 ring-white/15" style={{ background: color }} title={color} />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Um pacote na loja: prévia do pacote inteiro (ou de uma peça combinada com o que a pessoa já usa), as 5 peças com
+ * compra avulsa e a compra de tudo o que falta com desconto.
+ */
+function PackCard({ account, avatar, pack, info, items, points, unlimited, equipped, onBuyItem, onGift }: {
+  account: Account;
+  avatar: string | null;
+  pack: CosmeticPack;
+  info: ShopPack | undefined;
+  items: ShopItem[];
+  points: number;
+  unlimited: boolean;
+  equipped: UserCosmetics;
+  onBuyItem: (item: CosmeticItem) => void;
+  onGift: (item: CosmeticItem) => void;
+}) {
+  const [focus, setFocus] = useState<ItemKind | null>(null);
+  const look = focus ? { ...equipped, [focus]: { item: pack.items[focus], variant: 'original' } } : packLook(pack);
+  const missing = info?.missing.length ?? SLOTS.length;
+  const price = info?.price ?? 0;
+  const short = !unlimited && points < price ? price - points : 0;
+  /** Quanto custariam, somadas, as peças que faltam compradas uma a uma. */
+  const separate = (info?.missing ?? []).reduce((sum, id) => sum + (items.find((item) => item.id === id)?.price ?? itemById(id)?.price ?? 0), 0);
+  const buyPack = () =>
+    void dialogs.confirm({
+      title: `Adquirir o pacote ${pack.name}?`,
+      message: unlimited
+        ? 'Aquisição administrativa sem débito de pontos.'
+        : `Leva ${missing} ${missing === 1 ? 'peça' : 'peças'} por ${formatPoints(price)} Cosmic Points${missing >= 2 ? ` (${Math.round(PACK_DISCOUNT * 100)}% de desconto)` : ''}. Cada peça pode ser equipada separada, e "Usar pacote completo" equipa tudo de uma vez.`,
+      confirmLabel: 'Adquirir pacote',
+      action: async () => {
+        try {
+          await cosmetics.buyPack(pack.id, price);
+          groups.notify(`Pacote ${pack.name} adquirido. Use em Decorações e inventário.`);
+        } catch (error) {
+          await dialogs.alert({ kind: 'erro', title: 'Não foi possível adquirir', message: errorText(error) });
+        }
+      },
+    });
+
+  return (
+    <article className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-xl bg-ink-850/80 p-3" data-testid="shop-pack" data-pack={pack.id}>
+      <header className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-extrabold">{pack.name}</p>
+          <p className="flex items-center gap-2 text-xs font-bold" style={{ color: RARITY[pack.rarity].color }}>
+            {RARITY[pack.rarity].name} · pacote com 5 peças <Palette pack={pack} />
+          </p>
+        </div>
+        {info && missing > 0 && (
+          <span className="text-right text-sm">
+            {missing >= 2 && <span className="mr-1.5 text-xs text-fog-500 line-through">{formatPoints(separate)}</span>}
+            <Price value={price} />
+          </span>
+        )}
+      </header>
+      <p className="text-[13px] leading-snug text-fog-400">{pack.description}</p>
+      <ProfilePreview userId={account.id} name={account.displayName} avatar={avatar} look={look} testId="pack-preview" />
+      <p className="text-xs text-fog-500" data-testid="pack-preview-mode">
+        {focus ? `Prévia: ${KIND_NAMES[focus]} com o que você já usa.` : 'Prévia: o pacote completo.'}
+        {focus && (
+          <button type="button" className="ml-2 font-bold text-neon-300 hover:underline" onClick={() => setFocus(null)}>
+            Ver pacote completo
+          </button>
+        )}
+      </p>
+      <ul className="grid gap-1">
+        {SLOTS.map((kind) => {
+          const item = items.find((entry) => entry.id === pack.items[kind]) ?? { ...itemById(pack.items[kind])!, owned: false };
+          const needs = !unlimited && points < item.price ? item.price - points : 0;
+          return (
+            <li key={kind} className={cx('flex flex-wrap items-center gap-2 rounded-lg px-2 py-1.5', focus === kind ? 'bg-brand-500/15' : 'bg-ink-900/50')} data-testid="pack-piece" data-item={item.id}>
+              <button type="button" aria-pressed={focus === kind} title="Prévia desta peça com o que você já usa" onClick={() => setFocus(focus === kind ? null : kind)} className="rounded-md p-1 text-fog-400 hover:bg-white/5 hover:text-fog-100" data-testid={`pack-focus-${item.id}`}>
+                <Eye className="size-4" aria-hidden="true" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">{item.name}</p>
+                <p className="truncate text-xs text-fog-500">
+                  {KIND_NAMES[kind]}
+                  {item.animated ? ' · animado' : ''}
+                </p>
+              </div>
+              {item.owned ? (
+                <span className="flex items-center gap-1 text-xs font-bold text-ok-400">
+                  <Check className="size-3.5" aria-hidden="true" /> Seu
+                </span>
+              ) : (
+                <>
+                  <Price value={item.price} />
+                  <Button size="sm" disabled={needs > 0 || item.active === false} title={needs > 0 ? `Faltam ${formatPoints(needs)} Cosmic Points` : undefined} onClick={() => onBuyItem(item)} data-testid={`shop-buy-${item.id}`}>
+                    Adquirir
+                  </Button>
+                  <Button size="sm" variant="quiet" onClick={() => onGift(item)} title="Presentear um amigo">
+                    Presentear
+                  </Button>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {info && missing === 0 ? (
+        <p className="text-sm font-bold text-ok-400">Pacote completo. Use em Decorações e inventário.</p>
+      ) : (
+        <Button variant="primary" disabled={!info || !info.active || short > 0} title={short > 0 ? `Faltam ${formatPoints(short)} Cosmic Points` : undefined} onClick={buyPack} data-testid={`shop-buy-pack-${pack.id}`}>
+          {!info?.active && info ? 'Indisponível no momento' : short > 0 ? `Faltam ${formatPoints(short)} para o pacote` : `Adquirir pacote${missing >= 2 ? ` (−${Math.round(PACK_DISCOUNT * 100)}%)` : ''}`}
+        </Button>
+      )}
+      <details className="text-[13px] text-fog-400">
+        <summary className="cursor-pointer font-semibold text-fog-300">Regras visuais do tema</summary>
+        <ul className="mt-1 grid gap-0.5">
+          {pack.rules.map((rule) => (
+            <li key={rule}>• {rule}</li>
+          ))}
+        </ul>
+      </details>
+    </article>
+  );
+}
+
 // --- Loja -----------------------------------------------------------------------------------------
 
 export function ShopSettings({ account }: { account: Account }) {
   const shop = useStore(cosmetics.store, (state) => state.shop);
   const points = useStore(cosmetics.store, (state) => state.points?.points ?? null);
   const unlimited = useStore(cosmetics.store, (state) => state.points?.unlimited === true);
+  const packs = useStore(cosmetics.store, (state) => state.packs);
+  const equipped = useStore(cosmetics.store, (state) => state.inventory?.equipped ?? NO_COSMETICS);
+  const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   const [gift, setGift] = useState<CosmeticItem | null>(null);
   const [variants, setVariants] = useState<Record<string, string>>({});
   useEffect(() => {
     void cosmetics.loadShop().catch(() => undefined);
     void cosmetics.loadPoints().catch(() => undefined);
+    void cosmetics.loadInventory().catch(() => undefined);
     void social.profile(account.id).catch(() => undefined);
   }, [account.id]);
 
@@ -166,8 +321,32 @@ export function ShopSettings({ account }: { account: Account }) {
       </p>
       <RedeemCode />
       {gift && <GiftDialog item={gift} onClose={() => setGift(null)} />}
+      <Block title="Pacotes">
+        <p className="text-[13px] leading-snug text-fog-400">
+          Cada pacote tem decoração, moldura, fundo, cor do nome e enfeite no nome, com o mesmo tema. Leve tudo com desconto ou só as peças que quiser: cada uma é equipada separada e combina com as de outros pacotes.
+        </p>
+        <div className="grid gap-3">
+          {PACKS.map((pack) => (
+            <PackCard
+              key={pack.id}
+              account={account}
+              avatar={avatar}
+              pack={pack}
+              info={packs?.find((entry) => entry.id === pack.id)}
+              items={shop ?? []}
+              points={points ?? 0}
+              unlimited={unlimited}
+              equipped={equipped}
+              onBuyItem={buy}
+              onGift={setGift}
+            />
+          ))}
+        </div>
+      </Block>
       {SLOTS.map((kind) => {
-        const items = (shop ?? CATALOG.map((item) => ({ ...item, owned: false }))).filter((item) => item.kind === kind);
+        // Peças de pacote ficam nos cartões de pacote; aqui, só os itens avulsos.
+        const items = (shop ?? CATALOG.map((item) => ({ ...item, owned: false }))).filter((item) => item.kind === kind && !item.pack);
+        if (items.length === 0) return null;
         return (
           <Block key={kind} title={KIND_NAMES[kind]}>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -239,14 +418,43 @@ export function InventorySettings({ account }: { account: Account }) {
             <DecoratedAvatar userId={account.id} name={account.displayName} size={80} image={avatar} animate preview={inventory.equipped} />
           </div>
           <div className="min-w-0">
-            <p className="text-lg font-extrabold" style={nameStyle(inventory.equipped)}>
-              {account.displayName}
+            <p className="flex items-center text-lg font-extrabold" data-testid="inventory-name">
+              <span style={nameStyle(inventory.equipped)}>{account.displayName}</span>
+              {inventory.equipped.enfeite && <Adornment equipped={inventory.equipped.enfeite} animate force />}
             </p>
-            <p className="text-sm text-fog-400">É assim que os outros veem seu avatar na chamada e no perfil. Nas listas, a decoração aparece parada.</p>
+            <p className="text-sm text-fog-400">É assim que os outros veem seu avatar na chamada e no perfil. Nas listas e no chat, a decoração e o enfeite aparecem parados.</p>
           </div>
         </div>
       </Block>
       {owned.length === 0 && <p className="text-sm text-fog-400">Nenhum item ainda. Ganhe Cosmic Points participando e adquira na Loja.</p>}
+      {PACKS.some((pack) => owned.some((item) => item.pack === pack.id)) && (
+        <Block title="Pacotes">
+          <ul className="grid gap-2">
+            {PACKS.filter((pack) => owned.some((item) => item.pack === pack.id)).map((pack) => {
+              const have = owned.filter((item) => item.pack === pack.id).length;
+              const wearing = SLOTS.every((kind) => !owned.some((item) => item.id === pack.items[kind]) || inventory.equipped[kind]?.item === pack.items[kind]);
+              return (
+                <li key={pack.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-ink-850/60 p-2" data-testid="inventory-pack" data-pack={pack.id}>
+                  <Palette pack={pack} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold">{pack.name}</p>
+                    <p className="text-xs text-fog-500">
+                      {have} de {SLOTS.length} peças
+                    </p>
+                  </div>
+                  {wearing ? (
+                    <span className="text-sm font-bold text-ok-400">Em uso</span>
+                  ) : (
+                    <Button size="sm" variant="primary" onClick={() => void cosmetics.equipPack(pack.id).catch((error: unknown) => dialogs.alert({ kind: 'erro', title: 'Não foi possível usar o pacote', message: errorText(error) }))} data-testid={`equip-pack-${pack.id}`}>
+                      Usar pacote completo
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </Block>
+      )}
       {SLOTS.map((kind) => {
         const items = owned.filter((item) => item.kind === kind);
         if (items.length === 0) return null;
