@@ -1,0 +1,87 @@
+{
+  "version": "0.3.8",
+  "commit": "6147e41b3e7e8f325a90d6b3ba22c9faa49f6e12",
+  "releaseUrl": "https://github.com/Murilloglm/Shereroon/releases/tag/v0.3.8",
+  "publishedAt": "2026-11-19T09:09:54Z",
+  "assets": [
+    {
+      "name": "CosmicNight-Setup-0.3.8.exe",
+      "bytes": 128638309,
+      "url": "https://github.com/Murilloglm/Shereroon/releases/download/v0.3.8/CosmicNight-Setup-0.3.8.exe"
+    },
+    {
+      "name": "CosmicNight-Setup-0.3.8.exe.blockmap",
+      "bytes": 134974,
+      "url": "https://github.com/Murilloglm/Shereroon/releases/download/v0.3.8/CosmicNight-Setup-0.3.8.exe.blockmap"
+    },
+    {
+      "name": "CosmicNight-Setup-0.3.8.exe.sha256",
+      "bytes": 94,
+      "url": "https://github.com/Murilloglm/Shereroon/releases/download/v0.3.8/CosmicNight-Setup-0.3.8.exe.sha256"
+    },
+    {
+      "name": "latest.yml",
+      "bytes": 457,
+      "url": "https://github.com/Murilloglm/Shereroon/releases/download/v0.3.8/latest.yml"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 362,
+      "url": "https://github.com/Murilloglm/Shereroon/releases/download/v0.3.8/SHA256SUMS.txt"
+    },
+    {
+      "name": "signature-report.json",
+      "bytes": 7215,
+      "url": "https://github.com/Murilloglm/Shereroon/releases/download/v0.3.8/signature-report.json"
+    }
+  ],
+  "updateSignatureVerified": true,
+  "authenticode": "NotSigned",
+  "checksums": [
+    {
+      "filename": "CosmicNight-Setup-0.3.8.exe",
+      "sha256": "eff32ea5e4423409b8c08424dcab67f9d50e3bed04bbb92d75d7d8a11dfa86bb",
+      "bytes": 128638309
+    },
+    {
+      "filename": "CosmicNight-Setup-0.3.8.exe.blockmap",
+      "sha256": "66d6876034aee13a01264ef5b954fdd40552f8c2c8c51453c0f6dda4f12688a8",
+      "bytes": 134974
+    },
+    {
+      "filename": "latest.yml",
+      "sha256": "94887f518976163f6476eb63189bfc71e28f4594b589135757f5ddae5e7a3889",
+      "bytes": 457
+    },
+    {
+      "filename": "signature-report.json",
+      "sha256": "f67b6f26b30897bcb0f32423e8f466f16dbb39410683a871627e88bf02cc412b",
+      "bytes": 7215
+    }
+  ],
+  "workflow": "https://github.com/Murilloglm/Shereroon/actions/runs/44493294030",
+  "status": "installer-published-backend-pending",
+  "userAuthorizedPublication": true,
+  "backendUrl": "https://shareroom-api-y1r7.onrender.com",
+  "backendObserved": {
+    "ok": true,
+    "version": "0.3.7",
+    "commit": "f5e84bc014ac049167035ef17212cdf72cb8eeab"
+  },
+  "backendDeploymentConfirmed": false,
+  "downloadPageUrl": "https://murilloglm.github.io/Shereroon/",
+  "integrationBase": "f5e84bc014ac049167035ef17212cdf72cb8eeab",
+  "previousCatalogIdsPreserved": 69,
+  "newItems": 55,
+  "newMigrationRequired": false,
+  "publishedSchemaFilePreserved": true,
+  "checks": {
+    "localServerTestsPassed": 299,
+    "localWebTestsPassed": 217,
+    "desktopScriptTestsPassed": 39,
+    "newInterfaceTestsPassed": 11,
+    "publishedPackInterfaceRegressionTestsPassed": 11,
+    "githubWorkflow": "success"
+  },
+  "backendAccess": "Render plugin is not connected; browser/native host unavailable after documented recovery. No production environment or database settings changed."
+}
