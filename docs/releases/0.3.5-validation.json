@@ -1,0 +1,89 @@
+{
+  "version": "0.3.5",
+  "publishedBase": "v0.3.4",
+  "baseCommit": "cac1bc62e3d62b2f21f19b89285f7d2761eaa230",
+  "releaseBranch": "fix/performance-0.3.5",
+  "releaseWorkspace": "e2e/.artifacts/release-v035",
+  "state": "prepared, uncommitted, unpublished",
+  "date": "2026-11-18",
+  "tests": {
+    "server": { "passed": 275, "files": 22 },
+    "web": { "passed": 204, "files": 27 },
+    "desktopScripts": { "passed": 39 },
+    "e2e": {
+      "passed": 59,
+      "suites": {
+        "e2e/conversa.test.mjs": 10,
+        "e2e/latency.test.mjs": 13,
+        "e2e/avatar-live.test.mjs": 3,
+        "e2e/message-delivery.test.mjs": 6,
+        "e2e/call-presence.test.mjs": 7,
+        "e2e/voice-latency.test.mjs": 2,
+        "e2e/input-sensitivity.test.mjs": 4,
+        "e2e/owner-mfa.test.mjs": 3,
+        "e2e/social.test.mjs": 8,
+        "e2e/desktop-imagens.test.mjs": 3
+      },
+      "environment": "Real Chrome/Electron, local Node API, isolated PGlite database and local LiveKit; distinct account contexts",
+      "note": "Results accumulated across runs. A read-marker reload regression was fixed; final rerun covered conversa, latency and desktop images. No authenticated production account test."
+    },
+    "totalPassed": 577,
+    "remainingFailed": 0
+  },
+  "checks": {
+    "typecheck": true,
+    "webProductionBuild": true,
+    "nsisPreviewBuild": true,
+    "csharpHelperDirectCompiler": true,
+    "powershellExecutionPolicyChanged": false,
+    "publishedMigrations1Through9Unchanged": true,
+    "upgrade9To10PreservesExistingAccountsAndMessages": true,
+    "migrationRepeatSafe": true,
+    "concurrentMessageIdempotencyAndPayloadConflict": true,
+    "legacyMessageRetriesWithoutHash": true,
+    "lostHttpAcknowledgementAndRetry": true,
+    "offlineGatewayRecovery": true,
+    "realSfuRestartRecovery": true,
+    "twoAccountAvatarUploadAndLiveUpdate": true,
+    "anonymousPrivateCallCompatibility": true,
+    "image404FallbackAndRecovery": true,
+    "reducedMotionTogglePhotoVisibility": true,
+    "callHeader390Through1600Px": true,
+    "publishedOwnerMfaPolicyPreserved": true,
+    "packagedVersion": "0.3.5",
+    "packagedApiUrl": "https://shareroom-api-y1r7.onrender.com",
+    "sha512ManifestMatchesInstaller": true,
+    "ed25519UpdateManifestVerified": true,
+    "sha256ChecksumsGenerated": true,
+    "gitDiffCheck": true
+  },
+  "artifact": {
+    "directory": "desktop/release-preview/prepared-0.3.5",
+    "installer": "CosmicNight-Setup-0.3.5.exe",
+    "size": 123529750,
+    "sha256": "6c3f02d5cd5b80f6f64f4d3a12e07a13a3a25ce3e19aa14322ff3d313e522740",
+    "authenticode": "NotSigned",
+    "signatureReport": "signature-report.json",
+    "checksums": "SHA256SUMS.txt",
+    "installedOrAutoUpdatedOnPhysicalMachine": false
+  },
+  "production": {
+    "readOnlyHealthStatus": 200,
+    "healthVersion": "0.3.4",
+    "healthElapsedMs": 377.4474,
+    "realColdStartConfirmed": false,
+    "remoteDatabaseMeasured": false,
+    "authenticatedTwoAccountTest": false,
+    "infrastructureChanged": false,
+    "migrationExecuted": false,
+    "deployExecuted": false
+  },
+  "limits": [
+    "Warm local PGlite timings are not remote PostgreSQL timings.",
+    "Render inactivity was simulated by delayed requests and proxy HTML; real hibernation was not confirmed.",
+    "No production CPU/heap benchmark or physical installer/update test.",
+    "The Vite build retains an existing large-chunk warning.",
+    "The NSIS preview has no Authenticode certificate; Ed25519 secures the separate update manifest."
+  ],
+  "publication": { "pushed": false, "tagCreated": false, "workflowTriggered": false, "releaseCreated": false }
+}

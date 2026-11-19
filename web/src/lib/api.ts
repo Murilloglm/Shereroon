@@ -4,6 +4,7 @@
  * Esse endereço é público por natureza; nenhum segredo entra no frontend.
  */
 import { desktop } from './desktop.ts';
+import { latency } from './latency.ts';
 
 // No aplicativo de Windows o endereço vem da configuração do próprio aplicativo.
 export const API_BASE = (desktop?.config.apiUrl ?? import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
@@ -49,13 +50,13 @@ const call = <T>(path: string, body?: unknown, timeoutMs = 20_000): Promise<T> =
 export async function request<T>(
   method: string,
   path: string,
-  { body, token, timeoutMs = 20_000 }: { body?: unknown; token?: string | null; timeoutMs?: number } = {},
+  { body, token, timeoutMs = 20_000, keepalive = false }: { body?: unknown; token?: string | null; timeoutMs?: number; keepalive?: boolean } = {},
 ): Promise<T> {
   const controller = new AbortController();
+  const started = performance.now();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(`${API_BASE}${path}`, {
       method,
       headers: {
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -64,8 +65,27 @@ export async function request<T>(
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
       credentials: 'omit',
+      keepalive,
     });
-  } catch {
+    let data: unknown = null;
+    try { data = await response.json(); }
+    catch (error) {
+      if (controller.signal.aborted) throw error;
+      if (response.ok) throw new ApiError('servidor_iniciando', 'O servidor ainda não devolveu uma resposta válida. Se ele estava em repouso, aguarde alguns segundos e tente novamente.', 503);
+    }
+    const operation = path.includes('/voice') ? 'voice' : path.includes('/messages') ? 'message' : 'api';
+    latency.record(operation, 'api', performance.now() - started, `${method} ${response.status}`);
+    for (const entry of response.headers.get('server-timing')?.split(',') ?? []) {
+      const match = /^\s*([a-z_]+);dur=([\d.]+)/.exec(entry);
+      if (match) latency.record(operation, `server_${match[1]}`, Number(match[2]));
+    }
+    if (!response.ok) {
+      const error = (data as { error?: { code?: string; message?: string } } | null)?.error;
+      throw new ApiError(error?.code ?? 'erro', error?.message ?? `O servidor respondeu com erro ${response.status}.`, response.status);
+    }
+    return data as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(
       'sem_conexao',
       controller.signal.aborted
@@ -76,18 +96,6 @@ export async function request<T>(
   } finally {
     clearTimeout(timer);
   }
-
-  let data: unknown = null;
-  try {
-    data = await response.json();
-  } catch {
-    // resposta sem JSON
-  }
-  if (!response.ok) {
-    const error = (data as { error?: { code?: string; message?: string } } | null)?.error;
-    throw new ApiError(error?.code ?? 'erro', error?.message ?? `O servidor respondeu com erro ${response.status}.`, response.status);
-  }
-  return data as T;
 }
 
 export const api = {

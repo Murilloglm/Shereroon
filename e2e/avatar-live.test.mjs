@@ -71,7 +71,7 @@ test('an unavailable photo falls back to initials and a later photo recovers', a
   await guest.route('**/api/media/**', (route) => route.abort());
   const unavailable = await upload(owner,'purple');
   const card = guest.getByTestId('call-card').filter({hasText:'Photoowner'});
-  await waitFor(async () => await card.locator('[data-avatar="foto"]').textContent() === 'P', 'image failure falls back to the initial');
+  await waitFor(async () => await card.locator('[data-avatar="iniciais"]').textContent() === 'P', 'image failure falls back to the initial');
   assert.equal(await card.locator(`img[src$="/${unavailable.slice(8)}"]`).count(),0);
   await guest.unroute('**/api/media/**');
   const replacement = await upload(owner,'blue');

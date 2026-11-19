@@ -30,6 +30,7 @@ export class Hub {
   readonly #groupsOf = new Map<string, Set<string>>();
   readonly #onlineIn = new Map<string, Set<string>>();
   readonly #voice = new Map<string, VoicePlace>();
+  readonly #voiceGrace = new Map<string, ReturnType<typeof setTimeout>>();
   /** Chamado quando alguém sai de um canal de voz porque a conexão caiu (para tirar a pessoa do SFU). */
   onVoiceDropped: ((userId: string, place: VoicePlace) => void) | null = null;
   /** Avisa toda entrada e saída de canal de voz (para os bots). */
@@ -38,6 +39,9 @@ export class Hub {
   canSeeChannel: ((groupId: string, channelId: string, userId: string) => Promise<boolean>) | null = null;
 
   open(userId: string, groupIds: readonly string[], transport: Transport): Connection {
+    const grace = this.#voiceGrace.get(userId);
+    if (grace) clearTimeout(grace);
+    this.#voiceGrace.delete(userId);
     const connection: Connection = { userId, transport };
     const first = !this.#connections.has(userId);
     if (first) this.#connections.set(userId, new Set());
@@ -49,15 +53,24 @@ export class Hub {
     return connection;
   }
 
-  close(connection: Connection): void {
+  close(connection: Connection, voiceGraceMs = 0): void {
     const set = this.#connections.get(connection.userId);
     if (!set?.delete(connection) || set.size > 0) return;
     // Era a última conexão da pessoa: ela fica offline e sai do canal de voz.
     this.#connections.delete(connection.userId);
     const place = this.#voice.get(connection.userId);
     if (place) {
-      void this.setVoice(connection.userId, null);
-      this.onVoiceDropped?.(connection.userId, place);
+      const drop = () => {
+        this.#voiceGrace.delete(connection.userId);
+        if (this.#voice.get(connection.userId) !== place) return;
+        void this.setVoice(connection.userId, null);
+        this.onVoiceDropped?.(connection.userId, place);
+      };
+      if (voiceGraceMs > 0) {
+        const timer = setTimeout(drop, voiceGraceMs);
+        timer.unref?.();
+        this.#voiceGrace.set(connection.userId, timer);
+      } else drop();
     }
     for (const groupId of this.#groupsOf.get(connection.userId) ?? []) {
       this.#onlineIn.get(groupId)?.delete(connection.userId);
@@ -152,6 +165,11 @@ export class Hub {
 
   /** Derruba as conexões da pessoa (sessão encerrada, por exemplo). */
   kick(userId: string): void {
+    const grace = this.#voiceGrace.get(userId);
+    if (grace) clearTimeout(grace);
+    this.#voiceGrace.delete(userId);
+    const place = this.#voice.get(userId);
+    if (place) { void this.setVoice(userId, null); this.onVoiceDropped?.(userId, place); }
     for (const connection of [...(this.#connections.get(userId) ?? [])]) connection.transport.close();
   }
 

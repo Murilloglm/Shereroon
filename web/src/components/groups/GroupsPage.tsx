@@ -395,7 +395,7 @@ function VoiceBar({ view, voice, onLeave }: { view: GroupView | null; voice: Voi
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => navigate(groupHash(voice.groupId, voice.channelId))}>
         <p className={cx('flex items-center gap-1.5 text-sm font-bold', reconnecting ? 'text-warn-400' : 'text-ok-400')}>
           <AudioLines className={cx('size-4', reconnecting && 'animate-pulse')} aria-hidden="true" />
-          {reconnecting ? 'Reconectando…' : sharing ? 'Transmitindo a tela' : 'Voz conectada'}
+          {phase === 'connecting' || phase === 'idle' ? 'Conectando…' : reconnecting ? 'Reconectando…' : sharing ? 'Transmitindo a tela' : 'Voz conectada'}
         </p>
         <p className="truncate text-xs text-fog-400">{channel?.name ?? 'em outro grupo'}</p>
       </button>
@@ -904,7 +904,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
   };
   const voiceChatPanel = (target: ChannelView) =>
     voiceChat && has(target.permissions, P.VIEW_CHANNEL) ? (
-      <aside className="flex w-full min-w-0 basis-1/2 lg:w-[min(26rem,40%)] lg:min-w-64 lg:basis-auto shrink-0 flex-col border-l border-brand-500/15" data-testid="voice-chat">
+      <aside className="flex max-h-[45%] min-h-40 w-full shrink-0 flex-col border-t border-brand-500/15 sm:max-h-none sm:w-[min(26rem,40%)] sm:min-w-72 sm:border-t-0 sm:border-l" data-testid="voice-chat">
         <Chat key={target.id} view={current!} channel={target} />
       </aside>
     ) : null;
@@ -1046,7 +1046,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
           </div>
         )}
         {voice && (
-          <div className={cx('relative min-h-0 flex-1', inThisVoice ? 'flex flex-col lg:flex-row' : 'hidden')}>
+          <div className={cx('relative min-h-0 flex-1 flex-col sm:flex-row', inThisVoice ? 'flex' : 'hidden')}>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="voice-room">
               <RoomView
                 session={voice.session}
@@ -1069,12 +1069,12 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
             channel.kind === 'texto' ? (
               <Chat key={channel.id} view={current} channel={channel} membersOpen={membersPanel.open} onToggleMembers={wide ? membersPanel.toggle : undefined} />
             ) : (
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="flex justify-end border-b border-ink-700 px-3 py-2">{voiceChatToggle(channel)}</div>
-                <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+              <div className="relative flex min-h-0 flex-1 flex-col sm:flex-row">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  <div className="flex shrink-0 justify-end p-3">{voiceChatToggle(channel)}</div>
                   <VoiceLobby view={current} channel={channel} joining={joining === channel.id} onJoin={() => void join(current.group.id, channel.id)} />
-                  {voiceChatPanel(channel)}
                 </div>
+                {voiceChatPanel(channel)}
               </div>
             )
           ) : (

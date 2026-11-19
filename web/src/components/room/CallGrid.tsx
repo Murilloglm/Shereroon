@@ -45,7 +45,7 @@ function CallCard({
       data-identity={person.identity}
       data-speaking={person.speaking ? 'true' : 'false'}
     >
-      <DecoratedAvatar userId={person.accountId ?? person.identity} name={person.name} size={avatar} speaking={person.speaking} image={image} animate entrance />
+      <DecoratedAvatar userId={person.accountId ?? person.identity} name={person.name} size={avatar} speaking={person.speaking} image={image ?? person.avatar} animate entrance />
 
       <div className={cx('absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-ink-950/70 font-semibold text-fog-100 backdrop-blur-sm', compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm')}>
         {!person.micOn && <MicOff className="size-3.5 shrink-0 text-live-300" aria-label="Microfone desligado" data-testid="call-card-mic-off" />}

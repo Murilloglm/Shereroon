@@ -1,0 +1,580 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-18",
+  "environment": "Chrome + API Node + PGlite + LiveKit locais; duas contas isoladas",
+  "notes": [
+    "Published 0.3.4 already had optimistic messages. The initial working copy was based on 0.3.2 and is a separate historical reference.",
+    "Local PGlite and LiveKit measurements are not remote PostgreSQL/Render results. Five browser messages per version, with no statistical significance claim.",
+    "Observed DOM timings include Playwright scheduling/polling; voice API observed timings also include test waits. Client instrumentation separates actual API, grant, WebRTC and participant stages.",
+    "Database cumulative durations include concurrent queries and may exceed wall time.",
+    "Message backend medians against 0.3.4 show no meaningful real latency reduction. Reused room setup avoids a repeated SFU administration request; first-entry setup is still required."
+  ],
+  "initialWorkingCopy": {
+    "environment": "Chrome + API Node + PGlite + LiveKit locais; duas contas isoladas",
+    "baseline": true,
+    "messages": [
+      {
+        "visible": 37.197200000000066,
+        "ack": 37.19970000000012,
+        "recipient": 39.22420000000011,
+        "serverTiming": "db;dur=4.75, total;dur=10.65, queries;desc=\"10\""
+      },
+      {
+        "visible": 38.834499999999935,
+        "ack": 38.83750000000009,
+        "recipient": 40.8775999999998,
+        "serverTiming": "db;dur=3.43, total;dur=4.15, queries;desc=\"10\""
+      },
+      {
+        "visible": 32.62909999999965,
+        "ack": 32.63169999999991,
+        "recipient": 35.62209999999959,
+        "serverTiming": "db;dur=3.34, total;dur=3.92, queries;desc=\"10\""
+      },
+      {
+        "visible": 32.08530000000019,
+        "ack": 32.088700000000244,
+        "recipient": 33.916999999999916,
+        "serverTiming": "db;dur=3.03, total;dur=3.57, queries;desc=\"10\""
+      },
+      {
+        "visible": 40.597699999999804,
+        "ack": 40.60129999999981,
+        "recipient": 42.71569999999974,
+        "serverTiming": "db;dur=3.24, total;dur=3.81, queries;desc=\"10\""
+      }
+    ],
+    "delayedApiVisible": 1335.4732000000004,
+    "voice": [
+      {
+        "api": 814.1938,
+        "room": 1012.5,
+        "serverTiming": "db;dur=2.28, total;dur=7.32, queries;desc=\"5\""
+      },
+      {
+        "api": 39.46599999999944,
+        "room": 232.2464,
+        "serverTiming": "db;dur=2.16, total;dur=4.70, queries;desc=\"5\""
+      }
+    ]
+  },
+  "beforePublished": {
+    "environment": "Chrome + API Node + PGlite + LiveKit locais; duas contas isoladas",
+    "baseline": true,
+    "messages": [
+      {
+        "visible": 26.974899999999707,
+        "ack": 26.97779999999966,
+        "recipient": 29.57659999999987
+      },
+      {
+        "visible": 10.855499999999665,
+        "ack": 10.858799999999974,
+        "recipient": 12.97649999999976
+      },
+      {
+        "visible": 10.50630000000001,
+        "ack": 10.509900000000016,
+        "recipient": 13.71389999999974
+      },
+      {
+        "visible": 11.61770000000024,
+        "ack": 11.621999999999844,
+        "recipient": 14.471000000000004
+      },
+      {
+        "visible": 12.467499999999745,
+        "ack": 12.470299999999952,
+        "recipient": 14.83349999999973
+      }
+    ],
+    "delayedApiVisible": 9.140300000000025,
+    "voice": [
+      {
+        "api": 839.4499000000005,
+        "room": 1040.3305,
+        "participants": 1041.2533000000003,
+        "serverStages": {
+          "contextMs": 0.8895000000002256,
+          "ensureRoomMs": 4.389800000000832,
+          "signTokenMs": 0.9458000000004176,
+          "sfuMs": 4.395000000000437,
+          "presenceMs": 0.7830999999996493,
+          "totalMs": 6.082400000000234
+        }
+      },
+      {
+        "api": 43.037999999999556,
+        "room": 137.21339999999964,
+        "participants": 138.1176999999998,
+        "serverStages": {
+          "contextMs": 0.6334000000006199,
+          "ensureRoomMs": 2.077100000000428,
+          "signTokenMs": 0.41190000000005966,
+          "sfuMs": 2.079000000000633,
+          "presenceMs": 0.6893999999992957,
+          "totalMs": 3.4059000000006563
+        }
+      }
+    ]
+  },
+  "afterPrepared": {
+    "environment": "Chrome + API Node + PGlite + LiveKit locais; duas contas isoladas",
+    "baseline": false,
+    "messages": [
+      {
+        "visible": 22.54260000000022,
+        "ack": 25.01780000000008,
+        "recipient": 27.789000000000215,
+        "serverTiming": "db;dur=4.25, auth;dur=1.17, persist;dur=2.07, gateway;dur=0.73, total;dur=13.04, queries;desc=\"8\""
+      },
+      {
+        "visible": 11.134199999999964,
+        "ack": 12.0296000000003,
+        "recipient": 14.936099999999897,
+        "serverTiming": "db;dur=2.68, auth;dur=0.89, persist;dur=0.90, gateway;dur=0.56, total;dur=3.79, queries;desc=\"8\""
+      },
+      {
+        "visible": 10.061499999999796,
+        "ack": 10.064100000000053,
+        "recipient": 11.74499999999989,
+        "serverTiming": "db;dur=2.41, auth;dur=0.73, persist;dur=0.83, gateway;dur=0.61, total;dur=3.18, queries;desc=\"8\""
+      },
+      {
+        "visible": 10.167699999999968,
+        "ack": 10.169800000000123,
+        "recipient": 12.203700000000026,
+        "serverTiming": "db;dur=2.19, auth;dur=0.74, persist;dur=0.78, gateway;dur=0.44, total;dur=2.89, queries;desc=\"8\""
+      },
+      {
+        "visible": 12.128499999999804,
+        "ack": 12.130499999999756,
+        "recipient": 13.880400000000009,
+        "serverTiming": "db;dur=3.05, auth;dur=0.74, persist;dur=1.32, gateway;dur=0.73, total;dur=3.83, queries;desc=\"8\""
+      }
+    ],
+    "delayedApiVisible": 8.64429999999993,
+    "voice": [
+      {
+        "api": 836.3492999999999,
+        "room": 1041.3166999999994,
+        "participants": 1045.7091,
+        "serverTiming": "db;dur=3.43, auth;dur=1.09, token;dur=0.25, sfu_room;dur=5.09, presence;dur=1.11, total;dur=8.82, queries;desc=\"5\"",
+        "serverStages": {
+          "contextMs": 1.0030000000006112,
+          "ensureRoomMs": 5.1228000000000975,
+          "signTokenMs": 1.7809000000006563,
+          "sfuMs": 5.12920000000031,
+          "presenceMs": 1.1450999999997293,
+          "totalMs": 7.290200000000368
+        },
+        "stages": [
+          {
+            "operation": "voice",
+            "stage": "api",
+            "ms": 22.6,
+            "at": 1795052754343,
+            "detail": "POST 200"
+          },
+          {
+            "operation": "voice",
+            "stage": "server_db",
+            "ms": 3.43,
+            "at": 1795052754343
+          },
+          {
+            "operation": "voice",
+            "stage": "server_auth",
+            "ms": 1.09,
+            "at": 1795052754343
+          },
+          {
+            "operation": "voice",
+            "stage": "server_token",
+            "ms": 0.25,
+            "at": 1795052754343
+          },
+          {
+            "operation": "voice",
+            "stage": "server_sfu_room",
+            "ms": 5.09,
+            "at": 1795052754343
+          },
+          {
+            "operation": "voice",
+            "stage": "server_presence",
+            "ms": 1.11,
+            "at": 1795052754343
+          },
+          {
+            "operation": "voice",
+            "stage": "server_total",
+            "ms": 8.82,
+            "at": 1795052754343
+          },
+          {
+            "operation": "voice",
+            "stage": "grant",
+            "ms": 22.6,
+            "at": 1795052754343
+          },
+          {
+            "operation": "voice",
+            "stage": "livekit",
+            "ms": 140.1,
+            "at": 1795052754483
+          },
+          {
+            "operation": "voice",
+            "stage": "participants",
+            "ms": 164.6,
+            "at": 1795052754484
+          },
+          {
+            "operation": "voice",
+            "stage": "api",
+            "ms": 12.7,
+            "at": 1795052754496,
+            "detail": "POST 200"
+          },
+          {
+            "operation": "voice",
+            "stage": "server_db",
+            "ms": 1.37,
+            "at": 1795052754496
+          },
+          {
+            "operation": "voice",
+            "stage": "server_auth",
+            "ms": 1.21,
+            "at": 1795052754496
+          },
+          {
+            "operation": "voice",
+            "stage": "server_total",
+            "ms": 3.91,
+            "at": 1795052754496
+          }
+        ]
+      },
+      {
+        "api": 47.09680000000026,
+        "room": 153.41630000000077,
+        "participants": 154.33240000000023,
+        "serverTiming": "db;dur=1.90, auth;dur=0.93, sfu_room;dur=0.19, token;dur=0.18, presence;dur=0.51, total;dur=2.32, queries;desc=\"5\"",
+        "serverStages": {
+          "contextMs": 0.4897000000000844,
+          "ensureRoomMs": 0.1989000000003216,
+          "signTokenMs": 0.2003999999997177,
+          "sfuMs": 0.20139999999992142,
+          "presenceMs": 0.5114999999996144,
+          "totalMs": 1.2049999999999272
+        },
+        "stages": [
+          {
+            "operation": "voice",
+            "stage": "api",
+            "ms": 19.7,
+            "at": 1795052754604,
+            "detail": "POST 200"
+          },
+          {
+            "operation": "voice",
+            "stage": "server_db",
+            "ms": 1.9,
+            "at": 1795052754604
+          },
+          {
+            "operation": "voice",
+            "stage": "server_auth",
+            "ms": 0.93,
+            "at": 1795052754604
+          },
+          {
+            "operation": "voice",
+            "stage": "server_sfu_room",
+            "ms": 0.19,
+            "at": 1795052754604
+          },
+          {
+            "operation": "voice",
+            "stage": "server_token",
+            "ms": 0.18,
+            "at": 1795052754604
+          },
+          {
+            "operation": "voice",
+            "stage": "server_presence",
+            "ms": 0.51,
+            "at": 1795052754604
+          },
+          {
+            "operation": "voice",
+            "stage": "server_total",
+            "ms": 2.32,
+            "at": 1795052754604
+          },
+          {
+            "operation": "voice",
+            "stage": "grant",
+            "ms": 19.7,
+            "at": 1795052754604
+          },
+          {
+            "operation": "voice",
+            "stage": "livekit",
+            "ms": 75.4,
+            "at": 1795052754679
+          },
+          {
+            "operation": "voice",
+            "stage": "participants",
+            "ms": 96.5,
+            "at": 1795052754681
+          },
+          {
+            "operation": "voice",
+            "stage": "api",
+            "ms": 8.9,
+            "at": 1795052754689,
+            "detail": "POST 200"
+          },
+          {
+            "operation": "voice",
+            "stage": "server_db",
+            "ms": 0.94,
+            "at": 1795052754689
+          },
+          {
+            "operation": "voice",
+            "stage": "server_auth",
+            "ms": 0.83,
+            "at": 1795052754689
+          },
+          {
+            "operation": "voice",
+            "stage": "server_total",
+            "ms": 2.69,
+            "at": 1795052754689
+          }
+        ]
+      }
+    ],
+    "avatar": {
+      "httpStatus": 200,
+      "desktopCors": true
+    },
+    "widths": [
+      1600,
+      1280,
+      1024,
+      800,
+      480
+    ],
+    "slowBackend": "atraso controlado >8 s; não é cold start real do Render",
+    "livekitRestartReconnectMs": 5810.536499999998
+  },
+  "summary": {
+    "initialWorkingCopy": {
+      "messages": {
+        "visibleMedianMs": 37.2,
+        "ackMedianMs": 37.2,
+        "recipientMedianMs": 39.22
+      },
+      "delayedApiVisibleMs": 1335.47,
+      "voice": [
+        {
+          "observedApiMs": 814.19,
+          "observedRoomMs": 1012.5
+        },
+        {
+          "observedApiMs": 39.47,
+          "observedRoomMs": 232.25
+        }
+      ]
+    },
+    "published034": {
+      "messages": {
+        "visibleMedianMs": 11.62,
+        "ackMedianMs": 11.62,
+        "recipientMedianMs": 14.47
+      },
+      "delayedApiVisibleMs": 9.14,
+      "voice": [
+        {
+          "observedApiMs": 839.45,
+          "observedRoomMs": 1040.33,
+          "observedParticipantsMs": 1041.25,
+          "serverStages": {
+            "contextMs": 0.8895000000002256,
+            "ensureRoomMs": 4.389800000000832,
+            "signTokenMs": 0.9458000000004176,
+            "sfuMs": 4.395000000000437,
+            "presenceMs": 0.7830999999996493,
+            "totalMs": 6.082400000000234
+          }
+        },
+        {
+          "observedApiMs": 43.04,
+          "observedRoomMs": 137.21,
+          "observedParticipantsMs": 138.12,
+          "serverStages": {
+            "contextMs": 0.6334000000006199,
+            "ensureRoomMs": 2.077100000000428,
+            "signTokenMs": 0.41190000000005966,
+            "sfuMs": 2.079000000000633,
+            "presenceMs": 0.6893999999992957,
+            "totalMs": 3.4059000000006563
+          }
+        }
+      ]
+    },
+    "prepared035": {
+      "messages": {
+        "visibleMedianMs": 11.13,
+        "ackMedianMs": 12.03,
+        "recipientMedianMs": 13.88
+      },
+      "delayedApiVisibleMs": 8.64,
+      "voice": [
+        {
+          "observedApiMs": 836.35,
+          "observedRoomMs": 1041.32,
+          "observedParticipantsMs": 1045.71,
+          "serverStages": {
+            "contextMs": 1.0030000000006112,
+            "ensureRoomMs": 5.1228000000000975,
+            "signTokenMs": 1.7809000000006563,
+            "sfuMs": 5.12920000000031,
+            "presenceMs": 1.1450999999997293,
+            "totalMs": 7.290200000000368
+          },
+          "clientStages": [
+            {
+              "operation": "voice",
+              "stage": "api",
+              "ms": 22.6,
+              "at": 1795052754343,
+              "detail": "POST 200"
+            },
+            {
+              "operation": "voice",
+              "stage": "grant",
+              "ms": 22.6,
+              "at": 1795052754343
+            },
+            {
+              "operation": "voice",
+              "stage": "livekit",
+              "ms": 140.1,
+              "at": 1795052754483
+            },
+            {
+              "operation": "voice",
+              "stage": "participants",
+              "ms": 164.6,
+              "at": 1795052754484
+            },
+            {
+              "operation": "voice",
+              "stage": "api",
+              "ms": 12.7,
+              "at": 1795052754496,
+              "detail": "POST 200"
+            }
+          ]
+        },
+        {
+          "observedApiMs": 47.1,
+          "observedRoomMs": 153.42,
+          "observedParticipantsMs": 154.33,
+          "serverStages": {
+            "contextMs": 0.4897000000000844,
+            "ensureRoomMs": 0.1989000000003216,
+            "signTokenMs": 0.2003999999997177,
+            "sfuMs": 0.20139999999992142,
+            "presenceMs": 0.5114999999996144,
+            "totalMs": 1.2049999999999272
+          },
+          "clientStages": [
+            {
+              "operation": "voice",
+              "stage": "api",
+              "ms": 19.7,
+              "at": 1795052754604,
+              "detail": "POST 200"
+            },
+            {
+              "operation": "voice",
+              "stage": "grant",
+              "ms": 19.7,
+              "at": 1795052754604
+            },
+            {
+              "operation": "voice",
+              "stage": "livekit",
+              "ms": 75.4,
+              "at": 1795052754679
+            },
+            {
+              "operation": "voice",
+              "stage": "participants",
+              "ms": 96.5,
+              "at": 1795052754681
+            },
+            {
+              "operation": "voice",
+              "stage": "api",
+              "ms": 8.9,
+              "at": 1795052754689,
+              "detail": "POST 200"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "backendBenchmark": {
+    "environment": "In-process HTTP + warm PGlite + FakeSfu; two accounts; ten sends per conversation; first two excluded",
+    "published034": {
+      "channel": {
+        "apiMedianMs": 2.68,
+        "recipientUpperMedianMs": 2.69,
+        "dbCumulativeMedianMs": 2.88,
+        "queries": 8
+      },
+      "dm": {
+        "apiMedianMs": 2.43,
+        "recipientUpperMedianMs": 2.44,
+        "dbCumulativeMedianMs": 2.12,
+        "queries": 11
+      }
+    },
+    "prepared035": {
+      "channel": {
+        "apiMedianMs": 2.85,
+        "recipientUpperMedianMs": 2.86,
+        "dbCumulativeMedianMs": 2.88,
+        "queries": 8
+      },
+      "dm": {
+        "apiMedianMs": 2.43,
+        "recipientUpperMedianMs": 2.43,
+        "dbCumulativeMedianMs": 2.06,
+        "queries": 11
+      }
+    }
+  },
+  "productionReadOnly": {
+    "url": "https://shareroom-api-y1r7.onrender.com/api/health",
+    "status": 200,
+    "elapsedMs": 377.4474,
+    "version": "0.3.4",
+    "commit": "cac1bc62e3d62b2f21f19b89285f7d2761eaa230",
+    "coldStartConfirmed": false,
+    "authenticatedTwoAccountTest": false,
+    "databaseRead": false
+  },
+  "latestRelease": "https://github.com/Murilloglm/Shereroon/releases/tag/v0.3.4",
+  "preparedVersion": "0.3.5"
+}

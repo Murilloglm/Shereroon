@@ -4,7 +4,7 @@ const message=(id:string,clientId?:string,author='a')=>({id,clientId,author:{id:
 describe('optimistic outbox reconciliation',()=>{
   it('HTTP then gateway and gateway then HTTP each produce one canonical row',()=>{
     const pending=message('local:nonce','nonce'), canonical=message('1','nonce');
-    expect(mergeMessages(mergeMessages([pending],[canonical]),[canonical])).toEqual([canonical]);
+    expect(mergeMessages(mergeMessages([pending],[canonical]),[canonical])).toEqual([{ ...canonical, delivery: 'sent' }]);
     expect(mergeMessages([canonical],[pending])).toEqual([canonical]);
     expect(messageKey(pending)).toBe(messageKey(canonical));
   });
@@ -15,6 +15,6 @@ describe('optimistic outbox reconciliation',()=>{
   it('history refresh preserves pending/failed operations until acknowledgement',()=>{
     const pending={...message('local:p','p'),delivery:'failed' as const};
     expect(mergeMessages([pending],[message('2')])).toContain(pending);
-    expect(mergeMessages([pending],[message('3','p')])).toEqual([message('3','p')]);
+    expect(mergeMessages([pending],[message('3','p')])).toEqual([{ ...message('3','p'), delivery: 'sent' }]);
   });
 });

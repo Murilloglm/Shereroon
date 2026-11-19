@@ -618,6 +618,14 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       CREATE UNIQUE INDEX dm_messages_client_id ON dm_messages(author_id, dm_id, client_id);
     `,
   },
+  {
+    id: 10,
+    name: 'validate idempotent message payloads',
+    sql: `
+      ALTER TABLE messages ADD COLUMN client_hash TEXT;
+      ALTER TABLE dm_messages ADD COLUMN client_hash TEXT;
+    `,
+  },
 ];
 
 /** Aplica o que ainda não foi aplicado. Seguro para rodar a cada inicialização. */

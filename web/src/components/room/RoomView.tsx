@@ -78,6 +78,13 @@ export function RoomView({
   const desktop = useIsDesktop();
   const [cinemaWanted, setCinema] = useState(false);
   const [mixerOpen, setMixerOpen] = useState(false);
+  const [slowConnection, setSlowConnection] = useState(false);
+  useEffect(() => {
+    setSlowConnection(false);
+    if (phase !== 'connecting') return;
+    const timer = setTimeout(() => setSlowConnection(true), 8000);
+    return () => clearTimeout(timer);
+  }, [phase]);
   const stage = useRef<StageHandle>(null);
   const mixerRef = useRef<AppMixer | null>(null);
   mixerRef.current ??= new AppMixer(session);
@@ -154,6 +161,8 @@ export function RoomView({
   return (
     <div className={cx('flex flex-col', embedded ? 'h-full min-h-0 overflow-y-auto lg:overflow-hidden' : desktop ? 'h-(--app-h) overflow-hidden' : 'min-h-(--app-h)')} data-testid="room">
       {!cinema && <Header session={session} onLeave={onLeave} embedded={embedded} actions={headerActions} />}
+
+      {phase === 'connecting' && <div className="flex shrink-0 items-center justify-center gap-2 bg-brand-500/10 px-4 py-2 text-sm text-brand-200" role="status" data-testid="voice-connecting"><LoaderCircle className="size-4 animate-spin" aria-hidden="true" />{slowConnection ? 'Ainda conectando. Se o servidor estava em repouso, a primeira resposta pode demorar cerca de um minuto.' : 'Conectando à chamada…'}</div>}
 
       {phase === 'reconnecting' && (
         <div className="flex items-center justify-center gap-2.5 bg-warn-400/15 px-4 py-2 text-sm font-bold text-warn-400" role="status">

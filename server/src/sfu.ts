@@ -134,7 +134,7 @@ export class LiveKitSfu implements Sfu {
       identity: request.identity,
       name: request.name,
       ttl: request.ttlSeconds,
-      metadata: JSON.stringify({ host: request.host, ...(request.accountId ? { accountId: request.accountId, avatar: request.avatar ?? null } : {}) }),
+      metadata: JSON.stringify({ host: request.host, accountId: request.accountId, avatar: request.avatar }),
     });
     token.addGrant({
       roomJoin: true,

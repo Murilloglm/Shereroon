@@ -30,6 +30,7 @@ import { RateLimiter } from './ratelimit.ts';
 import type { Sfu } from './sfu.ts';
 import { checkSfu, sfuError, sfuFailureError, type SfuFailure } from './sfu-errors.ts';
 import { Signer } from './signer.ts';
+import { requestTiming, timed } from './timing.ts';
 
 export interface AppDeps {
   config: Config;
@@ -117,9 +118,20 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
       origin: (origin) => (config.allowedOrigins.includes(origin) ? origin : null),
       allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       allowHeaders: ['content-type', 'authorization'],
+      exposeHeaders: ['Server-Timing'],
       maxAge: 86_400,
     }),
   );
+
+  app.use('/api/*', async (c, next) => {
+    const timing = { started: performance.now(), stages: new Map<string, number>(), queries: 0 };
+    await requestTiming.run(timing, next);
+    const total = performance.now() - timing.started;
+    c.header('Server-Timing', [...timing.stages].map(([name, ms]) => `${name};dur=${ms.toFixed(2)}`).concat(`total;dur=${total.toFixed(2)}`, `queries;desc="${timing.queries}"`).join(', '));
+    if (process.env.PERFORMANCE_LOG === '1' && /\/(messages|voice)$/.test(c.req.path) && c.req.method === 'POST') {
+      console.info('[latency]', JSON.stringify({ operation: c.req.path.includes('/voice') ? 'voice' : 'message', status: c.res.status, total, stages: Object.fromEntries(timing.stages), queries: timing.queries, uptimeSeconds: Math.round(process.uptime()) }));
+    }
+  });
 
   app.use('/api/*', async (c, next) => {
     if (c.req.method !== 'OPTIONS' && !limiter.take(`geral:${clientIp(c)}`, groups ? 600 : 120, 60_000)) {
@@ -222,17 +234,16 @@ export function createApp({ config, sfu, remoteAddress, limiter = new RateLimite
 
     if (!snapshot.exists) await withSfu(() => sfu.ensureRoom(roomName, room.capacity));
 
-    const authorization = c.req.header('authorization');
-    const account = groups && authorization?.startsWith('Bearer ')
-      ? await groups.accounts.authenticate(authorization.slice(7).trim()) : null;
-    const profile = account ? await groups!.community.social.profile(account, account.id) : null;
+    // A associação com a conta vem da sessão autenticada, nunca de um ID enviado no corpo.
+    const bearer = c.req.header('authorization')?.replace(/^Bearer /, '');
+    const account = groups && bearer ? await timed('auth', () => groups.accounts.authenticate(bearer)) : null;
     const token = await sfu.createToken({
       room: roomName,
       identity,
       name,
       host: isHost,
-      ...(account && profile ? { accountId: account.id, avatar: profile.avatar } : {}),
       ttlSeconds: config.tokenTtlSeconds,
+      ...(account ? { accountId: account.id, avatar: account.avatar ?? null } : {}),
     });
 
     return c.json({

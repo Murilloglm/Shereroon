@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "name": "contas, grupos, cargos, canais, mensagens e auditoria",
+    "sha256": "71a62fc896f87dfa9df3c70da492f77c8a9afd5425dff2c9d3a1a17baaf75ea3"
+  },
+  {
+    "id": 2,
+    "name": "bots: instalações, registros, dados e tarefas agendadas",
+    "sha256": "8c2b652e91b4ecb308414ea55b7ab069858e1e7262d0fe438e6d1cf6140c73a9"
+  },
+  {
+    "id": 3,
+    "name": "chat: anexos, respostas, menções, reações, não lidas e notificações",
+    "sha256": "306ba3e0703e8662070aa7d1e4f94fb702821f0940d416a7f0fdad9736c5dd59"
+  },
+  {
+    "id": 4,
+    "name": "perfis, amizades, mensagens privadas, notas pessoais, entrada no grupo, bots na lista, chat de voz e emojis",
+    "sha256": "dc874925c0d11dfa893c2ca43a6c27afff0169259d1e758616e054b17e94a90d"
+  },
+  {
+    "id": 5,
+    "name": "atividades: jogos vinculados, atividade atual e recentes, privacidade das atividades",
+    "sha256": "554ce28852722d48258629b5e188e762537d9d0b7a4132f0d5f9261faf534136"
+  },
+  {
+    "id": 6,
+    "name": "cosmic points, loja, inventário e itens equipados",
+    "sha256": "f18560a09c9ad5293ca9b2b19af429dcbb0042c50b24e8cc83052c8380878082"
+  },
+  {
+    "id": 7,
+    "name": "administração global, MFA, códigos promocionais e presentes",
+    "sha256": "50e45c721ae1c198ccf63f72e2d41f325658e1b972dcc2c47380ce043cf4fc8b"
+  },
+  {
+    "id": 8,
+    "name": "exceção de MFA exclusiva da conta principal por ID",
+    "sha256": "468ed0a22585b47d1282fb3e27849cae03f1c26c1590438b538884c4ef4b2962"
+  },
+  {
+    "id": 9,
+    "name": "idempotent message delivery acknowledgements",
+    "sha256": "8b323e8445765a42648a8d0c5b3c18b5634916943df01fa516e210744eaca04b"
+  }
+]

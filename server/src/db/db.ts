@@ -3,6 +3,8 @@
  * instalado é o PGlite: o próprio PostgreSQL compilado para rodar dentro do Node, então o SQL é o mesmo.
  */
 
+import { timedQuery } from '../timing.ts';
+
 export type Row = Record<string, unknown>;
 
 export interface Db {
@@ -23,7 +25,7 @@ interface Queryable {
 function inTransaction(kind: Db['kind'], handle: Queryable, exec: (sql: string) => Promise<void>): Db {
   const db: Db = {
     kind,
-    query: async <T extends Row>(text: string, params: readonly unknown[] = []) => (await handle.query(text, [...params])).rows as T[],
+    query: async <T extends Row>(text: string, params: readonly unknown[] = []) => timedQuery(async () => (await handle.query(text, [...params])).rows as T[]),
     exec,
     tx: (run) => run(db),
     close: async () => undefined,
@@ -39,7 +41,7 @@ export async function connectPostgres(url: string): Promise<Db> {
   await pool.query('SELECT 1');
   return {
     kind: 'postgres',
-    query: async <T extends Row>(text: string, params: readonly unknown[] = []) => (await pool.query(text, [...params])).rows as T[],
+    query: async <T extends Row>(text: string, params: readonly unknown[] = []) => timedQuery(async () => (await pool.query(text, [...params])).rows as T[]),
     exec: async (sql) => void (await pool.query(sql)),
     async tx(run) {
       const client = await pool.connect();
@@ -66,7 +68,7 @@ export async function connectPglite(dataDir?: string): Promise<Db> {
   await lite.waitReady;
   return {
     kind: 'pglite',
-    query: async <T extends Row>(text: string, params: readonly unknown[] = []) => (await lite.query(text, [...params])).rows as T[],
+    query: async <T extends Row>(text: string, params: readonly unknown[] = []) => timedQuery(async () => (await lite.query(text, [...params])).rows as T[]),
     exec: async (sql) => void (await lite.exec(sql)),
     tx: (run) =>
       lite.transaction((tx) =>

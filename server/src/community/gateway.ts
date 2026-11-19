@@ -57,7 +57,8 @@ export function attachGateway(server: Server, { accounts, community, allowedOrig
     ws.on('close', () => {
       clearTimeout(authTimer);
       clearInterval(heartbeat);
-      if (connection) community.hub.close(connection);
+      // O gateway e a mídia têm conexões distintas. Uma queda curta do chat não deve expulsar do WebRTC.
+      if (connection) community.hub.close(connection, 15_000);
       connection = null;
     });
 

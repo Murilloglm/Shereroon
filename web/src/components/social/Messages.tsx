@@ -12,6 +12,7 @@ import { errorText, groupHash, GroupIcon, useAction } from '../groups/common.tsx
 import { Avatar, Button, cx, IconButton, TextInput } from '../ui.tsx';
 import { ActivityList } from './ActivityList.tsx';
 import { startDm, useUserTriggers } from './UserInteractions.tsx';
+import { MessageDelivery } from '../MessageDelivery.tsx';
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
@@ -298,10 +299,9 @@ export function DmChat({ dmId }: { dmId: string }) {
   const send = async () => {
     const content = draft.trim();
     if (uploading || (!content && ready.length === 0)) return;
-    const pendingSend = social.send(dmId, { content, replyTo: replyTo?.id, attachments: ready.map((item) => item.attachment!.id) }, ready.map(item => item.attachment!));
+    void social.send(dmId, { content, replyTo: replyTo?.id, attachments: ready.map((item) => item.attachment!.id) }, ready.map(item => item.attachment!));
     setDraft(''); setReplyTo(null); setPending([]); atBottom.current = true;
     inputRef.current?.focus();
-    void pendingSend.catch(() => undefined);
   };
 
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -363,7 +363,7 @@ export function DmChat({ dmId }: { dmId: string }) {
         >
           {state?.loaded && items.length === 0 && <p className="py-8 text-center text-sm text-fog-500">Este é o começo da sua conversa com {name}.</p>}
           {grouped.map(({ message, newDay }) => (
-            <div key={messageKey(message)}>
+            <div key={message.clientId ?? message.id}>
               {newDay && (
                 <p className="my-3 flex items-center gap-3 text-xs font-bold text-fog-500 capitalize">
                   <span className="h-px flex-1 bg-ink-700" />
@@ -533,9 +533,7 @@ function DmBubbleRow({
           {time(message.createdAt)}
           {message.editedAt && ' • editada'}
         </p>
-        {(message.delivery || message.clientId && mine) && <p className="mt-1 text-xs text-fog-400" role="status" data-testid="dm-delivery">
-          {!message.delivery ? 'Enviada' : message.delivery === 'sending' ? 'Enviando...' : <><span className="text-live-300">{message.deliveryError || 'Falha no envio.'}</span> <button type="button" className="font-bold text-brand-200 underline" onClick={() => void social.retry(message.clientId!).catch(() => undefined)} data-testid="dm-retry">Tentar novamente</button></>}
-        </p>}
+        <MessageDelivery message={message} retry={id => social.retry(id)} retryTestId="dm-retry" />
         {message.reactions.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {message.reactions.map((reaction) => (
@@ -546,7 +544,7 @@ function DmBubbleRow({
           </div>
         )}
       </div>
-      <div style={message.delivery ? { display: 'none' } : undefined} className={cx('absolute -top-3 hidden gap-0.5 rounded-lg border border-ink-600 bg-ink-900 p-0.5 group-focus-within:flex group-hover:flex', mine ? 'right-2' : 'left-2')}>
+      {!message.delivery?.match(/sending|failed/) && <div className={cx('absolute -top-3 hidden gap-0.5 rounded-lg border border-ink-600 bg-ink-900 p-0.5 group-focus-within:flex group-hover:flex', mine ? 'right-2' : 'left-2')}>
         <IconButton label="Reagir" className="size-7" onClick={onPicker} data-testid="dm-react">
           <Smile className="size-4" />
         </IconButton>
@@ -569,6 +567,7 @@ function DmBubbleRow({
           </>
         )}
       </div>
+      }
       {picker && <EmojiPicker className={cx('top-full z-30 mt-1', mine ? 'right-2' : 'left-2')} onPick={(emoji) => (toggle(emoji), onClosePicker())} onClose={onClosePicker} />}
     </article>
   );

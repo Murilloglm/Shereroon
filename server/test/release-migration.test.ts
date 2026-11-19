@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { connectPglite, type Db } from '../src/db/db.ts';
 import { MIGRATIONS, migrate } from '../src/db/schema.ts';
 
@@ -26,7 +28,7 @@ describe('migrações de produção a partir da 0.3.2', () => {
     await legacyDatabase();
     const userBefore = await db.query("SELECT * FROM users WHERE id='legacy'");
     const ledgerBefore = await db.query('SELECT * FROM points_ledger');
-    expect(await migrate(db)).toEqual([7, 8, 9]);
+    expect(await migrate(db)).toEqual([7, 8, 9, 10]);
     expect(await db.query("SELECT * FROM users WHERE id='legacy'")).toEqual(userBefore);
     expect(await db.query('SELECT * FROM points_ledger')).toEqual(ledgerBefore);
     expect((await db.query('SELECT * FROM user_items'))[0]).toMatchObject({ user_id: 'legacy', item_id: 'anel-aurora', price: 150, admin_grant: false, acquisition_id: null });
@@ -44,7 +46,7 @@ describe('migrações de produção a partir da 0.3.2', () => {
     await db.query("UPDATE sessions SET admin_verified_until=now()+interval '5 minutes' WHERE user_id='legacy'");
     const [before] = await db.query('SELECT * FROM global_permissions');
     const sessions = await db.query('SELECT * FROM sessions');
-    expect(await migrate(db)).toEqual([8, 9]);
+    expect(await migrate(db)).toEqual([8, 9, 10]);
     expect((await db.query('SELECT * FROM global_permissions'))[0]).toEqual({ ...before, mfa_exempt: false });
     expect(await db.query('SELECT * FROM sessions')).toEqual(sessions);
     expect(await db.query('SELECT * FROM admin_audit')).toEqual([]);
@@ -59,3 +61,23 @@ describe('migrações de produção a partir da 0.3.2', () => {
     expect((await db.query('SELECT item_id FROM user_items'))[0]!.item_id).toBe('anel-aurora');
   });
 });
+
+it('atualiza a 0.3.4 com a migração 10 sem alterar migrações publicadas ou mensagens confirmadas', async () => {
+  const published = JSON.parse(readFileSync(new URL('./fixtures/schema-v034.json', import.meta.url), 'utf8'));
+  const currentPublished = MIGRATIONS.filter(migration => migration.id <= 9);
+  expect(currentPublished.map(({ id, name, sql }) => ({ id, name, sha256: createHash('sha256').update(sql).digest('hex') }))).toEqual(published);
+  await legacyDatabase();
+  for (const migration of currentPublished.filter(migration => migration.id > 6)) {
+    await db.exec(migration.sql);
+    await db.query('INSERT INTO schema_migrations (id,name) VALUES ($1,$2)', [migration.id, migration.name]);
+  }
+  await db.query("INSERT INTO groups (id,name,owner_id) VALUES ('old-group','Existente','legacy')");
+  await db.query("INSERT INTO channels (id,name,kind,group_id) VALUES ('old-channel','geral','texto','old-group')");
+  await db.query("INSERT INTO messages (channel_id,author_id,content,client_id) VALUES ('old-channel','legacy','Confirmada antes do upgrade','client-original-034')");
+  const messagesBefore = await db.query('SELECT * FROM messages');
+  const before = await db.query('SELECT * FROM users');
+  expect(await migrate(db)).toEqual([10]);
+  expect(await db.query('SELECT * FROM users')).toEqual(before);
+  expect(await db.query('SELECT * FROM messages')).toEqual(messagesBefore.map(message => ({ ...message, client_hash: null })));
+  expect(await migrate(db)).toEqual([]);
+}, 30_000);

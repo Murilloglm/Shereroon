@@ -1,20 +1,21 @@
-import { avatarCache } from '../avatar-cache.ts';
 /**
  * Cliente dos grupos: conta, lista de grupos, o grupo aberto, mensagens e o canal de tempo real.
  * A interface só reflete o que o backend responde; nenhuma permissão é decidida aqui.
  */
 import { API_BASE, ApiError, request } from '../api.ts';
 import { Store } from '../store.ts';
-import { isConfirmed, mergeMessages, type Delivery } from '../outbox.ts';
+import { avatars, rememberAvatar, rememberAvatars } from '../avatars.ts';
+import { compareIds, mergeMessages, serverId, type Delivery } from '../messages.ts';
+import { latency } from '../latency.ts';
 import { applyVoiceEvent } from './voice-roster.ts';
 
 export interface Account {
   cosmicAdmin?: boolean;
   adminVerified?: boolean;
-  mfaExempt?: boolean;
   id: string;
   username: string;
   displayName: string;
+  avatar?: string | null;
 }
 
 export type NotifyLevel = 'tudo' | 'mencoes' | 'nada';
@@ -182,8 +183,8 @@ const EMPTY: ChannelMessages = { items: [], loading: false, complete: false, loa
 
 const bigintFields = <T extends { permissions: string }>(item: T) => ({ ...item, permissions: BigInt(item.permissions) });
 
-function toView(raw: any): GroupView {
-  avatarCache.seed(raw.members ?? []);
+function toView(raw: any, before?: Record<string, string | null>): GroupView {
+  rememberAvatars(raw.members.map((member: MemberView) => ({ id: member.userId, image: member.avatar })), before);
   return {
     group: raw.group,
     me: { ...raw.me, permissions: BigInt(raw.me.permissions) },
@@ -215,8 +216,6 @@ function writeToken(token: string | null): void {
 }
 
 export class GroupsClient {
-  #outbox = new Map<string, { channelId: string; content: string; replyTo?: string; attachments?: string[] }>();
-  #sending = new Map<string, Promise<void>>();
   readonly store = new Store<GroupsState>({
     status: 'verificando',
     account: null,
@@ -240,16 +239,29 @@ export class GroupsClient {
   #openChannel: string | null = null;
   #groupsTimer: ReturnType<typeof setTimeout> | null = null;
   readonly #reading = new Map<string, string>();
+  readonly #readTimers = new Map<string, ReturnType<typeof setTimeout>>();
   readonly #fileUrls = new Map<string, Promise<string>>();
+  readonly #outbox = new Map<string, { accountId: string; channelId: string; content: string; extra: { replyTo?: string; attachments?: string[] }; started: number }>();
+  readonly #sending = new Map<string, Promise<void>>();
+  readonly #seen = new Set<string>();
+  #messageOrder = 0;
+
+  constructor() {
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', () => this.#flushReads());
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.#flushReads(); });
+  }
+
+  get hasSession(): boolean { return this.#token !== null; }
 
   /** Chamada autenticada. Sessão vencida derruba para a tela de entrada. */
-  get sessionToken(): string | null { return this.#token; }
-
-  async call<T = any>(method: string, path: string, body?: unknown): Promise<T> {
+  async call<T = any>(method: string, path: string, body?: unknown, timeoutMs?: number, keepalive = false): Promise<T> {
+    const token = this.#token;
     try {
-      return await request<T>(method, path, { body: body === undefined && method !== 'GET' && method !== 'DELETE' ? {} : body, token: this.#token });
+      const result = await request<T>(method, path, { body: body === undefined && method !== 'GET' && method !== 'DELETE' ? {} : body, token, timeoutMs, keepalive });
+      if (token !== this.#token) throw new ApiError('sessao_alterada', 'A conta ativa mudou.', 401);
+      return result;
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'sessao_invalida') this.#signedOut();
+      if (token === this.#token && error instanceof ApiError && error.code === 'sessao_invalida') this.#signedOut();
       throw error;
     }
   }
@@ -257,12 +269,13 @@ export class GroupsClient {
   /** Descobre se o servidor tem grupos e se já há uma sessão guardada. Pode ser chamado várias vezes. */
   start(): Promise<void> {
     this.#started ??= this.#start().finally(() => {
-      if (this.store.get().status === 'verificando') this.#started = null;
+      if (!['dentro', 'fora'].includes(this.store.get().status)) this.#started = null;
     });
     return this.#started;
   }
 
   async #start(): Promise<void> {
+    this.store.set({ status: 'verificando', notice: null });
     try {
       const features = await request<{ groups: boolean; maxFileBytes?: number }>('GET', '/api/features', { timeoutMs: 70_000 });
       if (!features.groups) return this.store.set({ status: 'indisponivel' });
@@ -277,8 +290,9 @@ export class GroupsClient {
     try {
       const { user } = await request<{ user: Account }>('GET', '/api/auth/me', { token: this.#token });
       await this.#signedIn(user);
-    } catch {
-      this.#signedOut();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) this.#signedOut();
+      else { this.store.set({ status: 'indisponivel', notice: error instanceof Error ? error.message : 'Não foi possível retomar a sessão. Tente novamente.' }); this.#started = null; }
     }
   }
 
@@ -325,6 +339,7 @@ export class GroupsClient {
   }
 
   async #signedIn(account: Account): Promise<void> {
+    rememberAvatar(account.id, account.avatar);
     this.store.set({ status: 'dentro', account });
     await this.refreshGroups();
     this.#connect();
@@ -336,6 +351,15 @@ export class GroupsClient {
     writeToken(null);
     this.#disconnect();
     this.#forgetFiles();
+    this.#outbox.clear();
+    this.#sending.clear();
+    this.#seen.clear();
+    for (const timer of this.#readTimers.values()) clearTimeout(timer);
+    this.#readTimers.clear(); this.#reading.clear();
+    if (this.#refreshTimer) clearTimeout(this.#refreshTimer);
+    if (this.#groupsTimer) clearTimeout(this.#groupsTimer);
+    this.#refreshTimer = null; this.#groupsTimer = null;
+    avatars.set({ byUser: {} });
     this.store.set({ status: this.store.get().status === 'indisponivel' ? 'indisponivel' : 'fora', account: null, groups: [], view: null, messages: {}, live: false });
   }
 
@@ -356,9 +380,10 @@ export class GroupsClient {
 
   /** Abre um grupo (carrega o que esta conta pode ver dele). */
   async openGroup(groupId: string): Promise<void> {
+    const before = avatars.get().byUser;
     if (this.store.get().view?.group.id !== groupId) this.store.set({ view: null, viewLoading: true });
     try {
-      const view = toView(await this.call('GET', `/api/groups/${groupId}`));
+      const view = toView(await this.call('GET', `/api/groups/${groupId}`), before);
       this.store.set({ view, viewLoading: false });
     } catch (error) {
       this.store.set({ view: null, viewLoading: false });
@@ -372,10 +397,11 @@ export class GroupsClient {
   }
 
   async refreshView(): Promise<void> {
+    const before = avatars.get().byUser;
     const groupId = this.store.get().view?.group.id;
     if (!groupId) return;
     try {
-      const view = toView(await this.call('GET', `/api/groups/${groupId}`));
+      const view = toView(await this.call('GET', `/api/groups/${groupId}`), before);
       if (this.store.get().view?.group.id === groupId) this.store.set({ view });
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) this.store.set({ view: null });
@@ -411,6 +437,7 @@ export class GroupsClient {
 
   /** Marca qual canal de texto está na tela (para recarregar depois de uma queda de conexão). */
   watchChannel(channelId: string | null): void {
+    if (this.#openChannel && this.#openChannel !== channelId && this.#readTimers.has(this.#openChannel)) this.#flushRead(this.#openChannel);
     this.#openChannel = channelId;
   }
 
@@ -419,13 +446,13 @@ export class GroupsClient {
     if (current.loading || (older && current.complete)) return;
     this.#setMessages(channelId, { loading: true });
     try {
-      const before = older ? current.items.find(isConfirmed)?.id : undefined;
+      const before = older ? current.items.find(item => serverId(item.id))?.id : undefined;
       const { messages } = await this.call<{ messages: ChatMessage[] }>('GET', `/api/channels/${channelId}/messages?limit=50${before ? `&before=${before}` : ''}`);
       const latest = this.messagesOf(channelId);
       // Junta com o que chegou em tempo real enquanto a página carregava.
-      const preserved = older ? latest.items : latest.items.filter(item => !isConfirmed(item) || BigInt(item.id) > BigInt(messages.at(-1)?.id ?? 0));
+      const retained = older ? latest.items : latest.items.filter(item => !serverId(item.id) || compareIds(item.id, messages.at(-1)?.id ?? '0') > 0);
       this.#setMessages(channelId, {
-        items: mergeMessages(preserved, messages),
+        items: mergeMessages(retained, messages),
         loading: false,
         loaded: true,
         complete: older ? messages.length < 50 : latest.complete || messages.length < 50,
@@ -436,40 +463,47 @@ export class GroupsClient {
     }
   }
 
-  async send(channelId: string, content: string, extra: { replyTo?: string; attachments?: string[]; localAttachments?: Attachment[] } = {}): Promise<void> {
+  send(channelId: string, content: string, extra: { replyTo?: string; attachments?: string[]; files?: Attachment[] } = {}): Promise<void> {
     const account = this.store.get().account;
-    if (!account) throw new Error('Entre na sua conta para enviar mensagens.');
+    if (!account) return Promise.reject(new Error('Entre na sua conta para enviar.'));
+    const started = performance.now();
     const clientId = crypto.randomUUID();
-    this.#outbox.set(clientId, { channelId, content, replyTo: extra.replyTo, attachments: extra.attachments });
-    const replied = this.messagesOf(channelId).items.find(item => item.id === extra.replyTo);
-    this.#upsert({
-      id: `local:${clientId}`, clientId, channelId, content, delivery: 'sending',
-      author: { id: account.id, name: account.displayName, username: account.username },
-      createdAt: new Date().toISOString(), editedAt: null, meta: null, pinned: false,
-      reply: replied ? { id: replied.id, authorId: replied.author.id, authorName: replied.author.name, excerpt: replied.content.slice(0,120) } : null,
-      mentionEveryone: false, mentions: [], attachments: extra.localAttachments ?? [], reactions: [],
-    });
+    const reply = extra.replyTo ? this.messagesOf(channelId).items.find(item => item.id === extra.replyTo) : undefined;
+    const message: ChatMessage = {
+      id: `local-${clientId}`, clientId, delivery: 'sending', localOrder: ++this.#messageOrder,
+      channelId, author: { id: account.id, name: account.displayName, username: account.username }, content,
+      mentionEveryone: false, pinned: false, createdAt: new Date().toISOString(), editedAt: null,
+      reply: reply ? { id: reply.id, authorId: reply.author.id, authorName: reply.author.name, excerpt: reply.content.slice(0, 120) } : null,
+      mentions: [], attachments: extra.files ?? [], reactions: [],
+    };
+    this.#outbox.set(clientId, { accountId: account.id, channelId, content, extra: { ...(extra.replyTo ? { replyTo: extra.replyTo } : {}), ...(extra.attachments ? { attachments: extra.attachments } : {}) }, started });
+    this.#setMessages(channelId, { items: mergeMessages(this.messagesOf(channelId).items, [message]) });
+    latency.record('message', 'optimistic', performance.now() - started);
     return this.retry(clientId);
   }
 
   retry(clientId: string): Promise<void> {
-    const active = this.#sending.get(clientId);
-    if (active) return active;
-    const pending = this.#outbox.get(clientId);
-    if (!pending) return Promise.resolve();
-    const { channelId, ...input } = pending;
-    this.#patchDelivery(channelId, clientId, 'sending');
-    const attempt = this.call<{ message: ChatMessage }>('POST', `/api/channels/${channelId}/messages`, { ...input, clientId })
-      .then(({ message }) => { this.#upsert(message); this.#outbox.delete(clientId); this.#sawMessage(message, this.store.get().view?.group.id ?? ''); })
-      .catch((error: unknown) => { this.#patchDelivery(channelId, clientId, 'failed', error instanceof Error ? error.message : 'Não foi possível enviar.'); throw error; })
-      .finally(() => this.#sending.delete(clientId));
-    this.#sending.set(clientId, attempt);
-    return attempt;
-  }
-
-  #patchDelivery(channelId: string, clientId: string, delivery: 'sending' | 'failed', deliveryError?: string): void {
-    const current = this.messagesOf(channelId);
-    this.#setMessages(channelId, { items: current.items.map(item => item.clientId === clientId && !isConfirmed(item) ? { ...item, delivery, deliveryError } : item) });
+    const running = this.#sending.get(clientId);
+    if (running) return running;
+    const job = this.#outbox.get(clientId);
+    if (!job || job.accountId !== this.store.get().account?.id) return Promise.resolve();
+    this.#setMessages(job.channelId, { items: this.messagesOf(job.channelId).items.map(item => item.clientId === clientId ? { ...item, delivery: 'sending', deliveryError: undefined } : item) });
+    const pending = (async () => {
+      try {
+        const { message } = await this.call<{ message: ChatMessage }>('POST', `/api/channels/${job.channelId}/messages`, { content: job.content, ...job.extra, clientId });
+        if (job.accountId !== this.store.get().account?.id) return;
+        this.#upsert({ ...message, clientId: message.clientId ?? clientId });
+        this.#sawMessage(message, this.store.get().view?.group.id ?? '');
+        latency.record('message', 'ack', performance.now() - job.started);
+        this.#outbox.delete(clientId);
+      } catch (error) {
+        // O gateway pode confirmar mesmo que a resposta HTTP se perca.
+        if (!this.#outbox.has(clientId) || job.accountId !== this.store.get().account?.id) return;
+        this.#setMessages(job.channelId, { items: this.messagesOf(job.channelId).items.map(item => item.clientId === clientId ? { ...item, delivery: 'failed', deliveryError: error instanceof Error ? error.message : 'Falha ao enviar.' } : item) });
+      } finally { this.#sending.delete(clientId); }
+    })();
+    this.#sending.set(clientId, pending);
+    return pending;
   }
 
   async react(message: ChatMessage, emoji: string, on: boolean): Promise<void> {
@@ -555,13 +589,29 @@ export class GroupsClient {
   markRead(channelId: string, messageId: string | undefined): void {
     const view = this.store.get().view;
     const state = view?.unread[channelId];
-    if (!view || !messageId || (this.#reading.get(channelId) ?? state?.read ?? '0') === messageId) return;
-    if (Number(messageId) <= Number(this.#reading.get(channelId) ?? state?.read ?? 0)) return;
+    if (!view || !messageId || !serverId(messageId) || (this.#reading.get(channelId) ?? state?.read ?? '0') === messageId) return;
+    if (compareIds(messageId, this.#reading.get(channelId) ?? state?.read ?? '0') <= 0) return;
     this.#reading.set(channelId, messageId);
     this.store.set({ view: { ...view, unread: { ...view.unread, [channelId]: { last: state?.last ?? messageId, read: messageId, mentions: 0, count: 0 } } } });
-    void this.call('POST', `/api/channels/${channelId}/read`, { messageId })
+    const previous = this.#readTimers.get(channelId);
+    if (previous) clearTimeout(previous);
+    this.#readTimers.set(channelId, setTimeout(() => this.#flushRead(channelId), 250));
+  }
+
+  #flushReads(): void {
+    for (const channelId of this.#readTimers.keys()) this.#flushRead(channelId);
+  }
+
+  #flushRead(channelId: string): void {
+    const timer = this.#readTimers.get(channelId);
+    if (timer) clearTimeout(timer);
+    this.#readTimers.delete(channelId);
+    const latest = this.#reading.get(channelId);
+    if (!latest) return;
+    // A confirmação de leitura sobrevive ao recarregamento, sem criar outra requisição periódica.
+    void this.call('POST', `/api/channels/${channelId}/read`, { messageId: latest }, undefined, true)
       .then(() => this.#scheduleGroups())
-      .catch(() => this.#reading.delete(channelId));
+      .catch(() => { if (this.#reading.get(channelId) === latest) this.#reading.delete(channelId); });
   }
 
   async setNotify(groupId: string, level: NotifyLevel | null, channelId?: string): Promise<void> {
@@ -586,6 +636,9 @@ export class GroupsClient {
 
   /** Atualiza o "não lido" do canal com uma mensagem que acabou de chegar (ou que esta conta enviou). */
   #sawMessage(message: ChatMessage, groupId: string): void {
+    if (this.#seen.has(message.id)) return;
+    this.#seen.add(message.id);
+    if (this.#seen.size > 1000) this.#seen.delete(this.#seen.values().next().value!);
     const state = this.store.get();
     const me = state.account?.id;
     const own = message.author.id === me;
@@ -593,7 +646,7 @@ export class GroupsClient {
     const view = state.view;
     if (view && view.group.id === groupId && view.channels.some((channel) => channel.id === message.channelId)) {
       const before = view.unread[message.channelId] ?? { last: null, read: null, mentions: 0, count: 0 };
-      if (Number(message.id) > Number(before.last ?? 0)) {
+      if (compareIds(message.id, before.last ?? '0') > 0) {
         if (own) this.#reading.set(message.channelId, message.id);
         this.store.set({
           view: { ...view, unread: { ...view.unread, [message.channelId]: { last: message.id, read: own ? message.id : before.read, mentions: own ? 0 : before.mentions + (mentioned ? 1 : 0), count: own ? 0 : Math.min(100, (before.count ?? 0) + 1) } } },
@@ -619,9 +672,11 @@ export class GroupsClient {
 
   #upsert(message: ChatMessage): void {
     const current = this.store.get().messages[message.channelId];
-    if (!current?.loaded && !message.delivery && !current?.items.some(item => message.clientId && item.clientId === message.clientId && item.author.id === message.author.id)) return;
-    if (message.clientId && isConfirmed(message)) this.#outbox.delete(message.clientId);
-    this.#setMessages(message.channelId, { items: mergeMessages(current?.items ?? [], [message]) });
+    if (message.clientId && message.author.id === this.store.get().account?.id) this.#outbox.delete(message.clientId);
+    if (!current) return;
+    const items = mergeMessages(current.items, [message]);
+    if (items.length === current.items.length && items.every((item, index) => item === current.items[index])) return;
+    this.#setMessages(message.channelId, { items });
   }
 
   #drop(channelId: string, id: string): void {
@@ -695,6 +750,7 @@ export class GroupsClient {
         const again = this.#attempt > 0;
         this.#attempt = 0;
         this.store.set({ live: true });
+        window.dispatchEvent(new Event('cn:media-retry'));
         this.#scheduleRefresh();
         if (again) {
           // Voltou de uma queda: busca o que mudou enquanto estava fora.
@@ -705,6 +761,13 @@ export class GroupsClient {
       case 'group.changed':
         this.#scheduleRefresh();
         break;
+      case 'profile.changed': {
+        if ('avatar' in event) rememberAvatar(event.userId, event.avatar);
+        if (this.store.get().account?.id === event.userId && 'avatar' in event) {
+          this.store.set(state => ({ account: state.account ? { ...state.account, avatar: event.avatar, displayName: event.displayName ?? state.account.displayName } : null }));
+        }
+        break;
+      }
       case 'group.removed': {
         const group = this.store.get().groups.find((item) => item.id === event.groupId);
         const why = event.reason === 'banido' ? 'Você foi banido de' : event.reason === 'expulso' ? 'Você foi removido de' : event.reason === 'excluido' ? 'O dono excluiu' : null;
@@ -715,9 +778,6 @@ export class GroupsClient {
         }));
         break;
       }
-      case 'profile.changed':
-        if (typeof event.userId === 'string' && (event.avatar === null || typeof event.avatar === 'string')) avatarCache.update(event.userId, event.avatar);
-        break;
       case 'presence':
         if (view && view.group.id === event.groupId) {
           if (!view.members.some((member) => member.userId === event.userId)) this.#scheduleRefresh();

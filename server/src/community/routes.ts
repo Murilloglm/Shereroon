@@ -11,6 +11,7 @@ import { securityLimit } from './global-admin.ts';
 import type { Economy } from './economy.ts';
 import type { Accounts, User } from './auth.ts';
 import type { Community } from './core.ts';
+import { timed } from '../timing.ts';
 
 export interface CommunityDeps {
   accounts: Accounts;
@@ -53,14 +54,14 @@ export function mountCommunity(app: Hono, { accounts, community, bots, economy, 
     return header.startsWith('Bearer ') ? header.slice(7).trim() : null;
   };
 
-  const who = async (c: Context): Promise<User> => {
+  const who = async (c: Context): Promise<User> => timed('auth', async () => {
     const user = await accounts.authenticate(tokenOf(c));
     if (!user) throw new ApiError(401, 'sessao_invalida', 'Sua sessão terminou. Entre de novo.');
     if (user.cosmicAdmin && economy && !['GET', 'HEAD'].includes(c.req.method) && (/^\/api\/(groups|channels|roles|messages|invites|bots)(\/|$)/.test(c.req.path) || ['/api/shop/buy', '/api/shop/gifts'].includes(c.req.path))) {
       await economy.admin.requireMfa(user, tokenOf(c));
     }
     return user;
-  };
+  });
 
   const id = (c: Context, name: string): string => {
     const value = c.req.param(name) ?? '';

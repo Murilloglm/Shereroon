@@ -1,7 +1,6 @@
-import { avatarCache } from '../lib/avatar-cache.ts';
-import { useStore } from '../lib/store.ts';
 import { Check, X } from 'lucide-react';
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -15,6 +14,8 @@ import { meterPosition } from '../lib/audio.ts';
 import { API_BASE } from '../lib/api.ts';
 import { reducedMotion as appearanceReducesMotion } from '../lib/appearance.ts';
 import { hueFor, initials } from '../lib/format.ts';
+import { avatars, mediaUrl } from '../lib/avatars.ts';
+import { useStore } from '../lib/store.ts';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -377,33 +378,45 @@ export function MotionSafeImage({ src, alt, className, play = false }: { src: st
 }
 
 /** Foto enviada. Com "reduzir movimento" ligado, um GIF animado aparece parado no primeiro quadro. */
-function AvatarImage({ src, alt, fallback }: { src: string; alt: string; fallback: string }) {
+function AvatarImage({ src, alt, size, onError }: { src: string; alt: string; size: number; onError: () => void }) {
+  const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [still, setStill] = useState(false);
-  const [failed, setFailed] = useState(false);
   const reduce = prefersReducedMotion();
-  if (failed) return <>{fallback}</>;
+  const capture = useCallback((image: HTMLImageElement) => {
+    const canvas = canvasRef.current;
+    if (!reduce || !canvas || !image.naturalWidth || !image.naturalHeight) return;
+    // Uma miniatura de 40 px não precisa de um canvas de 2048 × 2048 por ocorrência no chat.
+    const pixels = Math.min(512, Math.ceil(size * (window.devicePixelRatio || 1)));
+    const scale = Math.min(1, pixels / Math.min(image.naturalWidth, image.naturalHeight), 512 / Math.max(image.naturalWidth, image.naturalHeight));
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    try {
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      setStill(true);
+    } catch {
+      // Sem permissão para desenhar: mostra a imagem normal.
+      setStill(false);
+    }
+  }, [reduce, size]);
+  useEffect(() => {
+    setStill(false);
+    if (imageRef.current?.complete) capture(imageRef.current);
+  }, [capture, src]);
   return (
     <>
       <img
+        ref={imageRef}
         src={src}
         alt={alt}
-        className={cx('size-full rounded-full object-cover', still && 'hidden')}
+        className={cx('size-full rounded-full object-cover', reduce && still && 'hidden')}
         draggable={false}
-        onError={() => setFailed(true)}
-        onLoad={(event) => {
-          if (!reduce || !canvasRef.current) return;
-          const image = event.currentTarget;
-          const canvas = canvasRef.current;
-          canvas.width = image.naturalWidth;
-          canvas.height = image.naturalHeight;
-          try {
-            canvas.getContext('2d')?.drawImage(image, 0, 0);
-            setStill(true);
-          } catch {
-            // sem permissão para desenhar: mostra a imagem normal
-          }
-        }}
+        decoding="async"
+        onError={onError}
+        crossOrigin={reduce ? "anonymous" : undefined}
+        onLoad={(event) => capture(event.currentTarget)}
       />
       {reduce && <canvas ref={canvasRef} className={cx('size-full rounded-full object-cover', !still && 'hidden')} aria-hidden="true" />}
     </>
@@ -426,14 +439,23 @@ export function Avatar({
   speaking?: boolean;
   /** 'padrao:<n>' (avatar padrão) ou 'arquivo:<id>' (foto enviada); sem isso, as iniciais. */
   image?: string | null;
-  /** Profile editor previews deliberately ignore the saved avatar. */
+  /** Escolha ainda não salva no editor de perfil. */
   preview?: boolean;
 }) {
-  const cached = useStore(avatarCache.store, (state) => state.byUser[id]);
-  if (!preview && cached !== undefined) image = cached;
+  const known = useStore(avatars, state => state.byUser[id]);
+  const source = preview || known === undefined ? image : known;
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!failed) return;
+    const retry = () => setFailed(null);
+    window.addEventListener('online', retry);
+    window.addEventListener('cn:media-retry', retry);
+    return () => { window.removeEventListener('online', retry); window.removeEventListener('cn:media-retry', retry); };
+  }, [failed]);
   const hue = hueFor(id);
-  const preset = image?.startsWith('padrao:') ? DEFAULT_AVATARS[Number(image.slice(7))] : undefined;
-  const photo = image?.startsWith('arquivo:') && /^[A-Za-z0-9_-]{8,40}$/.test(image.slice(8)) ? `${API_BASE}/api/media/${image.slice(8)}` : null;
+  const preset = source?.startsWith('padrao:') ? DEFAULT_AVATARS[Number(source.slice(7))] : undefined;
+  const candidate = mediaUrl(source);
+  const photo = candidate && candidate !== failed ? candidate : null;
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       <span
@@ -452,7 +474,7 @@ export function Avatar({
         }}
         aria-hidden="true"
       >
-        {photo ? <AvatarImage key={photo} src={photo} alt="" fallback={initials(name)} /> : initials(name)}
+        {photo ? <AvatarImage key={photo} src={photo} alt="" size={size} onError={() => setFailed(photo)} /> : initials(name)}
       </span>
       {online && (
         <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-ink-850 bg-ok-400" />

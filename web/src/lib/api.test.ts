@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { ApiError } from './api.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError, request } from './api.ts';
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('erros do backend: tentar de novo ou desistir', () => {
   it('queda de rede, servidor acordando e LiveKit fora do ar valem nova tentativa', () => {
@@ -18,4 +20,9 @@ describe('erros do backend: tentar de novo ou desistir', () => {
     expect(new ApiError('expulso', 'x', 403).transient).toBe(false);
     expect(new ApiError('senha_incorreta', 'x', 401).transient).toBe(false);
   });
+});
+
+it('trata uma página HTML do proxy durante a inicialização como falha transitória', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>Starting</html>', { status: 200, headers: { 'content-type': 'text/html' } })));
+  await expect(request('GET', '/api/features')).rejects.toMatchObject({ code: 'servidor_iniciando', status: 503, transient: true });
 });

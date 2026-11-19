@@ -12,6 +12,8 @@ import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
 import { Attachments, formatBytes, kindOf } from './Attachments.tsx';
 import { errorText, memberName, nameColor, useAction } from './common.tsx';
 import { EmojiGlyph, EmojiPicker, QUICK_EMOJIS, type CustomEmoji } from './EmojiPicker.tsx';
+import { MessageDelivery } from '../MessageDelivery.tsx';
+import { compareIds, serverId } from '../../lib/messages.ts';
 
 const MAX_ATTACHMENTS = 10;
 
@@ -44,7 +46,7 @@ interface Upload {
 }
 
 /** Texto da mensagem: links abrem fora, menções viram destaque e todo o resto é texto puro (nada de HTML). */
-function MessageContent({ message, members, me, emojis }: { message: ChatMessage; members: Map<string, MemberView>; me: string; emojis: readonly CustomEmoji[] }) {
+const Content = memo(function Content({ message, members, me, emojis }: { message: ChatMessage; members: Map<string, MemberView>; me: string; emojis: readonly CustomEmoji[] }) {
   const pieces = useMemo(
     () =>
       splitMessage(message.content, {
@@ -80,9 +82,8 @@ function MessageContent({ message, members, me, emojis }: { message: ChatMessage
       )}
     </p>
   );
-}
+});
 
-const Content = memo(MessageContent);
 
 /** Mensagens fixadas do canal, buscadas no servidor (inclui as antigas que não estão carregadas na tela). */
 function PinsPanel({ channel, canUnpin, onJump, onClose }: { channel: ChannelView; canUnpin: boolean; onJump: (id: string) => void; onClose: () => void }) {
@@ -248,14 +249,14 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
     void groups.loadMessages(channel.id, true).catch(() => undefined);
   };
 
-  const jump = (id: string) => {
+  const jump = useCallback((id: string) => {
     const target = list.current?.querySelector(`[data-id="${id}"]`);
     if (!target) return groups.notify('Essa mensagem é mais antiga. Suba a conversa para carregar as anteriores.');
     stick.current = false;
     target.scrollIntoView({ block: 'center', behavior: 'smooth' });
     setFlash(id);
     setTimeout(() => setFlash((current) => (current === id ? null : current)), 1600);
-  };
+  }, []);
 
   // --- Anexos ---------------------------------------------------------------------------------
 
@@ -325,9 +326,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
     const content = draft.trim();
     if (busy || uploading || (!content && ready.length === 0)) return;
     stick.current = true;
-    const pending = groups.send(channel.id, content, { replyTo: replyTo?.id, attachments: ready.map((upload) => upload.file!.id), localAttachments: ready.map(upload => upload.file!) });
-    // The outbox owns this operation now; the composer is immediately ready for the next one.
-    void pending.catch(() => undefined);
+    void groups.send(channel.id, content, { replyTo: replyTo?.id, attachments: ready.map((upload) => upload.file!.id), files: ready.map(upload => upload.file!) });
     for (const upload of uploads) if (upload.preview) URL.revokeObjectURL(upload.preview);
     setDraft('');
     setReplyTo(null);
@@ -382,101 +381,16 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
     }
   };
 
-  const toggleReaction = (message: ChatMessage, emoji: string) => {
+  const toggleReaction = useCallback((message: ChatMessage, emoji: string) => {
     const mine = message.reactions.find((reaction) => reaction.emoji === emoji)?.users.includes(me) ?? false;
     void run(() => groups.react(message, emoji, !mine));
-  };
+  }, [me, run]);
 
-  const openPicker = (id: string, anchor: HTMLElement) => setPicker((current) => (current?.id === id ? null : { id, up: anchor.getBoundingClientRect().top > window.innerHeight / 2 }));
+  const openPicker = useCallback((id: string, anchor: HTMLElement) => setPicker((current) => (current?.id === id ? null : { id, up: anchor.getBoundingClientRect().top > window.innerHeight / 2 })), []);
 
-  const firstUnread = boundary === null ? undefined : items.find((message) => Number(message.id) > Number(boundary) && message.author.id !== me)?.id;
+  const firstUnread = boundary === null ? undefined : items.find((message) => serverId(message.id) && compareIds(message.id, boundary) > 0 && message.author.id !== me)?.id;
 
-  return (
-    <section
-      className="relative flex min-h-0 flex-1 flex-col"
-      data-testid="chat"
-      data-channel={channel.id}
-      onDragOver={(event) => {
-        if (!canAttach || !event.dataTransfer.types.includes('Files')) return;
-        event.preventDefault();
-        setDropping(true);
-      }}
-      onDragLeave={(event) => event.currentTarget === event.target && setDropping(false)}
-      onDrop={onDrop}
-    >
-      <header className="relative flex shrink-0 items-center gap-3 border-b border-brand-500/15 px-4 py-3">
-        {channel.private ? <Lock className="size-5 shrink-0 text-fog-400" aria-label="Canal privado" /> : <Hash className="size-5 shrink-0 text-fog-400" aria-hidden="true" />}
-        <div className="flex min-w-0 flex-1 items-baseline gap-3">
-          <h1 className="truncate text-lg leading-tight font-extrabold" data-testid="chat-title">
-            {channel.name}
-          </h1>
-          {channel.topic && <p className="hidden min-w-0 truncate border-l border-ink-600 pl-3 text-sm text-fog-400 sm:block">{channel.topic}</p>}
-        </div>
-        <IconButton label="Mensagens fixadas" className={cx(pinsOpen && 'bg-brand-500/20 text-white')} onClick={() => setPinsOpen((value) => !value)} data-testid="chat-pins">
-          <Pin className="size-5" />
-        </IconButton>
-        <Menu
-          side="bottom"
-          align="end"
-          trigger={({ toggle }) => (
-            <IconButton label="Notificações deste canal" onClick={toggle} data-testid="chat-notify">
-              {(level ?? view.notify.level) === 'nada' ? <BellOff className="size-5" /> : <Bell className={cx('size-5', level && 'text-neon-300')} />}
-            </IconButton>
-          )}
-        >
-          {(close) => (
-            <div className="w-64">
-              <MenuLabel>Avisar sobre #{channel.name}</MenuLabel>
-              <MenuItem selected={level === undefined} hint={NOTIFY_LABELS[view.notify.level]} onClick={() => (close(), void run(() => groups.setNotify(view.group.id, null, channel.id)))} data-testid="notify-herdar">
-                Seguir o grupo
-              </MenuItem>
-              {(Object.keys(NOTIFY_LABELS) as NotifyLevel[]).map((value) => (
-                <MenuItem key={value} selected={level === value} onClick={() => (close(), void run(() => groups.setNotify(view.group.id, value, channel.id)))} data-testid={`notify-${value}`}>
-                  {NOTIFY_LABELS[value]}
-                </MenuItem>
-              ))}
-            </div>
-          )}
-        </Menu>
-        {onToggleMembers && (
-          <IconButton label={membersOpen ? 'Esconder a lista de membros' : 'Mostrar a lista de membros'} className={cx(membersOpen && 'bg-brand-500/20 text-white')} onClick={onToggleMembers} data-testid="toggle-members">
-            <Users className="size-5" />
-          </IconButton>
-        )}
-        {pinsOpen && <PinsPanel channel={channel} canUnpin={has(perms, P.PIN_MESSAGES)} onJump={jump} onClose={() => setPinsOpen(false)} />}
-      </header>
-
-      <div
-        ref={list}
-        className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4"
-        onScroll={(event) => {
-          const element = event.currentTarget;
-          stick.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
-          if (stick.current) markRead();
-          if (element.scrollTop < 120) loadOlder();
-        }}
-        data-testid="chat-messages"
-      >
-        {state?.loaded && !state.complete && (
-          <div className="mb-3 flex justify-center">
-            <Button size="sm" variant="outline" disabled={state.loading} onClick={loadOlder}>
-              {state.loading ? 'Carregando…' : 'Carregar mensagens anteriores'}
-            </Button>
-          </div>
-        )}
-        {state?.loaded && state.complete && (
-          <div className="mb-4 px-2 pt-6">
-            <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-500/20 text-brand-200">
-              <Hash className="size-8" aria-hidden="true" />
-            </span>
-            <p className="mt-3 text-2xl font-extrabold">Este é o começo de #{channel.name}</p>
-            <p className="text-fog-400">{items.length === 0 ? 'Ninguém escreveu ainda. Diga oi.' : (channel.topic || 'Tudo o que foi dito neste canal está aqui embaixo.')}</p>
-          </div>
-        )}
-        {!state?.loaded && <p className="py-10 text-center text-fog-400">Carregando a conversa…</p>}
-
-        <ol className="grid gap-0.5">
-          {items.map((message, index) => {
+  const rows = useMemo(() => items.map((message, index) => {
             const previous = items[index - 1];
             const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
             const grouped =
@@ -492,7 +406,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
             const mentioned = !own && (message.mentionEveryone || message.mentions.includes(me));
             const isEditing = editing?.id === message.id;
             return (
-              <Fragment key={messageKey(message)}>
+              <Fragment key={message.clientId ?? message.id}>
                 {newDay && (
                   <li className="my-3 flex items-center gap-3 text-xs font-bold text-fog-500" aria-label={day(message.createdAt)}>
                     <span className="h-px flex-1 bg-ink-700" />
@@ -590,9 +504,6 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                         )}
                         {message.author.bot && message.meta?.effect && <ChatEffect effect={message.meta.effect} />}
                         <Attachments files={message.attachments} />
-                        {(message.delivery || message.clientId && message.author.id === me) && <p className="mt-1 text-xs text-fog-400" role="status" data-testid="message-delivery">
-                          {!message.delivery ? 'Enviada' : message.delivery === 'sending' ? 'Enviando...' : <><span className="text-live-300">{message.deliveryError || 'Falha no envio.'}</span> <button type="button" className="font-bold text-brand-200 underline" onClick={() => void groups.retry(message.clientId!).catch(() => undefined)} data-testid="message-retry">Tentar novamente</button></>}
-                        </p>}
                         {message.meta?.buttons && message.meta.buttons.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-2" data-testid="bot-buttons">
                             {message.meta.buttons.map((button) => (
@@ -637,7 +548,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                                   <span data-testid="reaction-count">{reaction.users.length}</span>
                                 </button>
                               );
-                            })}
+                    })}
                             {canReact && (
                               <button type="button" aria-label="Adicionar reação" className="inline-flex size-7 items-center justify-center rounded-lg border border-ink-600 bg-ink-800 text-fog-400 hover:border-brand-400/60 hover:text-white" onClick={(event) => openPicker(message.id, event.currentTarget)}>
                                 <SmilePlus className="size-4" />
@@ -647,8 +558,9 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                         )}
                       </>
                     )}
+                  <MessageDelivery message={message} retry={id => groups.retry(id)} />
                   </div>
-                  {!isEditing && !message.delivery && (
+                  {!isEditing && !message.delivery?.match(/sending|failed/) && (
                     <div className="absolute -top-3 right-2 hidden items-center gap-0.5 rounded-lg border border-ink-600 bg-ink-800 p-0.5 shadow-panel group-focus-within:flex group-hover:flex [@media(hover:none)]:static [@media(hover:none)]:flex [@media(hover:none)]:border-0 [@media(hover:none)]:bg-transparent [@media(hover:none)]:shadow-none" data-testid="message-actions">
                       {canReact && (
                         <>
@@ -704,7 +616,95 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                 </li>
               </Fragment>
             );
-          })}
+  }), [items, members, byUsername, me, editing, picker, flash, firstUnread, canReact, canSend, perms, busy, channel.id, view.roles, view.emojis, run, jump, openPicker, toggleReaction]);
+
+  return (
+    <section
+      className="relative flex min-h-0 flex-1 flex-col"
+      data-testid="chat"
+      data-channel={channel.id}
+      onDragOver={(event) => {
+        if (!canAttach || !event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={(event) => event.currentTarget === event.target && setDropping(false)}
+      onDrop={onDrop}
+    >
+      <header className="relative flex shrink-0 items-center gap-3 border-b border-brand-500/15 px-4 py-3">
+        {channel.private ? <Lock className="size-5 shrink-0 text-fog-400" aria-label="Canal privado" /> : <Hash className="size-5 shrink-0 text-fog-400" aria-hidden="true" />}
+        <div className="flex min-w-0 flex-1 items-baseline gap-3">
+          <h1 className="truncate text-lg leading-tight font-extrabold" data-testid="chat-title">
+            {channel.name}
+          </h1>
+          {channel.topic && <p className="hidden min-w-0 truncate border-l border-ink-600 pl-3 text-sm text-fog-400 sm:block">{channel.topic}</p>}
+        </div>
+        <IconButton label="Mensagens fixadas" className={cx(pinsOpen && 'bg-brand-500/20 text-white')} onClick={() => setPinsOpen((value) => !value)} data-testid="chat-pins">
+          <Pin className="size-5" />
+        </IconButton>
+        <Menu
+          side="bottom"
+          align="end"
+          trigger={({ toggle }) => (
+            <IconButton label="Notificações deste canal" onClick={toggle} data-testid="chat-notify">
+              {(level ?? view.notify.level) === 'nada' ? <BellOff className="size-5" /> : <Bell className={cx('size-5', level && 'text-neon-300')} />}
+            </IconButton>
+          )}
+        >
+          {(close) => (
+            <div className="w-64">
+              <MenuLabel>Avisar sobre #{channel.name}</MenuLabel>
+              <MenuItem selected={level === undefined} hint={NOTIFY_LABELS[view.notify.level]} onClick={() => (close(), void run(() => groups.setNotify(view.group.id, null, channel.id)))} data-testid="notify-herdar">
+                Seguir o grupo
+              </MenuItem>
+              {(Object.keys(NOTIFY_LABELS) as NotifyLevel[]).map((value) => (
+                <MenuItem key={value} selected={level === value} onClick={() => (close(), void run(() => groups.setNotify(view.group.id, value, channel.id)))} data-testid={`notify-${value}`}>
+                  {NOTIFY_LABELS[value]}
+                </MenuItem>
+              ))}
+            </div>
+          )}
+        </Menu>
+        {onToggleMembers && (
+          <IconButton label={membersOpen ? 'Esconder a lista de membros' : 'Mostrar a lista de membros'} className={cx(membersOpen && 'bg-brand-500/20 text-white')} onClick={onToggleMembers} data-testid="toggle-members">
+            <Users className="size-5" />
+          </IconButton>
+        )}
+        {pinsOpen && <PinsPanel channel={channel} canUnpin={has(perms, P.PIN_MESSAGES)} onJump={jump} onClose={() => setPinsOpen(false)} />}
+      </header>
+
+      <div
+        ref={list}
+        className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4"
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          stick.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+          if (stick.current) markRead();
+          if (element.scrollTop < 120) loadOlder();
+        }}
+        data-testid="chat-messages"
+      >
+        {state?.loaded && !state.complete && (
+          <div className="mb-3 flex justify-center">
+            <Button size="sm" variant="outline" disabled={state.loading} onClick={loadOlder}>
+              {state.loading ? 'Carregando…' : 'Carregar mensagens anteriores'}
+            </Button>
+          </div>
+        )}
+        {state?.loaded && state.complete && (
+          <div className="mb-4 px-2 pt-6">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-500/20 text-brand-200">
+              <Hash className="size-8" aria-hidden="true" />
+            </span>
+            <p className="mt-3 text-2xl font-extrabold">Este é o começo de #{channel.name}</p>
+            <p className="text-fog-400">{items.length === 0 ? 'Ninguém escreveu ainda. Diga oi.' : (channel.topic || 'Tudo o que foi dito neste canal está aqui embaixo.')}</p>
+          </div>
+        )}
+        {!state?.loaded && <p className="py-10 text-center text-fog-400">Carregando a conversa…</p>}
+
+        <ol className="grid gap-0.5">
+          {rows}
+
         </ol>
       </div>
 

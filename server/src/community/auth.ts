@@ -23,6 +23,7 @@ export interface User {
   id: string;
   username: string;
   displayName: string;
+  avatar?: string | null;
   createdAt: string;
   cosmicAdmin?: boolean;
   mfaExempt?: boolean;
@@ -61,6 +62,7 @@ const toUser = (row: Record<string, unknown>): User => ({
   id: String(row.id),
   username: String(row.username),
   displayName: String(row.display_name),
+  avatar: row.avatar == null ? null : String(row.avatar),
   createdAt: iso(row.created_at),
   cosmicAdmin: row.cosmic_admin === true,
   mfaExempt: row.cosmic_mfa_exempt === true,

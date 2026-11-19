@@ -78,6 +78,8 @@ import {
 } from './stats.ts';
 import { storage } from './storage.ts';
 import { Store } from './store.ts';
+import { latency } from './latency.ts';
+import { avatars, rememberAvatar } from './avatars.ts';
 
 // --- Acesso ------------------------------------------------------------------
 
@@ -128,10 +130,10 @@ export type AudioSource = 'nenhum' | 'navegador' | 'apps';
 
 export interface ParticipantView {
   identity: string;
-  name: string;
-  isLocal: boolean;
   accountId?: string;
   avatar?: string | null;
+  name: string;
+  isLocal: boolean;
   isHost: boolean;
   micOn: boolean;
   deafened?: boolean;
@@ -263,6 +265,7 @@ const MIC_RELEASE_MS = 2 * 60_000;
 const MUTE_SIGNAL_DELAY_MS = 350;
 const VOICE_STREAM = 'voz';
 const UPLINK_TOPIC = 'sr.uplink';
+const validAvatar = (value: unknown): boolean => value === null || typeof value === 'string' && /^(arquivo:[A-Za-z0-9_-]{8,40}|padrao:\d{1,2})$/.test(value);
 /** Depois de iniciar ou mudar a qualidade, as primeiras leituras ainda não dizem nada. */
 const SETTLE_MS = 4_000;
 
@@ -343,6 +346,9 @@ export class RoomSession {
   #preferredSurface: Surface | undefined;
   #leaving = false;
   #rejoining = false;
+  #joining: Promise<void> | null = null;
+  #departing: Promise<void> | null = null;
+  readonly #deviceChange = () => { void this.refreshDevices(); };
   #timer: ReturnType<typeof setInterval> | null = null;
   #tickCount = 0;
   #pubCounters: PublisherCounters | null = null;
@@ -423,13 +429,20 @@ export class RoomSession {
       disconnectOnPageLeave: true,
     });
     this.#wireRoom();
-    navigator.mediaDevices?.addEventListener?.('devicechange', () => void this.refreshDevices());
+    navigator.mediaDevices?.addEventListener?.('devicechange', this.#deviceChange);
   }
 
   // --- Entrada, saída e reconexão ---------------------------------------------
 
   /** Chame dentro de um clique: destrava o áudio do navegador. */
-  async join(access: SessionAccess): Promise<void> {
+  join(access: SessionAccess): Promise<void> {
+    if (this.#joining) return this.#joining;
+    if (this.store.get().phase === 'connected') return Promise.resolve();
+    this.#joining = this.#join(access).finally(() => { this.#joining = null; });
+    return this.#joining;
+  }
+
+  async #join(access: SessionAccess): Promise<void> {
     this.#inputUnsubscribe?.();
     this.#inputUnsubscribe = inputSettings.subscribe(() => {
       this.mic.configureInput(inputSettings.get());
@@ -439,6 +452,8 @@ export class RoomSession {
     this.#profileUnsubscribe = avatarCache.store.subscribe(() => this.#publishAvatar());
     this.#access = access;
     this.#leaving = false;
+    this.#departing = null;
+    navigator.mediaDevices?.addEventListener?.('devicechange', this.#deviceChange);
     if (access.persistentIdentities) {
       this.store.set({
         volumes: cleanVolumes(storage.get<unknown>(VOLUMES_KEY, {})),
@@ -453,12 +468,13 @@ export class RoomSession {
     } catch (error) {
       this.#inputUnsubscribe?.(); this.#inputUnsubscribe = null;
       this.#profileUnsubscribe?.(); this.#profileUnsubscribe = null;
+      if (this.#leaving) return;
       const failure = joinFailure(error);
       this.store.set({ phase: 'idle', error: failure.message });
       throw failure;
     }
     // Só na entrada: reconexões nunca mexem no microfone.
-    void this.#restoreMic().catch(() => this.#notify('Não foi possível restaurar o microfone.'));
+    if (!this.#leaving) void this.#restoreMic().catch(() => this.#notify('Não foi possível restaurar o microfone. Você pode ligá-lo na chamada.'));
   }
 
   /**
@@ -477,27 +493,36 @@ export class RoomSession {
   }
 
   async leave(): Promise<void> {
+    if (this.#departing) return this.#departing;
     if (!this.#leaving && this.store.get().phase === 'connected') playCallSound('leave', this.store.get().deafened);
     this.#leaving = true;
     this.#profileUnsubscribe?.(); this.#profileUnsubscribe = null;
     for (const timer of this.#leaveSounds.values()) clearTimeout(timer);
     this.#leaveSounds.clear(); this.#soundPeers.clear();
     this.#inputUnsubscribe?.(); this.#inputUnsubscribe = null;
-    await this.#teardownMedia();
-    await this.#room.disconnect();
-    this.#stopTimer();
-    this.store.set({ phase: 'ended', endReason: 'saiu', participants: [], streams: [], selected: null, watching: [] });
+    navigator.mediaDevices?.removeEventListener?.('devicechange', this.#deviceChange);
+    this.#departing = (async () => {
+      await this.#teardownMedia();
+      await this.#room.disconnect();
+      this.#stopTimer();
+      this.store.set({ phase: 'ended', endReason: 'saiu', participants: [], streams: [], selected: null, watching: [] });
+    })();
+    return this.#departing;
   }
 
   async #connect(): Promise<void> {
     const start = performance.now();
     const grant = await this.#access!.grant();
     const granted = performance.now();
-    if (this.#leaving) throw new ApiError('entrada_cancelada', 'Entrada cancelada.', 409);
+    latency.record('voice', 'grant', performance.now() - start);
+    if (this.#leaving) throw new Error('Entrada cancelada.');
+    this.store.set({ roomName: grant.room.name, identity: grant.identity });
+    const connecting = performance.now();
     // Nada é assinado sozinho: vozes sempre, telas só quando a pessoa assiste ou abre a prévia.
     await this.#room.connect(grant.url, grant.token, { autoSubscribe: false });
-    if (this.#leaving) { await this.#room.disconnect(); throw new ApiError('entrada_cancelada', 'Entrada cancelada.', 409); }
     const connected = performance.now();
+    latency.record('voice', 'livekit', connected - connecting);
+    if (this.#leaving) { await this.#room.disconnect(); throw new Error('Entrada cancelada.'); }
     void this.#room.startAudio().catch(() => undefined);
     for (const participant of this.#room.remoteParticipants.values()) this.#soundPeers.add(participant.identity);
     this.store.set({
@@ -515,8 +540,10 @@ export class RoomSession {
     });
     this.#applySubscriptions();
     this.#publishDeafened();
+    for (const participant of [this.#room.localParticipant, ...this.#room.remoteParticipants.values()]) this.#rememberParticipant(participant);
     this.#publishAvatar(true);
     this.#refresh();
+    latency.record('voice', 'participants', performance.now() - start);
     this.#startTimer();
     void this.refreshDevices();
   }
@@ -610,6 +637,7 @@ export class RoomSession {
     const refresh = () => this.#refresh();
     room
       .on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+        this.#rememberParticipant(participant);
         const state = this.store.get();
         const timer = this.#leaveSounds.get(participant.identity);
         if (timer) clearTimeout(timer);
@@ -656,7 +684,7 @@ export class RoomSession {
       })
       .on(RoomEvent.ActiveSpeakersChanged, refresh)
       .on(RoomEvent.ParticipantNameChanged, refresh)
-      .on(RoomEvent.ParticipantMetadataChanged, refresh)
+      .on(RoomEvent.ParticipantMetadataChanged, (_metadata: string | undefined, participant: Participant) => { this.#rememberParticipant(participant); refresh(); })
       .on(RoomEvent.ConnectionQualityChanged, refresh)
       .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, publication: RemoteTrackPublication) => {
         if (track.kind === Track.Kind.Audio) this.#attachAudio(track as RemoteAudioTrack, publication.trackSid, publication.source);
@@ -690,7 +718,7 @@ export class RoomSession {
           try {
             const data = JSON.parse(new TextDecoder().decode(payload));
             const profile = participantProfile(participant.metadata);
-            if (profile.accountId && data.accountId === profile.accountId && (data.avatar === null || typeof data.avatar === 'string' && data.avatar.length <= 200)) avatarCache.update(profile.accountId, data.avatar);
+            if (profile.accountId && data.accountId === profile.accountId && validAvatar(data.avatar)) avatarCache.update(profile.accountId, data.avatar);
           } catch { /* ignore malformed or mismatched sender */ }
           return;
         }
@@ -709,6 +737,11 @@ export class RoomSession {
           // mensagem malformada: ignora
         }
       });
+  }
+
+  #rememberParticipant(participant: Participant): void {
+    const profile = participantProfile(participant.metadata);
+    if (profile.accountId && avatars.get().byUser[profile.accountId] === undefined) rememberAvatar(profile.accountId, profile.avatar);
   }
 
   #refresh(): void {
@@ -1370,6 +1403,7 @@ export class RoomSession {
     this.store.set({ micBusy: true });
     try {
       if (on) {
+        if (this.#leaving) return;
         this.#cancelMicRelease();
         await resumeAudio();
         const opening = !this.mic.active;

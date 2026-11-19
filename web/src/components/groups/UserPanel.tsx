@@ -29,7 +29,7 @@ export function UserPanel({ account, live, session, className }: { account: Acco
   return (
     <div className={cx('flex items-center gap-1 border-t border-brand-500/15 px-2.5 py-2', className)} data-testid="user-panel">
       <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-1 text-left hover:bg-white/5" onClick={() => openSettings('perfil')} data-testid="account-menu" aria-label="Sua conta">
-        <DecoratedAvatar userId={account.id} name={account.displayName} size={38} online={live} />
+        <DecoratedAvatar userId={account.id} name={account.displayName} size={38} online={live} image={account.avatar} />
         <span className="min-w-0">
           <span className="block truncate text-sm leading-tight font-bold">{account.cosmicAdmin && <span className="mr-1 text-neon-300" title="Cosmic Admin">♛</span>}{account.displayName}</span>
           <span className="flex items-center gap-1 truncate text-xs text-fog-400">

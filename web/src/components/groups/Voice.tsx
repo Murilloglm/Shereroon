@@ -20,7 +20,7 @@ function voiceAccess(channelId: string): SessionAccess {
   return {
     persistentIdentities: true,
     async grant() {
-      const grant = await groups.call('POST', `/api/channels/${channelId}/voice`);
+      const grant = await groups.call('POST', `/api/channels/${channelId}/voice`, undefined, 70_000);
       return {
         url: grant.url,
         token: grant.token,
@@ -42,81 +42,89 @@ export function useVoice(view: GroupView | null) {
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const [joining, setJoining] = useState<string | null>(null);
   const current = useRef<VoiceState | null>(null);
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const requested = useRef<string | null>(null);
-  const generation = useRef(0);
-  const connecting = useRef<RoomSession | null>(null);
+  const sequence = useRef(0);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const target = useRef<string | null>(null);
+  const requestedLeave = useRef(false);
 
   const drop = useCallback(async (tellServer: boolean) => {
     const active = current.current;
-    if (!active) return;
     current.current = null;
     setVoice(null);
-    await active.session.leave().catch(() => undefined);
+    if (active) await active.session.leave().catch(() => undefined);
     if (tellServer) await groups.call('POST', '/api/voice/leave').catch(() => undefined);
   }, []);
 
   const leave = useCallback(() => {
-    generation.current++; requested.current = null; setJoining(null);
-    void connecting.current?.leave();
-    return drop(true);
+    sequence.current++;
+    requestedLeave.current = true;
+    target.current = null;
+    setJoining(null);
+    const active = current.current;
+    current.current = null;
+    setVoice(null);
+    void active?.session.leave();
+    const leaving = queue.current.then(async () => { await active?.session.leave(); await drop(true); });
+    queue.current = leaving.catch(() => undefined);
+    return leaving;
   }, [drop]);
 
-  const join = useCallback((groupId: string, channelId: string): Promise<void> => {
-    if (requested.current === channelId) return queue.current;
-    if (!requested.current && current.current?.channelId === channelId) return Promise.resolve();
-    const operation = ++generation.current;
-    requested.current = channelId; setJoining(channelId);
-    void connecting.current?.leave();
-    const task = queue.current.catch(() => undefined).then(async () => {
-      if (operation !== generation.current) return;
-      await drop(false);
-      if (operation !== generation.current) return;
-      const session = new RoomSession(); connecting.current = session;
-      try {
-        await session.join(voiceAccess(channelId));
-        if (operation !== generation.current) {
-          await session.leave();
-          await groups.call('POST', '/api/voice/leave').catch(() => undefined);
-          return;
-        }
+  const join = useCallback(
+    async (groupId: string, channelId: string) => {
+      if (target.current === channelId || current.current?.channelId === channelId) return;
+      const attempt = ++sequence.current;
+      requestedLeave.current = false;
+      target.current = channelId;
+      setJoining(channelId);
+      void current.current?.session.leave();
+      const joining = queue.current.then(async () => {
+        if (sequence.current !== attempt) return;
+        await drop(false);
+        if (sequence.current !== attempt) return;
+        const session = new RoomSession();
+        session.store.set({ roomName: groups.store.get().view?.channels.find(item => item.id === channelId)?.name ?? '' });
         const next = { groupId, channelId, session };
-        current.current = next; setVoice(next);
-      } catch (error) {
-        await session.leave().catch(() => undefined);
-        await groups.call('POST', '/api/voice/leave').catch(() => undefined);
-        if (operation === generation.current) groups.notify(errorText(error, 'Não foi possível entrar no canal de voz.'));
-      } finally {
-        if (connecting.current === session) connecting.current = null;
-        if (operation === generation.current) { requested.current = null; setJoining(null); }
-      }
-    });
-    queue.current = task;
-    return task;
-  }, [drop]);
+        current.current = next;
+        setVoice(next);
+        try {
+          await session.join(voiceAccess(channelId));
+          if (sequence.current !== attempt) await session.leave();
+        } catch (error) {
+          await session.leave().catch(() => undefined);
+          if (sequence.current === attempt) {
+            current.current = null; setVoice(null);
+            await groups.call('POST', '/api/voice/leave').catch(() => undefined);
+            groups.notify(errorText(error, 'Não foi possível entrar no canal de voz.'));
+          }
+        } finally {
+          if (sequence.current === attempt) { target.current = null; setJoining(null); }
+        }
+      });
+      queue.current = joining.catch(() => undefined);
+      await joining;
+    },
+    [drop],
+  );
 
-  // Confirm actual SFU membership after connecting either transport.
+  // O SFU confirma a presença após a conexão e após uma queda do gateway.
   useEffect(() => {
     if (!voice || !gatewayLive) return;
     const sync = () => {
-      if (voice.session.store.get().phase === 'connected') {
-        void groups.call('POST', `/api/channels/${voice.channelId}/voice/sync`).catch(() => undefined);
-      }
+      if (voice.session.store.get().phase === 'connected') void groups.call('POST', `/api/channels/${voice.channelId}/voice/sync`).catch(() => undefined);
     };
     sync();
     let phase = voice.session.store.get().phase;
-    const unsubscribe = voice.session.store.subscribe(() => {
+    return voice.session.store.subscribe(() => {
       const next = voice.session.store.get().phase;
       if (next !== phase) { phase = next; if (next === 'connected') sync(); }
     });
-    return unsubscribe;
   }, [voice, gatewayLive]);
 
   // A conexão terminou sozinha (rede caiu de vez, a pessoa foi tirada do canal, outra aba assumiu).
   useEffect(() => {
     if (!voice) return;
     return voice.session.store.subscribe(() => {
-      if (voice.session.store.get().phase === 'ended' && current.current === voice) void drop(true);
+      if (voice.session.store.get().phase === 'ended' && current.current === voice && !target.current && !requestedLeave.current) void drop(true);
     });
   }, [voice, drop]);
 
@@ -164,7 +172,7 @@ export function useVoice(view: GroupView | null) {
   }, [voice, view, drop]);
 
   // Saiu da página de grupos: a conexão de voz termina.
-  useEffect(() => () => { generation.current++; requested.current = null; void connecting.current?.leave(); void drop(true); }, [drop]);
+  useEffect(() => () => { void leave(); }, [leave]);
 
   return { voice, joining, join, leave };
 }
@@ -195,7 +203,7 @@ export function VoiceLobby({ view, channel, joining, onJoin }: { view: GroupView
         {!canConnect && <Notice className="mt-5 text-left">Você pode ver este canal, mas não tem a permissão “Conectar” nele.</Notice>}
         {canConnect && full && <Notice className="mt-5 text-left">O canal está cheio.</Notice>}
         <Button variant="primary" size="lg" className="mt-5 w-full" disabled={!canConnect || full || joining} onClick={onJoin} data-testid="voice-join">
-          {joining ? 'Entrando…' : 'Entrar no canal de voz'}
+          {joining ? 'Conectando…' : 'Entrar no canal de voz'}
         </Button>
         <p className="mt-3 text-xs leading-snug text-fog-500">O microfone volta como estava na sua última chamada. Você transmite a tela e ajusta o áudio depois de entrar.</p>
       </Card>

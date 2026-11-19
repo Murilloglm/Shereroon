@@ -1,8 +1,10 @@
 import { Store } from './store.ts';
+import { avatars } from './avatars.ts';
 
 export type AvatarValue = string | null;
 export class AvatarCache {
-  readonly store = new Store<{ byUser: Record<string, AvatarValue> }>({ byUser: {} });
+  readonly store: Store<{ byUser: Record<string, AvatarValue> }>;
+  constructor(store = new Store<{ byUser: Record<string, AvatarValue> }>({ byUser: {} })) { this.store = store; }
   seed(users: { id?: string; userId?: string; avatar?: string | null }[]): void {
     const byUser = { ...this.store.get().byUser }; let changed = false;
     for (const user of users) {
@@ -22,4 +24,4 @@ export class AvatarCache {
   clear(): void { this.store.set({ byUser: {} }); }
 }
 /** Shared by every avatar surface; live profile events override older member/message snapshots. */
-export const avatarCache = new AvatarCache();
+export const avatarCache = new AvatarCache(avatars);

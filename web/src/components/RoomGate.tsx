@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { navigate } from '../App.tsx';
 import { api, ApiError, type RoomInfo } from '../lib/api.ts';
 import { inviteAccess } from '../lib/invite-access.ts';
+import { groups } from '../lib/groups/client.ts';
 import { RoomSession, type EndReason } from '../lib/session.ts';
 import { storage } from '../lib/storage.ts';
 import { useStore } from '../lib/store.ts';
@@ -31,6 +32,7 @@ const END_MESSAGES: Record<EndReason, { title: string; body: string; canReturn: 
 };
 
 export function RoomGate({ invite }: { invite: string }) {
+  useEffect(() => { if (groups.hasSession) void groups.start(); }, []);
   const sessionRef = useRef<RoomSession | null>(null);
   sessionRef.current ??= new RoomSession();
   const session = sessionRef.current;
