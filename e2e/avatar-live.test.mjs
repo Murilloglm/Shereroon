@@ -23,7 +23,7 @@ async function photoShows(page, reference, scope) {
   await img.waitFor(); await waitFor(() => imageShows(img), 'photo has decoded pixels');
 }
 before(async () => {
-  stack = await startStack({ DATABASE_URL: '' }); browser = await launchChrome({ headless: true });
+  stack = await startStack({ DATABASE_URL: '', COSMIC_DEV_POINTS: '1' }); browser = await launchChrome({ headless: true });
   owner = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
   viewer = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
   for (const [page, name] of [[owner,'photoowner'],[viewer,'photoviewer']]) { page.setDefaultTimeout(20000); await page.goto(BASE_URL); await signup(page,name); }
@@ -56,10 +56,28 @@ test('voice header shows the photo and a logged-in private caller shares it with
   await owner.getByTestId('dock-leave').click();
   await owner.goto(`${BASE_URL}/#/salas`); await owner.getByTestId('home-user-name').fill('Photoowner'); await owner.getByTestId('home-room-name').fill('Private photo'); await owner.getByTestId('home-create').click(); await owner.getByTestId('room').waitFor();
   await photoShows(owner,photo,owner.getByRole('button',{name:'Sua conta nesta sala'}));
+  const changeLook = (method, path, body) => owner.evaluate(async ({method,path,body}) => {
+    const response = await fetch(path, {method, headers: {authorization: 'Bearer '+localStorage.getItem('shareroom:conta'), 'content-type':'application/json'}, body: JSON.stringify(body)});
+    if (!response.ok) throw Error(await response.text());
+  }, {method,path,body});
+  await changeLook('POST','/api/dev/points',{amount:1000});
+  for (const [itemId,expectedPrice] of [['neon-cor-nome',250],['hinata-cor-nome',250],['hinata-decoracao',150]]) {
+    await changeLook('POST','/api/shop/buy',{itemId,expectedPrice});
+  }
+  await changeLook('PUT','/api/me/equipped',{slot:'decoracao',itemId:'hinata-decoracao',variant:'original'});
+  await changeLook('PUT','/api/me/equipped',{slot:'cor-nome',itemId:'neon-cor-nome',variant:'original'});
   const invite = await owner.getByTestId('room-link').inputValue();
   guest = await (await browser.newContext({viewport:{width:1400,height:950}})).newPage(); guest.setDefaultTimeout(20000);
   await guest.goto(invite); await guest.getByTestId('gate-name').fill('Anonymous'); await guest.getByTestId('gate-join').click(); await guest.getByTestId('room').waitFor();
   await photoShows(guest,photo);
+  const ownerCard = guest.getByTestId('call-card').filter({hasText:'Photoowner'});
+  const cardName = ownerCard.getByTestId('call-card-name');
+  await ownerCard.locator('[data-decoration="hinata-decoracao"]').evaluate(img => img.decode());
+  await photoShows(guest,photo,ownerCard);
+  await cardName.locator('[data-name-style="neon-cor-nome"]').waitFor();
+  await changeLook('PUT','/api/me/equipped',{slot:'cor-nome',itemId:'hinata-cor-nome',variant:'original'});
+  await cardName.locator('[data-name-style="hinata-cor-nome"]').waitFor();
+  assert.match(await cardName.locator('[data-name-style]').evaluate(el => getComputedStyle(el).backgroundImage), /linear-gradient/);
   photo = await upload(viewer,'blue'); // independent account must not replace the owner's signed avatar
   const ownerNew = await upload(owner,'blue');
   await photoShows(guest,ownerNew);

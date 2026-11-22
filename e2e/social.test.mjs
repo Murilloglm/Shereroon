@@ -60,6 +60,34 @@ after(async () => {
   await stack?.stop();
 });
 
+const longText = 'palavras e emoji 🌙 '.repeat(10) + '\n' + 'x'.repeat(400) + '\nhttps://example.org/' + 'z'.repeat(400);
+
+async function checkMessageWidth(page, list, content) {
+  const before = page.viewportSize();
+  await page.setViewportSize({ width: 720, height: 650 });
+  try {
+    await content.waitFor({state:'visible'});
+    await waitFor(() => content.evaluate(node => node.clientWidth > 0 && node.scrollWidth <= node.clientWidth + 1), 'texto longo cabe na largura');
+    assert(await list.evaluate(node => node.scrollWidth <= node.clientWidth + 1));
+    assert.equal(await content.locator('a').count(), 1);
+  } finally { await page.setViewportSize(before); }
+}
+
+test('mensagens de canal quebram linhas e preservam grupos após recarregar', async () => {
+  await ana.locator('[data-testid="channel"][aria-current="true"]').click();
+  const input = ana.getByTestId('chat-input');
+  await input.fill('Primeira da sequência'); await input.press('Enter');
+  await ana.getByTestId('chat-message').filter({hasText:'Primeira da sequência'}).waitFor();
+  await input.fill(longText); await input.press('Enter');
+  const list = ana.getByTestId('chat-messages');
+  const row = list.getByTestId('chat-message').filter({hasText:'x'.repeat(400)});
+  await row.waitFor();
+  assert.equal(await row.getAttribute('data-grouped'), 'true');
+  await checkMessageWidth(ana, list, row.locator('p').filter({hasText:'x'.repeat(400)}));
+  await ana.reload(); await row.waitFor();
+  assert.equal(await row.getAttribute('data-grouped'), 'true');
+});
+
 test('perfil: bio, status e foto enviada com prévia; os outros veem no cartão ao clicar', async () => {
   await ana.getByTestId('account-menu').click();
   const editor = ana.getByTestId('profile-editor');
@@ -152,6 +180,9 @@ test('mensagem privada: não lida, resposta, reação, edição, exclusão e ane
   await beto.getByTestId('menu-message').click();
   const chat = beto.getByTestId('dm-chat');
   await chat.waitFor();
+  await chat.getByTestId('dm-input').fill(longText); await chat.getByTestId('dm-input').press('Enter');
+  const long = chat.getByTestId('dm-content').filter({hasText:'x'.repeat(400)});
+  await long.waitFor(); await checkMessageWidth(beto, chat.getByTestId('dm-messages'), long);
   await chat.getByTestId('dm-input').fill('oi, Ana!');
   await chat.getByTestId('dm-input').press('Enter');
   await bubble(chat, 'oi, Ana!').waitFor();
@@ -161,6 +192,8 @@ test('mensagem privada: não lida, resposta, reação, edição, exclusão e ane
   const anaChat = ana.getByTestId('dm-chat');
   const first = bubble(anaChat, 'oi, Ana!');
   await first.waitFor();
+  assert.equal(await first.getAttribute('data-grouped'), 'true');
+  assert.equal(await first.locator('header').count(), 0);
   await waitFor(async () => (await ana.getByTestId('rail-dm-unread').count()) === 0, 'a não lida sumir ao ler');
 
   await first.hover();

@@ -176,12 +176,12 @@ export function ParticipantsCard({
             <StreamHover session={session} identity={person.identity} name={person.name} enabled={person.sharing} className="flex min-w-0 flex-1 items-center gap-3">
             <UserTrigger userId={person.isLocal ? null : person.accountId ?? person.identity} className="flex min-w-0 flex-1 items-center gap-3">
             {person.accountId
-              ? <DecoratedAvatar userId={person.accountId} name={person.name} image={person.avatar} online speaking={person.speaking} />
+              ? <DecoratedAvatar preview={person.guestLook} userId={person.accountId} name={person.name} image={person.avatar} online speaking={person.speaking} />
               : <Avatar id={person.identity} name={person.name} image={person.avatar} online speaking={person.speaking} />}
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate font-bold">
                 <span className="truncate" data-testid="participant-name">
-                  {serverNameEffects ? <CosmeticName userId={person.accountId ?? person.identity}>{person.isLocal ? 'Você' : person.name}</CosmeticName> : person.isLocal ? 'Você' : person.name}
+                  <CosmeticName preview={person.guestLook} userId={person.accountId}>{person.isLocal ? 'Você' : person.name}</CosmeticName>
                 </span>
                 {person.isHost && (
                   <>

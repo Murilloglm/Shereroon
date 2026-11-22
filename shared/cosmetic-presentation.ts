@@ -3,14 +3,16 @@ export interface AvatarArtwork {
   aspect: number;
   center?: [x: number, y: number];
   mask?: string;
-  /** Set for an asset that already has a transparent opening and outer edge. */
-  transparent?: boolean;
 }
 
 export interface CosmeticPresentation {
   avatar?: AvatarArtwork;
   /** Position of baked-in sample text within the member artwork, in percentages. */
   sampleText?: [left: number, top: number, right: number, bottom: number];
+  frameMask?: string;
+  effectMask?: string;
+  /** Alpha mask for sheets with a baked backdrop. */
+  backdropMask?: string;
   nameColors?: [start: string, end: string];
 }
 
@@ -19,6 +21,11 @@ const wideGridAvatar: AvatarArtwork = { width: 114 / 76, aspect: 114 / 87, cente
 
 // Coordinates describe the supplied assets. Adding a collection does not change the renderer.
 const presentation: Record<string, CosmeticPresentation> = {
+  hinata: {
+    avatar: { width: 358 / 266, aspect: 358 / 287, center: [49.2, 50.2] },
+    frameMask: 'assets/cosmetic-masks/hinata-frame.png',
+    effectMask: 'assets/cosmetic-masks/hinata-effect.png',
+  },
   'night-fury': { avatar: gridAvatar },
   'light-fury': { avatar: gridAvatar },
   rimuru: { avatar: gridAvatar },
@@ -44,5 +51,6 @@ const presentation: Record<string, CosmeticPresentation> = {
 };
 
 export function cosmeticPresentation(collectionId: string): CosmeticPresentation | undefined {
-  return presentation[collectionId];
+  const settings = presentation[collectionId];
+  return settings && { ...settings, backdropMask: `assets/cosmetic-masks/${collectionId}-avatar.png` };
 }

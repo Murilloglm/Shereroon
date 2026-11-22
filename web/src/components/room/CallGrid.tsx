@@ -4,7 +4,7 @@ import { hueFor } from '../../lib/format.ts';
 import { bestGrid } from '../../lib/grid.ts';
 import type { ParticipantView, RoomSession, StreamView } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
-import { DecoratedAvatar, NameAdornment } from '../cosmetics/Decoration.tsx';
+import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
 import { cx } from '../ui.tsx';
 
 /** Foto e nome de quem está na chamada (nos grupos vêm do perfil; nas salas por link, não existem). */
@@ -30,12 +30,13 @@ function CallCard({
   image: string | null | undefined;
 }) {
   const hue = hueFor(person.identity);
-  const avatar = Math.round(Math.max(40, Math.min(128, height * 0.42)));
   const compact = height < 120;
+  const portraitHeight = height - (compact ? 23 : 38);
+  const avatar = Math.max(1, Math.floor(Math.min(128, width * 0.62, height * 0.42, portraitHeight / 1.6)));
   return (
     <div
       className={cx(
-        'group relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl',
+        'group relative grid shrink-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-2xl',
         // Acende rápido e apaga devagar: acompanha a voz sem piscar.
         person.speaking ? 'shadow-[0_0_0_2px_var(--color-ok-400),0_0_28px_-6px_var(--color-ok-400)] duration-75' : 'shadow-[0_0_0_1px_rgb(255_255_255/0.06)] duration-500',
         'transition-shadow motion-reduce:transition-none',
@@ -45,14 +46,15 @@ function CallCard({
       data-identity={person.identity}
       data-speaking={person.speaking ? 'true' : 'false'}
     >
-      <DecoratedAvatar userId={person.accountId ?? person.identity} name={person.name} size={avatar} speaking={person.speaking} image={image ?? person.avatar} animate entrance />
+      <div className="flex min-h-0 items-center justify-center" data-testid="call-portrait">
+        <DecoratedAvatar preview={person.guestLook} userId={person.accountId ?? person.identity} name={person.name} size={avatar} speaking={person.speaking} image={image ?? person.avatar} animate entrance />
+      </div>
 
-      <div className={cx('absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-ink-950/70 font-semibold text-fog-100 backdrop-blur-sm', compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-sm')}>
+      <div className={cx('mx-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 justify-self-start rounded-lg font-semibold text-fog-100', compact ? 'mb-1 text-xs' : 'mb-2 bg-ink-950/55 px-2 py-1 text-sm')}>
         {!person.micOn && <MicOff className="size-3.5 shrink-0 text-live-300" aria-label="Microfone desligado" data-testid="call-card-mic-off" />}
         <span className="truncate" data-testid="call-card-name">
-          {person.isLocal ? `${person.name} (você)` : person.name}
+          <CosmeticName preview={person.guestLook} userId={person.accountId} animate={!compact}>{person.name}</CosmeticName>{person.isLocal && ' (você)'}
         </span>
-        {person.accountId && <NameAdornment userId={person.accountId} animate={!compact} />}
       </div>
 
       {person.sharing && (

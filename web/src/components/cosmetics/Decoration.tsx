@@ -184,9 +184,8 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
   if (asset) {
     const artwork = item.presentation?.avatar;
     const [x, y] = artwork?.center ?? [50, 50];
-    const mask = artwork?.mask
-      ? `url("${cosmeticAssetUrl(artwork.mask)}")`
-      : artwork?.transparent ? undefined : `radial-gradient(ellipse 46% 61% at ${x}% ${y}%, transparent 71%, black 74% 87%, transparent 98%)`;
+    const backdrop = item.presentation?.backdropMask;
+    const masks = [artwork?.mask, backdrop].filter((path): path is string => Boolean(path)).map(path => `url("${cosmeticAssetUrl(path)}")`);
     return (
       <img
         src={cosmeticAssetUrl(asset)}
@@ -198,7 +197,8 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
           width: size * (artwork?.width ?? item.avatarScale ?? SCALE),
           aspectRatio: artwork?.aspect,
           transform: `translate(-${x}%, -${y}%)`,
-          maskImage: mask,
+          maskImage: masks.length ? masks.join(', ') : undefined,
+          maskComposite: masks.length > 1 ? 'intersect' : undefined,
         }}
         data-decoration={item.id}
         data-variant={variant.id}
@@ -310,8 +310,9 @@ export function nameStyle(equipped: UserCosmetics): React.CSSProperties | undefi
  * Nome com a cor equipada pela pessoa (gradiente), por cima da cor do cargo, seguido do enfeite no nome (se houver).
  * O enfeite fica fora do texto em gradiente, como irmão, para o recorte do nome (truncate) continuar funcionando.
  */
-export function CosmeticName({ userId, children, className, adornment = true, animate = false }: { userId: string | null | undefined; children: React.ReactNode; className?: string; adornment?: boolean; animate?: boolean }) {
-  const equipped = useUserCosmetics(userId);
+export function CosmeticName({ userId, children, className, adornment = true, animate = false, preview }: { preview?: UserCosmetics; userId: string | null | undefined; children: React.ReactNode; className?: string; adornment?: boolean; animate?: boolean }) {
+  const saved = useUserCosmetics(preview ? null : userId);
+  const equipped = preview ?? saved;
   const name = (
     <span className={className} style={nameStyle(equipped)} data-name-style={equipped['cor-nome']?.item ?? equipped.decoracao?.item ?? ''}>
       {children}
@@ -403,7 +404,7 @@ export function MemberNameEffect({ userId, preview, animate = true }: { userId?:
   if (!item?.asset || item.kind !== 'efeito-nome') return null;
   const sample = item.presentation?.sampleText;
   return <span className={cx('cn-member-effect', animate && item.animated && !item.exactArtwork && 'cn-member-effect-live')} aria-hidden="true" data-name-effect={item.id}>
-    <img src={cosmeticAssetUrl(item.asset)} alt="" decoding="async" loading="lazy" style={sample ? { clipPath: openingClip(sample) } : undefined} />
+    <img src={cosmeticAssetUrl(item.asset)} alt="" decoding="async" loading="lazy" style={{ clipPath: sample ? openingClip(sample) : undefined, maskImage: item.presentation?.effectMask ? `url("${cosmeticAssetUrl(item.presentation.effectMask)}")` : undefined, maskSize: '100% 100%' }} />
     <span className="cn-member-effect-veil" />
   </span>;
 }

@@ -57,7 +57,9 @@ export function ProfileIdentity({
               alt=""
               aria-hidden="true"
               decoding="async"
-              style={tallFrame ? { clipPath: openingClip([16, 20, 84, 79]) } : undefined}
+              style={frame.presentation?.frameMask
+                ? { maskImage: `url("${cosmeticAssetUrl(frame.presentation.frameMask)}")`, maskSize: '100% 100%' }
+                : tallFrame ? { clipPath: openingClip([16, 20, 84, 79]) } : undefined}
               data-profile-frame={frame.id}
             />
           )}

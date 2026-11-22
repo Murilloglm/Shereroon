@@ -317,6 +317,40 @@ export const COLLECTIONS: CosmeticCollection[] = [
       }
     ],
     "banners": []
+  },
+  {
+    "id": "hinata",
+    "name": "Hinata • Luar de Cerejeira",
+    "franchise": "Naruto",
+    "colors": [
+      "#ffd8ed",
+      "#d58ab7"
+    ],
+    "avatarScale": 1.5,
+    "resolution": "definitive-sheet",
+    "exactArtwork": true,
+    "nameArtwork": true,
+    "tagline": "Arte original do arquivo definitivo.",
+    "frameAspect": 1.180887372013652,
+    "bannerAspect": 5.005649717514125,
+    "nameplateAsset": "assets/cosmetics/hinata/nameplate.webp",
+    "references": [
+      {
+        "asset": "assets/cosmetic-references/definitive-06.jpeg",
+        "name": "Peças florais"
+      },
+      {
+        "asset": "assets/cosmetic-references/definitive-05.jpeg",
+        "name": "Retrato ao luar"
+      }
+    ],
+    "banners": [
+      {
+        "id": "retrato",
+        "name": "Retrato ao luar",
+        "asset": "assets/cosmetic-references/definitive-05.jpeg"
+      }
+    ]
   }
 ];
 export const collectionById = (id: string) => COLLECTIONS.find((collection) => collection.id === id);

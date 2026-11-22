@@ -84,9 +84,9 @@ after(async () => {
   if (folder && resolve(folder).startsWith(resolve(tmpdir(), 'cosmic-collections-'))) rmSync(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
 });
 
-test('Coleções: 11 capas, prévia com nick próprio e compra real de pacote e item avulso', async () => {
+test('Coleções: capas, prévia com nick próprio e compra real de pacote e item avulso', async () => {
   await settings(ana, 'loja'); await ana.getByTestId('shop-collections').click();
-  assert.equal(await ana.getByTestId('collection-card').count(), 13);
+  assert.equal(await ana.getByTestId('collection-card').count(), COLLECTIONS.length);
   await screenshot(ana, 'shop-collections');
   await ana.getByTestId('buy-collection-night-fury').click();
   await ana.getByTestId('dialog-confirm').click();
@@ -234,7 +234,7 @@ test('artes e máscara do Kayden carregam no navegador e no protocolo do desktop
     ...['cover.webp','avatar-decoration.png','profile-frame.png','profile-banner.webp','username-effect.png','member-name-effect.webp','server-badge.png','nameplate.webp'].map((file) => `assets/cosmetics/${collection.id}/${file}`),
     ...collection.banners.map((banner) => banner.asset), ...collection.references.map((reference) => reference.asset),
   ]))];
-  assets.push(...new Set(CATALOG.flatMap((item) => item.presentation?.avatar?.mask ? [item.presentation.avatar.mask] : [])));
+  assets.push(...new Set(CATALOG.flatMap(({ presentation: p }) => [p?.avatar?.mask, p?.backdropMask, p?.frameMask, p?.effectMask].filter(Boolean))));
   const loadAssets = async (page) => page.evaluate(async (paths) => Promise.all(paths.map((path) => new Promise((done) => { const image = new Image(); image.onload = () => done({ path, width: image.naturalWidth }); image.onerror = () => done({ path, width: 0 }); image.src = new URL(path, location.href).href; }))), assets);
   const web = await loadAssets(ana); assert(web.every((asset) => asset.width > 0)); evidence.loadedImages.web = web.length;
   const restore = useLocalDesktopConfig();
@@ -317,6 +317,29 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
   const ribbon = participant.locator('[data-name-effect="madu-kaiden-efeito-nome"]');
   const memberAction = participant.getByTestId('voice-person-menu');
   await ribbon.waitFor();
+  const remoteCard = ana.getByTestId('call-card').and(ana.locator(`[data-identity="${b.user.id}"]`));
+  await remoteCard.waitFor();
+  assert.equal(await remoteCard.locator('[data-decoration]').count(), 0);
+  await equip(b, 'decoracao', 'hinata-decoracao');
+  const flower = remoteCard.locator('[data-decoration="hinata-decoracao"]');
+  await flower.evaluate(img => img.decode());
+  assert.match(await flower.evaluate(img => getComputedStyle(img).maskImage), /hinata-avatar/);
+  const remoteName = remoteCard.getByTestId('call-card-name').locator('[data-name-style]');
+  await waitFor(() => remoteName.evaluate(el => el.dataset.nameStyle === 'hinata-decoracao' && getComputedStyle(el).backgroundImage.includes('linear-gradient')), 'gradiente floral na call');
+  await equip(b,'cor-nome','neon-cor-nome');
+  await waitFor(() => remoteName.evaluate(el => getComputedStyle(el).color === 'rgb(84, 234, 255)'), 'troca ao vivo para cor sólida na call');
+  assert.equal(await ana.getByTestId('call-card').locator('[data-decoration="neon-decoracao"]').count(), 1);
+  await remoteCard.screenshot({path:resolve(output,'hinata-call-wide.png'),animations:'disabled'});
+  await ana.setViewportSize({width:1100,height:720});
+  await waitFor(() => remoteCard.evaluate(card => {
+    const art = card.querySelector('[data-decoration]').getBoundingClientRect();
+    const name = card.querySelector('[data-testid="call-card-name"]').getBoundingClientRect();
+    const box = card.getBoundingClientRect();
+    return art.y >= box.y && art.bottom <= name.top && art.x >= box.x && art.right <= box.right;
+  }), 'decoração cabe no cartão e acima do nome');
+  await remoteCard.screenshot({path:resolve(output,'hinata-call.png'),animations:'disabled'});
+  await ana.setViewportSize({width:1440,height:1000});
+  await equip(b,'decoracao',null); await equip(b,'cor-nome',null);
   const ribbonBox = await ribbon.boundingBox();
   const buttonBox = await memberAction.boundingBox();
   const participantBox = await participant.boundingBox();
@@ -364,6 +387,8 @@ test('artes grandes, galeria, pesquisa e filtros funcionam em computador e celul
     if (collection.id === 'clove') await screenshot(beto, 'refreshed-original-clove');
     await modal.getByRole('button', { name: 'Fechar', exact: true }).click();
   }
+  await beto.getByRole('button', { name: 'Anime', exact: true }).click();
+  await beto.locator('[data-collection="hinata"]').waitFor();
   await beto.getByRole('button', { name: 'Valorant', exact: true }).click();
   assert.equal(await beto.getByTestId('collection-card').count(), 6);
   await beto.getByRole('button', { name: 'Todas', exact: true }).click();
@@ -460,7 +485,7 @@ test('Kayden mantém a foto visível, sincroniza as cinco peças e persiste apó
   await portrait.locator('[data-avatar="foto"] img').evaluate((img) => img.decode());
   await overlay.evaluate(async (element) => {
     await element.decode();
-    const maskUrl = getComputedStyle(element).maskImage.match(/^url\("(.*)"\)$/)?.[1];
+    const maskUrl = getComputedStyle(element).maskImage.match(/^url\("([^"]+)"\)/)?.[1];
     if (!maskUrl) throw new Error('A decoração do Kayden está sem máscara.');
     const mask = new Image();
     mask.src = maskUrl;

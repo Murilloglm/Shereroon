@@ -3,11 +3,24 @@
 //  - A loja, o inventário e o saldo são da própria conta.
 //  - "Usando o aplicativo": a cada minuto, se houve teclado, mouse ou toque, o servidor fica sabendo. É o que separa a
 //    chamada de verdade de um aplicativo esquecido aberto (as recompensas de chamada só contam assim).
-import type { CosmeticItem, Equipped, ItemKind } from '../../../shared/cosmetics.ts';
+import { itemById, type CosmeticItem, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
 import { groups } from './groups/client.ts';
 import { Store } from './store.ts';
 
 export type UserCosmetics = Partial<Record<ItemKind, Equipped>>;
+
+/** Only catalog IDs travel over a call. This is ephemeral guest presentation, never account inventory. */
+export function readCallLook(payload: unknown): UserCosmetics | undefined {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
+  const look: UserCosmetics = {};
+  for (const [slot, value] of Object.entries(payload)) {
+    if (!value || typeof value.item !== 'string' || typeof value.variant !== 'string') return undefined;
+    const item = itemById(value.item);
+    if (!item || item.kind !== slot || !item.variants.some(variant => variant.id === value.variant)) return undefined;
+    look[item.kind] = { item: item.id, variant: value.variant };
+  }
+  return look;
+}
 
 export interface PointsInfo {
   points: number;
@@ -89,12 +102,14 @@ class CosmeticsClient {
     groups.store.subscribe(() => {
       const next = groups.store.get().account?.id ?? null;
       if (next === accountId) return;
+      const waiting = next && !accountId ? [...this.#observed] : [];
       accountId = next;
       this.#generation++;
       this.#wanted.clear();
       this.#versions.clear();
       this.#observed.clear();
       this.store.set({ byUser: {}, points: null, shop: null, packs: null, inventory: null, gifts: null, giftsPage: 0, giftsHasMore: false });
+      for (const id of waiting) this.request(id);
       if (next) void this.loadGifts().then(() => {
         const unread = this.store.get().gifts?.filter((gift) => gift.unread).length ?? 0;
         if (unread) groups.notify(`Você recebeu ${unread} presente(s). Abra Presentes nas configurações.`);
@@ -116,8 +131,7 @@ class CosmeticsClient {
       }
       // Alguém trocou o que tem equipado: busca de novo só essa pessoa.
       if (event.t === 'profile.changed' && typeof event.userId === 'string') {
-        this.#forget(event.userId);
-        this.request(event.userId, true);
+        this.refreshUser(event.userId);
       }
     });
     if (typeof window !== 'undefined') {
@@ -151,6 +165,11 @@ class CosmeticsClient {
     } catch {
       // sem conexão: tenta de novo quando pedirem de novo
     }
+  }
+
+  refreshUser(userId: string): void {
+    this.#forget(userId);
+    this.request(userId, true);
   }
 
   #forget(userId: string): void {

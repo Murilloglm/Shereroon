@@ -1,3 +1,4 @@
+import { messageLayout } from '../../lib/messages.ts';
 import { Bell, BellOff, CornerUpLeft, Hash, Lock, Pencil, Pin, PinOff, Plus, Reply, SendHorizontal, Smile, SmilePlus, Trash2, Users, X } from 'lucide-react';
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { has, P } from '../../../../shared/permissions.ts';
@@ -64,7 +65,7 @@ const Content = memo(function Content({ message, members, me, emojis }: { messag
   const onlyEmojis = pieces.length > 0 && pieces.every((piece) => piece.type === 'emoji' || (piece.type === 'texto' && !piece.text.trim()));
   if (!message.content) return null;
   return (
-    <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap text-fog-100">
+    <p className="text-[15px] leading-relaxed wrap-anywhere whitespace-pre-wrap text-fog-100">
       {pieces.map((piece, index) =>
         piece.type === 'link' ? (
           <a key={index} href={piece.text} target="_blank" rel="noreferrer noopener" className="text-neon-300 underline decoration-neon-400/50 underline-offset-2 hover:text-neon-200">
@@ -120,7 +121,7 @@ function PinsPanel({ channel, canUnpin, onJump, onClose }: { channel: ChannelVie
               <span className="truncate font-bold text-neon-300">{message.author.name}</span>
               <time className="shrink-0 text-xs text-fog-500">{stamp(message.createdAt)}</time>
             </p>
-            <p className="mt-0.5 line-clamp-4 text-sm break-words whitespace-pre-wrap text-fog-100">
+            <p className="mt-0.5 line-clamp-4 text-sm wrap-anywhere whitespace-pre-wrap text-fog-100">
               {message.content || (message.attachments.length > 0 ? `📎 ${message.attachments[0]!.name}` : '')}
             </p>
             <div className="mt-2 flex gap-2">
@@ -391,15 +392,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
   const firstUnread = boundary === null ? undefined : items.find((message) => serverId(message.id) && compareIds(message.id, boundary) > 0 && message.author.id !== me)?.id;
 
   const rows = useMemo(() => items.map((message, index) => {
-            const previous = items[index - 1];
-            const newDay = !previous || new Date(previous.createdAt).toDateString() !== new Date(message.createdAt).toDateString();
-            const grouped =
-              !newDay &&
-              message.reply === null &&
-              message.id !== firstUnread &&
-              previous!.author.id === message.author.id &&
-              message.author.id !== null &&
-              Date.parse(message.createdAt) - Date.parse(previous!.createdAt) < 5 * 60_000;
+            const { newDay, grouped } = messageLayout(items[index - 1], message);
             const member = message.author.id ? members.get(message.author.id) : undefined;
             const own = message.author.id === me;
             const name = member ? memberName(member) : message.author.name;
@@ -422,6 +415,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
                 )}
                 <li
                   data-testid="chat-message"
+                  data-grouped={grouped}
                   data-id={message.id}
                   data-author={message.author.username ?? ''}
                   data-delivery={message.delivery ?? 'sent'}
@@ -620,7 +614,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
 
   return (
     <section
-      className="relative flex min-h-0 flex-1 flex-col"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col"
       data-testid="chat"
       data-channel={channel.id}
       onDragOver={(event) => {
@@ -675,7 +669,7 @@ export function Chat({ view, channel, membersOpen, onToggleMembers }: { view: Gr
 
       <div
         ref={list}
-        className="min-h-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto px-2 py-3 sm:px-4"
         onScroll={(event) => {
           const element = event.currentTarget;
           stick.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;

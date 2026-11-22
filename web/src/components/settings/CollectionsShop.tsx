@@ -110,7 +110,7 @@ export function CollectionsShop({ account }: { account: Account }) {
   };
   const categories = ['Todas', 'Dragões', 'Anime', 'Valorant', 'Deadlock'];
   const visible = COLLECTIONS.filter((collection) => {
-    const category = collection.franchise === 'Como Treinar Seu Dragão' ? 'Dragões' : ['Eleceed', 'Tensei Shitara Slime','Blue Lock','One Punch Man'].includes(collection.franchise) ? 'Anime' : collection.franchise;
+    const category = collection.franchise === 'Como Treinar Seu Dragão' ? 'Dragões' : ['Eleceed', 'Tensei Shitara Slime','Blue Lock','One Punch Man','Naruto'].includes(collection.franchise) ? 'Anime' : collection.franchise;
     return (filter === 'Todas' || filter === category) && normalize(collection.name + ' ' + collection.franchise).includes(normalize(query.trim()));
   });
   const selectedItems = selected ? collectionItems(selected.id) : [];

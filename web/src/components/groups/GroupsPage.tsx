@@ -4,7 +4,7 @@ import { has, P } from '../../../../shared/permissions.ts';
 import { navigate } from '../../App.tsx';
 import { copyText } from '../../lib/format.ts';
 import { searchMembers } from '../../lib/groups/member-search.ts';
-import { CosmeticName, DecoratedAvatar, NameAdornment, MemberNameEffect } from '../cosmetics/Decoration.tsx';
+import { CosmeticName, DecoratedAvatar, MemberNameEffect } from '../cosmetics/Decoration.tsx';
 // A detecção de jogos (se a pessoa ligou) acompanha a conta conectada.
 import '../../lib/activities.ts';
 import { channelLink, moveToVoice } from '../../lib/groups/actions.ts';
@@ -455,16 +455,14 @@ function VoicePeopleList({ people, live, session, channel }: { people: MemberVie
               <StreamHover session={session} identity={member.userId} name={memberName(member)} enabled={state?.sharing === true} className="flex min-w-0 flex-1 items-center gap-2">
                 <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
                   <DecoratedAvatar userId={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
-                  <span className={cx('min-w-0 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
-                  <NameAdornment userId={member.userId} />
+                  <CosmeticName userId={member.userId} className="min-w-0 truncate">{memberName(member)}</CosmeticName>
                   <span className="flex-1" />
                 </UserTrigger>
               </StreamHover>
             ) : (
               <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">
                 <DecoratedAvatar userId={member.userId} name={memberName(member)} size={22} speaking={state?.speaking} image={member.avatar} />
-                <span className={cx('min-w-0 truncate', state?.speaking && 'text-white')}>{memberName(member)}</span>
-                <NameAdornment userId={member.userId} />
+                <CosmeticName userId={member.userId} className="min-w-0 truncate">{memberName(member)}</CosmeticName>
                 <span className="flex-1" />
               </UserTrigger>
             )}
@@ -780,7 +778,10 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
   const live = useStore(groups.store, (state) => state.live);
   const wide = useWide();
   const [modal, setModal] = useState<ModalState>(invite ? { type: 'entrar', code: invite } : null);
-  const [pane, setPane] = useState<'lista' | 'conteudo'>(channelId ? 'conteudo' : 'lista');
+  const [pane, setPane] = useState<'lista' | 'conteudo'>(channelId || (dm && dm !== 'inicio') ? 'conteudo' : 'lista');
+  useEffect(() => {
+    if ((wide && channelId) || (dm && dm !== 'inicio')) setPane('conteudo');
+  }, [wide, channelId, dm]);
   const { voice, joining, join, leave } = useVoice(view);
   // O chat do canal de voz fica aberto ao lado da chamada (a escolha fica guardada neste aparelho).
   const [voiceChat, setVoiceChatState] = useState(() => storage.get<boolean>('shareroom:chat-da-chamada', true) === true);
@@ -1008,7 +1009,7 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
               {gap}
               <div className={cx('cn-panel flex min-h-0 flex-col overflow-hidden', wide ? 'shrink-0' : 'min-w-0 flex-1')} style={wide ? { width: channelsPanel.width } : undefined} data-testid="channels-panel">
                 {dm ? (
-                  <SocialSidebar selected={dm} />
+                  <SocialSidebar selected={dm} onOpen={() => setPane('conteudo')} />
                 ) : current ? (
                   <ChannelList view={current} selected={channelId} voice={voice} onPick={pick} onModal={setModal} onOpenChat={openChat} />
                 ) : (
@@ -1038,16 +1039,16 @@ function Shell({ groupId, channelId, invite, dm }: { groupId?: string; channelId
       {/* A sala de voz fica montada enquanto a conexão existir, mesmo com um canal de texto na tela: assim a
           transmissão e o mixer não param quando a pessoa vai conversar por texto. */}
       <main className={cx('cn-panel min-w-0 flex-1 flex-col overflow-hidden', showContent ? 'flex' : 'hidden')}>
-        {!wide && current && (
+        {!wide && (current || dm) && (
           <div className="flex shrink-0 items-center gap-2 border-b border-brand-500/15 px-2 py-1.5">
             <Button size="sm" onClick={() => setPane('lista')} data-testid="back-to-channels">
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Canais
+              {dm ? 'Conversas' : 'Canais'}
             </Button>
-            <Button size="sm" className="ml-auto" onClick={() => setModal({ type: 'membros' })}>
+            {!dm && <Button size="sm" className="ml-auto" onClick={() => setModal({ type: 'membros' })}>
               <Users className="size-4" aria-hidden="true" />
               Membros
-            </Button>
+            </Button>}
           </div>
         )}
         {voice && (

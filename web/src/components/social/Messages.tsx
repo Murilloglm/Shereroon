@@ -1,5 +1,8 @@
 import { Bell, BellOff, Check, CornerUpLeft, LoaderCircle, MessageSquare, Paperclip, Pencil, Search, SendHorizontal, Smile, Ticket, Trash2, UserCheck, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { splitMessage } from '../../lib/groups/text.ts';
+import { messageLayout } from '../../lib/messages.ts';
+import { DecoratedAvatar } from '../cosmetics/Decoration.tsx';
 import { navigate } from '../../App.tsx';
 import { dialogs } from '../../lib/dialogs.ts';
 import { groups } from '../../lib/groups/client.ts';
@@ -14,12 +17,14 @@ import { ActivityList } from './ActivityList.tsx';
 import { startDm, useUserTriggers } from './UserInteractions.tsx';
 import { MessageDelivery } from '../MessageDelivery.tsx';
 
+const dmTextContext = { mentionEveryone: false, mentions: [], lookup: () => undefined };
+
 const time = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const day = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 
 // --- Coluna da esquerda: amigos e conversas -----------------------------------------------------
 
-export function SocialSidebar({ selected }: { selected: string }) {
+export function SocialSidebar({ selected, onOpen }: { selected: string; onOpen: () => void }) {
   const conversations = useStore(social.store, (state) => state.conversations);
   const friends = useStore(social.store, (state) => state.friends);
   const [search, setSearch] = useState('');
@@ -40,7 +45,7 @@ export function SocialSidebar({ selected }: { selected: string }) {
       </div>
       <button
         type="button"
-        onClick={() => navigate('#/mensagens')}
+        onClick={() => { onOpen(); navigate('#/mensagens'); }}
         className={cx('mx-2 mt-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[15px] font-semibold', selected === 'inicio' ? 'cn-selected text-white' : 'text-fog-300 hover:bg-white/5')}
         data-testid="friends-home"
       >
@@ -53,21 +58,21 @@ export function SocialSidebar({ selected }: { selected: string }) {
         {conversations === null && <li className="px-2 py-3 text-sm text-fog-500">Carregando…</li>}
         {conversations !== null && shown.length === 0 && <li className="px-2 py-3 text-sm text-fog-500">{term ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda. Abra o perfil de alguém e mande uma mensagem.'}</li>}
         {shown.map((item) => (
-          <ConversationRow key={item.id} conversation={item} active={item.id === selected} />
+          <ConversationRow key={item.id} conversation={item} active={item.id === selected} onOpen={onOpen} />
         ))}
       </ul>
     </div>
   );
 }
 
-function ConversationRow({ conversation, active }: { conversation: Conversation; active: boolean }) {
+function ConversationRow({ conversation, active, onOpen }: { conversation: Conversation; active: boolean; onOpen: () => void }) {
   const name = social.nameFor(conversation.user.id, conversation.user.displayName);
   const unread = conversation.notify === 'nada' ? 0 : conversation.unread;
   return (
     <li>
       <button
         type="button"
-        onClick={() => navigate(`#/mensagens/${conversation.id}`)}
+        onClick={() => { onOpen(); navigate(`#/mensagens/${conversation.id}`); }}
         className={cx('flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left', active ? 'cn-selected' : 'hover:bg-white/5')}
         data-testid="dm-conversation"
         data-user={conversation.user.username}
@@ -323,11 +328,11 @@ export function DmChat({ dmId }: { dmId: string }) {
   };
 
   const name = conversation ? social.nameFor(conversation.user.id, conversation.user.displayName) : 'Conversa';
-  const grouped = useMemo(() => items.map((message, index) => ({ message, newDay: index === 0 || day(items[index - 1]!.createdAt) !== day(message.createdAt) })), [items]);
+  const grouped = useMemo(() => items.map((message, index) => ({ message, ...messageLayout(items[index - 1], message) })), [items]);
 
   return (
     <FileSourceProvider value={(fileId) => social.fileUrl(fileId)}>
-      <section className="flex min-h-0 flex-1 flex-col" data-testid="dm-chat" data-dm={dmId}>
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="dm-chat" data-dm={dmId}>
         <header className="flex items-center gap-3 border-b border-brand-500/15 px-4 py-2.5">
           {conversation && (
             <span className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" {...triggers}>
@@ -352,7 +357,7 @@ export function DmChat({ dmId }: { dmId: string }) {
 
         <div
           ref={listRef}
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
+          className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-3"
           onScroll={(event) => {
             const list = event.currentTarget;
             atBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
@@ -362,7 +367,7 @@ export function DmChat({ dmId }: { dmId: string }) {
           data-testid="dm-messages"
         >
           {state?.loaded && items.length === 0 && <p className="py-8 text-center text-sm text-fog-500">Este é o começo da sua conversa com {name}.</p>}
-          {grouped.map(({ message, newDay }) => (
+          {grouped.map(({ message, newDay, grouped: continuation }) => (
             <div key={message.clientId ?? message.id}>
               {newDay && (
                 <p className="my-3 flex items-center gap-3 text-xs font-bold text-fog-500 capitalize">
@@ -373,6 +378,7 @@ export function DmChat({ dmId }: { dmId: string }) {
               )}
               <DmBubble
                 message={message}
+                grouped={continuation}
                 mine={message.author.id === me}
                 me={me ?? ''}
                 editing={editing?.id === message.id ? editing : null}
@@ -468,7 +474,7 @@ export function DmChat({ dmId }: { dmId: string }) {
               maxLength={4000}
               placeholder={`Mensagem para ${name}`}
               aria-label={`Mensagem para ${name}`}
-              className="max-h-40 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-[15px] outline-none"
+              className="max-h-40 min-h-9 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-[15px] outline-none"
               data-testid="dm-input"
             />
             <IconButton label="Enviar" type="submit" className="size-9" disabled={uploading || (!draft.trim() && ready.length === 0)} data-testid="dm-send">
@@ -483,6 +489,7 @@ export function DmChat({ dmId }: { dmId: string }) {
 
 function DmBubbleRow({
   message,
+  grouped,
   mine,
   me,
   editing,
@@ -493,6 +500,7 @@ function DmBubbleRow({
   onClosePicker,
 }: {
   message: DmMessage;
+  grouped: boolean;
   mine: boolean;
   me: string;
   editing: { id: string; text: string } | null;
@@ -507,8 +515,15 @@ function DmBubbleRow({
     void social.react(message, emoji, !mineAlready).catch((error: unknown) => groups.notify(errorText(error)));
   };
   return (
-    <article className={cx('group relative my-1 flex', mine ? 'justify-end' : 'justify-start')} data-testid="dm-message" data-mine={mine} data-id={message.id} data-delivery={message.delivery ?? 'sent'}>
-      <div className={cx('max-w-[78%] rounded-2xl px-3 py-2', mine ? 'rounded-br-md bg-brand-600/35 ring-1 ring-brand-400/30' : 'rounded-bl-md bg-ink-800 ring-1 ring-ink-600/70')}>
+    <article className={cx('group relative flex min-w-0', grouped ? 'mt-0.5' : 'mt-3', mine ? 'justify-end' : 'justify-start')} data-testid="dm-message" data-grouped={grouped} title={time(message.createdAt)} data-mine={mine} data-id={message.id} data-delivery={message.delivery ?? 'sent'}>
+      <div className={cx('min-w-0 max-w-[78%] rounded-2xl px-3', grouped ? 'py-0.5' : 'py-1.5', mine ? 'rounded-br-md bg-brand-600/35 ring-1 ring-brand-400/30' : 'rounded-bl-md bg-ink-800 ring-1 ring-ink-600/70')}>
+        {!grouped && (
+          <header className="mb-1 flex items-center gap-1.5 text-xs">
+            <DecoratedAvatar userId={message.author.id ?? ''} name={message.author.name} size={20} />
+            <strong className="min-w-0 truncate">{message.author.name}</strong>
+            <time className="shrink-0 text-fog-400" dateTime={message.createdAt}>{time(message.createdAt)}</time>
+          </header>
+        )}
         {message.reply && (
           <p className="mb-1 truncate border-l-2 border-neon-400 pl-2 text-xs text-fog-400" data-testid="dm-reply-quote">
             <b>{message.reply.authorName}</b>: {message.reply.excerpt || 'anexo'}
@@ -525,14 +540,13 @@ function DmBubbleRow({
             <p className="mt-1 text-xs text-fog-500">Enter salva • Esc cancela</p>
           </form>
         ) : (
-          message.content && <p className="text-[15px] leading-snug break-words whitespace-pre-wrap" data-testid="dm-content">{message.content}</p>
+          message.content && <p className="text-[15px] leading-snug wrap-anywhere whitespace-pre-wrap" data-testid="dm-content">{splitMessage(message.content, dmTextContext).map((part, index) =>
+            part.type === 'link' ? <a key={index} href={part.text} target="_blank" rel="noopener noreferrer" className="text-neon-300 underline">{part.text}</a> : 'text' in part ? part.text : null
+          )}</p>
         )}
         {message.meta?.type === 'convite' && <InviteMessage meta={message.meta} />}
         {message.attachments.length > 0 && <Attachments files={message.attachments.map((file) => ({ ...file, width: file.width ?? undefined, height: file.height ?? undefined })) as never} />}
-        <p className="mt-0.5 text-right text-[11px] text-fog-500">
-          {time(message.createdAt)}
-          {message.editedAt && ' • editada'}
-        </p>
+        {message.editedAt && <p className="text-right text-[11px] text-fog-500">editada</p>}
         <MessageDelivery message={message} retry={id => social.retry(id)} retryTestId="dm-retry" />
         {message.reactions.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -573,7 +587,7 @@ function DmBubbleRow({
   );
 }
 
-const DmBubble = memo(DmBubbleRow, (a, b) => a.message === b.message && a.mine === b.mine && a.me === b.me && a.editing === b.editing && a.picker === b.picker);
+const DmBubble = memo(DmBubbleRow, (a, b) => a.message === b.message && a.grouped === b.grouped && a.mine === b.mine && a.me === b.me && a.editing === b.editing && a.picker === b.picker);
 
 /** Cartão de convite para um grupo dentro da conversa. */
 function InviteMessage({ meta }: { meta: NonNullable<DmMessage['meta']> }) {

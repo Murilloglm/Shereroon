@@ -18,9 +18,9 @@ const equip = (p: Person, kind: string, itemId: string | null) => w.ok('PUT', '/
 const friends = async (a: Person, b: Person) => { await w.ok('POST', '/api/friends', a.token, { userId: b.id }); await w.ok('POST', `/api/friends/${a.id}/accept`, b.token); };
 
 describe('coleções com arte original e cinco espaços independentes', () => {
-  it('oferece 11 coleções e 55 itens, preservando os 14 itens anteriores e seus preços', async () => {
-    expect(COLLECTIONS).toHaveLength(13);
-    expect(CATALOG.filter((item) => item.collectionId)).toHaveLength(65);
+  it('oferece 14 coleções e 70 itens, preservando os 14 itens anteriores e seus preços', async () => {
+    expect(COLLECTIONS).toHaveLength(14);
+    expect(CATALOG.filter((item) => item.collectionId)).toHaveLength(70);
     expect(CATALOG.filter((item) => !item.collectionId && !item.pack)).toHaveLength(14);
     for (const collection of COLLECTIONS) {
       expect(CATALOG.filter((item) => item.collectionId === collection.id).map((item) => item.kind)).toEqual(COLLECTION_SLOTS);
@@ -60,7 +60,7 @@ describe('coleções com arte original e cinco espaços independentes', () => {
     expect((await inventory(poor)).items).toEqual([]);
   });
 
-  it('adquire as 11 coleções, equipa e desequipa os 55 itens, sem remover cosméticos anteriores', async () => {
+  it('adquire todas as coleções, equipa e desequipa cada peça, sem remover cosméticos anteriores', async () => {
     const a = await person(); await fund(a);
     await w.ok('POST', '/api/shop/buy', a.token, { itemId: 'anel-aurora', expectedPrice: 150 });
     for (const collection of COLLECTIONS) expect((await purchase(a, await quote(a, collection.id))).status).toBe(200);
@@ -68,7 +68,7 @@ describe('coleções com arte original e cinco espaços independentes', () => {
       expect((await equip(a, item.kind, item.id)).equipped[item.kind]).toEqual({ item: item.id, variant: 'original' });
       expect((await equip(a, item.kind, null)).equipped[item.kind]).toBeUndefined();
     }
-    expect((await inventory(a)).items).toHaveLength(66);
+    expect((await inventory(a)).items).toHaveLength(COLLECTIONS.length * COLLECTION_SLOTS.length + 1);
   }, 30_000);
 
   it('combina cinco coleções e sincroniza equipar/desequipar com observadores em dois servidores', async () => {

@@ -1,8 +1,8 @@
-"""Lossless rectangular extraction. No masks, resizing, recoloring or redrawing."""
+"""Lossless artwork crops and separate display masks. Source images are never rewritten."""
 from pathlib import Path
 from hashlib import sha256
 from shutil import copy2
-from PIL import Image
+from PIL import Image, ImageChops, ImageDraw, ImageOps
 import json
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,20 +25,50 @@ NAMES = [
     ('barou','Barou','Blue Lock',['#fff1ed','#ff334f']),
     ('garou','Garou Cósmico','One Punch Man',['#d8baff','#578fff']),
 ]
-SHEETS = {'madu-kaiden':'kayden definitivo.png','barou':'Barou_ Pacote Cosmetico do Rei dos Artilheiros.png','garou':'Pacote Cósmico do Garou.png'}
+FLOWER_PACK = 'hinata'
+FLOWER_PORTRAIT = 'WhatsApp Image 2026-11-21 at 23.32.39.jpeg'
+FLOWER_SHEET = 'WhatsApp Image 2026-11-21 at 23.32.40.jpeg'
+NAMES.append((FLOWER_PACK, 'Hinata • Luar de Cerejeira', 'Naruto', ['#ffd8ed','#d58ab7']))
+SHEETS = {FLOWER_PACK: FLOWER_SHEET, 'madu-kaiden':'kayden definitivo.png','barou':'Barou_ Pacote Cosmetico do Rei dos Artilheiros.png','garou':'Pacote Cósmico do Garou.png'}
 DETAILS = {
+    FLOWER_PACK: [(91,466,449,753),(545,465,891,758),(48,850,934,1027),(57,1105,423,1208),(474,1104,925,1209)],
     'madu-kaiden': [(80,320,500,686),(616,320,1018,683),(25,704,1069,1100),(44,1178,472,1348),(518,1174,1051,1352)],
     'barou': [(93,319,479,663),(611,318,1003,665),(17,685,1079,1078),(41,1164,468,1328),(522,1142,1060,1340)],
     'garou': [(85,325,500,681),(609,321,1016,680),(25,700,1068,1092),(46,1180,464,1340),(514,1175,1054,1345)],
 }
 REFERENCES.mkdir(parents=True,exist_ok=True)
+def save_display_mask(asset, target, low, high, clear_center=False, footer=0):
+    """Soften only background connected to the exterior or empty opening. Keep enclosed dark details."""
+    image = Image.open(asset).convert('RGBA')
+    red, green, blue, alpha = image.split()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if alpha.getextrema()[0] < 255:
+        # A neutral CSS mask leaves the source alpha (including soft edges) intact.
+        Image.new('L', (1, 1), 255).save(target)
+        return
+    light = ImageChops.lighter(red, ImageChops.lighter(green, blue))
+    barriers = light.point(lambda value: 255 if value >= high else 0)
+    reachable = ImageOps.expand(barriers, border=1, fill=0)
+    ImageDraw.floodfill(reachable, (0, 0), 128)
+    center = (image.width // 2 + 1, image.height // 2 + 1)
+    if clear_center and reachable.getpixel(center) == 0:
+        ImageDraw.floodfill(reachable, center, 128)
+    reachable = reachable.crop((1, 1, image.width+1, image.height+1)).point(lambda v: 255 if v == 128 else 0)
+    ramp = light.point(lambda v: max(0, min(255, round((v-low)*255/(high-low)))))
+    opacity = Image.composite(ramp, Image.new('L', image.size, 255), reachable)
+    if footer:
+        ImageDraw.Draw(opacity).rectangle((0, image.height-footer, image.width, image.height), fill=0)
+    mask = Image.new('LA', image.size, (255, 0))
+    mask.putalpha(opacity)
+    mask.save(target, optimize=True)
+
 references = {}
-for index,source in enumerate(sorted(SOURCE.glob('*.png'))):
-    asset = f'assets/cosmetic-references/definitive-{index+1:02d}.png'
+for index,source in enumerate([*sorted(SOURCE.glob('*.png')), SOURCE/FLOWER_PORTRAIT, SOURCE/FLOWER_SHEET]):
+    asset = f'assets/cosmetic-references/definitive-{index+1:02d}{source.suffix}'
     copy2(source,ROOT/'web/public'/asset)
     references[source.name] = {'asset':asset,'name':source.stem,'source':source.name,'sourceDirectory':SOURCE.name,
         'sha256':sha256(source.read_bytes()).hexdigest(),'size':list(Image.open(source).size),'byteIdentical':True}
-assert len(references)==4, 'Expected the four definitive references.'
+assert len(references)==6
 for path in REFERENCES.iterdir():
     if path.is_file() and path.name not in {Path(r['asset']).name for r in references.values()} | {'metadata.json'}:
         path.unlink()
@@ -68,9 +98,15 @@ for index,(slug,name,franchise,colors) in enumerate(NAMES):
         'username-effect.png':swatch,'member-name-effect.webp':effect,'server-badge.png':badge,'nameplate.webp':effect}
     records={}
     for filename,bounds in crops.items():
-        image=original.crop(bounds)
+        source_file=source
+        if slug==FLOWER_PACK and filename=='cover.webp':
+            source_file=FLOWER_PORTRAIT
+            image=Image.open(SOURCE/source_file).convert('RGBA')
+            bounds=(0,0,*image.size)
+        else:
+            image=original.crop(bounds)
         image.save(folder/filename,lossless=True,exact=True,method=6) if filename.endswith('.webp') else image.save(folder/filename,optimize=True)
-        records[filename]={'source':source,'sourceDirectory':SOURCE.name,'sha256':sha256((SOURCE/source).read_bytes()).hexdigest(),
+        records[filename]={'source':source_file,'sourceDirectory':SOURCE.name,'sha256':sha256((SOURCE/source_file).read_bytes()).hexdigest(),
             'crop':list(bounds),'size':list(image.size),'alpha':list(image.getchannel('A').getextrema()),'mask':'original alpha','processing':[]}
     for path in folder.iterdir():
         if path.is_file() and path.name not in set(crops)|{'metadata.json'}: path.unlink()
@@ -80,7 +116,20 @@ for index,(slug,name,franchise,colors) in enumerate(NAMES):
         'tagline':'Arte original do arquivo definitivo.','frameAspect':(frame[2]-frame[0])/(frame[3]-frame[1]) if detailed else None,
         'bannerAspect':(banner[2]-banner[0])/(banner[3]-banner[1]),'nameplateAsset':f'assets/cosmetics/{slug}/nameplate.webp',
         'references':[{'asset':ref['asset'],'name':ref['name']}],'banners':[]}
+    if slug==FLOWER_PACK:
+        portrait=references[FLOWER_PORTRAIT]
+        collection['references'].append({'asset':portrait['asset'],'name':'Retrato ao luar'})
+        collection['references'][0]['name']='Peças florais'
+        collection['banners'].append({'id':'retrato','name':'Retrato ao luar','asset':portrait['asset']})
     (folder/'metadata.json').write_text(json.dumps({**collection,'files':records},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    masks = ROOT/'web/public/assets/cosmetic-masks'
+    floral = slug == FLOWER_PACK
+    low, high = (103, 139) if floral else (30, 59)
+    save_display_mask(folder/'avatar-decoration.png', masks/f'{slug}-avatar.png', low, high,
+                      clear_center=not detailed or floral, footer=3 if not detailed and index>=6 else 0)
+    if floral:
+        save_display_mask(folder/'profile-frame.png', masks/f'{slug}-frame.png', low, high, clear_center=True)
+        save_display_mask(folder/'member-name-effect.webp', masks/f'{slug}-effect.png', low, high, clear_center=True)
     collections.append(collection)
 types='''/** Generated exclusively from enfeites definitivos. */
 export interface CollectionArtwork { id: string; name: string; asset: string; }

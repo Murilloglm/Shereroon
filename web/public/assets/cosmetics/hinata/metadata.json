@@ -1,0 +1,204 @@
+{
+  "id": "hinata",
+  "name": "Hinata • Luar de Cerejeira",
+  "franchise": "Naruto",
+  "colors": [
+    "#ffd8ed",
+    "#d58ab7"
+  ],
+  "avatarScale": 1.5,
+  "resolution": "definitive-sheet",
+  "exactArtwork": true,
+  "nameArtwork": true,
+  "tagline": "Arte original do arquivo definitivo.",
+  "frameAspect": 1.180887372013652,
+  "bannerAspect": 5.005649717514125,
+  "nameplateAsset": "assets/cosmetics/hinata/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/definitive-06.jpeg",
+      "name": "Peças florais"
+    },
+    {
+      "asset": "assets/cosmetic-references/definitive-05.jpeg",
+      "name": "Retrato ao luar"
+    }
+  ],
+  "banners": [
+    {
+      "id": "retrato",
+      "name": "Retrato ao luar",
+      "asset": "assets/cosmetic-references/definitive-05.jpeg"
+    }
+  ],
+  "files": {
+    "cover.webp": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.39.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "1b9b968cdd77a1aa6b8bb93f916d30c05e47364759e13a69fe4c86a4a41f5308",
+      "crop": [
+        0,
+        0,
+        1092,
+        399
+      ],
+      "size": [
+        1092,
+        399
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+      "crop": [
+        91,
+        466,
+        449,
+        753
+      ],
+      "size": [
+        358,
+        287
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-frame.png": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+      "crop": [
+        545,
+        465,
+        891,
+        758
+      ],
+      "size": [
+        346,
+        293
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+      "crop": [
+        48,
+        850,
+        934,
+        1027
+      ],
+      "size": [
+        886,
+        177
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+      "crop": [
+        57,
+        1105,
+        423,
+        1208
+      ],
+      "size": [
+        366,
+        103
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+      "crop": [
+        474,
+        1104,
+        925,
+        1209
+      ],
+      "size": [
+        451,
+        105
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+      "crop": [
+        474,
+        1104,
+        925,
+        1209
+      ],
+      "size": [
+        451,
+        105
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+      "crop": [
+        474,
+        1104,
+        925,
+        1209
+      ],
+      "size": [
+        451,
+        105
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

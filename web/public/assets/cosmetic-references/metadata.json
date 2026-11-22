@@ -46,5 +46,29 @@
       1440
     ],
     "byteIdentical": true
+  },
+  "WhatsApp Image 2026-11-21 at 23.32.39.jpeg": {
+    "asset": "assets/cosmetic-references/definitive-05.jpeg",
+    "name": "WhatsApp Image 2026-11-21 at 23.32.39",
+    "source": "WhatsApp Image 2026-11-21 at 23.32.39.jpeg",
+    "sourceDirectory": "enfeites definitivos",
+    "sha256": "1b9b968cdd77a1aa6b8bb93f916d30c05e47364759e13a69fe4c86a4a41f5308",
+    "size": [
+      1092,
+      399
+    ],
+    "byteIdentical": true
+  },
+  "WhatsApp Image 2026-11-21 at 23.32.40.jpeg": {
+    "asset": "assets/cosmetic-references/definitive-06.jpeg",
+    "name": "WhatsApp Image 2026-11-21 at 23.32.40",
+    "source": "WhatsApp Image 2026-11-21 at 23.32.40.jpeg",
+    "sourceDirectory": "enfeites definitivos",
+    "sha256": "34691f86533bcbfbc35cdffb88fffb0d926fb7927d73319905969d53bd305e27",
+    "size": [
+      970,
+      1280
+    ],
+    "byteIdentical": true
   }
 }

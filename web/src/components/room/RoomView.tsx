@@ -7,7 +7,8 @@ import { NoiseControl } from '../../lib/noise-control.ts';
 import type { RoomSession } from '../../lib/session.ts';
 import { openSettings as openSettingsScreen, registerCall } from '../../lib/settings-screen.ts';
 import { useStore } from '../../lib/store.ts';
-import { Avatar, Card, cx, Notice, Toast } from '../ui.tsx';
+import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
+import { Card, cx, Notice, Toast } from '../ui.tsx';
 import { Dock, MobileActions } from './Dock.tsx';
 import { Header } from './Header.tsx';
 import { MixerPanel } from './MixerPanel.tsx';
@@ -42,9 +43,9 @@ function MobilePeople({ session }: { session: RoomSession }) {
       <ul className="mt-2.5 flex gap-4 overflow-x-auto pb-1">
         {participants.map((person) => (
           <li key={person.identity} className="flex shrink-0 items-center gap-2" data-testid="participant">
-            <Avatar id={person.accountId ?? person.identity} name={person.name} image={person.avatar} size={36} online speaking={person.speaking} />
+            <DecoratedAvatar preview={person.guestLook} userId={person.accountId ?? person.identity} name={person.name} image={person.avatar} size={36} online speaking={person.speaking} />
             <span className="max-w-24 truncate text-sm font-semibold" data-testid="participant-name">
-              {person.isLocal ? 'Você' : person.name}
+              <CosmeticName preview={person.guestLook} userId={person.accountId}>{person.isLocal ? 'Você' : person.name}</CosmeticName>
             </span>
             {person.isHost && <Crown className="size-4 text-brand-300" aria-label="Dono da sala" />}
           </li>

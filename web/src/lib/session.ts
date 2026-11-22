@@ -25,6 +25,8 @@ import {
   type TrackPublishOptions,
 } from 'livekit-client';
 import { ApiError } from './api.ts';
+import { cosmetics, readCallLook, type UserCosmetics } from './cosmetics.ts';
+import { groups } from './groups/client.ts';
 import { avatarCache } from './avatar-cache.ts';
 import { inputSettings, effectiveMic } from './input-settings.ts';
 import { playCallSound } from './call-sounds.ts';
@@ -129,6 +131,7 @@ export type LinkQuality = 'otima' | 'boa' | 'fraca' | 'perdida' | 'desconhecida'
 export type AudioSource = 'nenhum' | 'navegador' | 'apps';
 
 export interface ParticipantView {
+  guestLook?: UserCosmetics;
   identity: string;
   accountId?: string;
   avatar?: string | null;
@@ -330,6 +333,8 @@ export class RoomSession {
   readonly #room: Room;
   #profileUnsubscribe: (() => void) | null = null;
   #avatarSignature = '';
+  #lookSignature = '';
+  #guestLooks = new Map<string, UserCosmetics>();
   #soundPeers = new Set<string>();
   #leaveSounds = new Map<string, ReturnType<typeof setTimeout>>();
   #inputUnsubscribe: (() => void) | null = null;
@@ -449,7 +454,11 @@ export class RoomSession {
       void this.updateMic({});
     });
     this.#profileUnsubscribe?.();
-    this.#profileUnsubscribe = avatarCache.store.subscribe(() => this.#publishAvatar());
+    const stopAvatar = avatarCache.store.subscribe(() => this.#publishAvatar());
+    const stopLook = cosmetics.store.subscribe(() => this.#publishPrivateLook());
+    this.#profileUnsubscribe = () => { stopAvatar(); stopLook(); };
+    this.#guestLooks.clear();
+    this.#lookSignature = '';
     this.#access = access;
     this.#leaving = false;
     this.#departing = null;
@@ -542,6 +551,7 @@ export class RoomSession {
     this.#publishDeafened();
     for (const participant of [this.#room.localParticipant, ...this.#room.remoteParticipants.values()]) this.#rememberParticipant(participant);
     this.#publishAvatar(true);
+    this.#publishPrivateLook(true);
     this.#refresh();
     latency.record('voice', 'participants', performance.now() - start);
     this.#startTimer();
@@ -647,10 +657,12 @@ export class RoomSession {
         }
         this.#soundPeers.add(participant.identity);
         this.#publishAvatar(true);
+        this.#publishPrivateLook(true);
         refresh();
         this.#publishDeafened();
       })
       .on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+        this.#guestLooks.delete(participant.identity);
         const state = this.store.get();
         if (!this.#leaving && state.phase === 'connected' && this.#soundPeers.has(participant.identity) && !this.#leaveSounds.has(participant.identity)) {
           const timer = setTimeout(() => {
@@ -708,12 +720,28 @@ export class RoomSession {
       .on(RoomEvent.SignalReconnecting, () => this.#markReconnecting())
       .on(RoomEvent.Reconnected, () => {
         this.store.set({ phase: 'connected' });
+        this.#publishPrivateLook(true);
         this.#publishDeafened();
         this.#settleUntil = Date.now() + SETTLE_MS;
         refresh();
       })
       .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => this.#onDisconnected(reason))
       .on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
+        if (topic === 'cosmic.look' && participant && !this.#access?.persistentIdentities && payload.byteLength <= 2048) {
+          const { accountId } = participantProfile(participant.metadata);
+          if (!accountId) return;
+          try {
+            const look = readCallLook(JSON.parse(new TextDecoder().decode(payload)));
+            if (!look) return;
+            if (groups.store.get().account) {
+              if (JSON.stringify(cosmetics.store.get().byUser[accountId]) !== JSON.stringify(look)) cosmetics.refreshUser(accountId);
+            } else {
+              this.#guestLooks.set(participant.identity, look);
+              refresh();
+            }
+          } catch { /* A partially delivered or invalid message cannot change presentation. */ }
+          return;
+        }
         if (topic === 'cosmic.avatar' && participant && payload.byteLength <= 512) {
           try {
             const data = JSON.parse(new TextDecoder().decode(payload));
@@ -753,6 +781,7 @@ export class RoomSession {
     const participants: ParticipantView[] = everyone.map((participant) => ({
       identity: participant.identity,
       ...participantProfile(participant.metadata),
+      guestLook: this.#guestLooks.get(participant.identity),
       name: participant.name || 'Sem nome',
       isLocal: participant === room.localParticipant,
       isHost: isHostMetadata(participant.metadata),
@@ -998,7 +1027,19 @@ export class RoomSession {
     this.#applyAudioRouting();
   }
 
-  /** Liga ou desliga tudo o que a pessoa ouve da sala. */
+  /** A sala privada envia apenas escolhas de catálogo. O inventário continua no servidor. */
+  #publishPrivateLook(force = false): void {
+    if (this.#access?.persistentIdentities || this.#leaving || this.store.get().phase !== 'connected') return;
+    const { accountId } = participantProfile(this.#room.localParticipant.metadata);
+    if (!accountId || groups.store.get().account?.id !== accountId) return;
+    const look = cosmetics.store.get().byUser[accountId];
+    if (!look) { cosmetics.request(accountId); return; }
+    const json = JSON.stringify(look);
+    if (!force && json === this.#lookSignature) return;
+    this.#lookSignature = json;
+    void this.#room.localParticipant.publishData(new TextEncoder().encode(json), { reliable: true, topic: 'cosmic.look' }).catch(() => undefined);
+  }
+
   #publishAvatar(force = false): void {
     if (this.store.get().phase !== 'connected' || this.#leaving) return;
     const profile = participantProfile(this.#room.localParticipant.metadata);

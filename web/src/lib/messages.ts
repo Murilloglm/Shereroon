@@ -5,6 +5,21 @@ export interface Delivery {
   localOrder?: number;
 }
 interface OrderedMessage extends Delivery { id: string; createdAt: string; author: { id: string | null } }
+type TimelineMessage = Pick<OrderedMessage, 'createdAt' | 'author'> & ({ channelId: string } | { dmId: string });
+
+/** Layout only: compare adjacent records in their local calendar day and conversation. */
+export function messageLayout(previous: TimelineMessage | undefined, current: TimelineMessage) {
+  const date = new Date(current.createdAt);
+  const before = previous && new Date(previous.createdAt);
+  const newDay = !before || before.toDateString() !== date.toDateString();
+  if (!previous || !before || newDay) return { newDay, grouped: false };
+  const sameContext = 'channelId' in current
+    ? 'channelId' in previous && previous.channelId === current.channelId
+    : 'dmId' in previous && previous.dmId === current.dmId;
+  const elapsed = date.getTime() - before.getTime();
+  return { newDay, grouped: sameContext && current.author.id !== null && previous.author.id === current.author.id && elapsed >= 0 && elapsed < 120_000 };
+}
+
 export const serverId = (id: string | undefined): boolean => !!id && /^\d+$/.test(id);
 export function compareIds(a: string, b: string): number {
   const x = BigInt(a), y = BigInt(b);

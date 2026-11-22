@@ -6,7 +6,8 @@ import { RoomSession, type ParticipantView, type SessionAccess } from '../../lib
 import { useStore } from '../../lib/store.ts';
 import { PersonVolume } from '../room/PersonVolume.tsx';
 import { ParticipantsCard } from '../room/Sidebar.tsx';
-import { Avatar, Button, Card, IconButton, Menu, MenuItem, MenuLabel, Notice, Slider } from '../ui.tsx';
+import { CosmeticName, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
+import { Button, Card, IconButton, Menu, MenuItem, MenuLabel, Notice, Slider } from '../ui.tsx';
 import { errorText, memberName, useAction } from './common.tsx';
 
 export interface VoiceState {
@@ -194,8 +195,8 @@ export function VoiceLobby({ view, channel, joining, onJoin }: { view: GroupView
           <ul className="mt-4 flex flex-wrap justify-center gap-3">
             {inside.map((member) => (
               <li key={member.userId} className="flex items-center gap-2 text-sm font-semibold">
-                <Avatar id={member.userId} name={memberName(member)} size={28} online image={member.avatar} />
-                {memberName(member)}
+                <DecoratedAvatar userId={member.userId} name={memberName(member)} size={28} online image={member.avatar} />
+                <CosmeticName userId={member.userId}>{memberName(member)}</CosmeticName>
               </li>
             ))}
           </ul>
