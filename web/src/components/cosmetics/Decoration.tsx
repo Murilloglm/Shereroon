@@ -16,7 +16,6 @@ function packOf(item: CosmeticItem | undefined): { art: PackArt; palette: PackPa
 
 /** Tamanho da arte em relação ao avatar: a decoração ocupa o anel em volta dele. */
 const SCALE = 1.36;
-const KAYDEN_DECORATION = 'assets/cosmetics/madu-kaiden/avatar-decoration.png';
 
 /** Caminhos relativos preservam instalações em subpastas e o protocolo local do Electron. */
 export const cosmeticAssetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -181,20 +180,30 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
   const pack = packOf(item);
   const box = size * SCALE;
   const live = animate && !reducedMotion();
-  if (item.asset === KAYDEN_DECORATION) {
+  const asset = cosmeticAsset(item, variant.id);
+  if (asset) {
+    const artwork = item.presentation?.avatar;
+    const [x, y] = artwork?.center ?? [50, 50];
+    const mask = artwork?.mask
+      ? `url("${cosmeticAssetUrl(artwork.mask)}")`
+      : artwork?.transparent ? undefined : `radial-gradient(ellipse 46% 61% at ${x}% ${y}%, transparent 71%, black 74% 87%, transparent 98%)`;
     return (
-      <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async"
-        className="cn-kayden-decoration pointer-events-none absolute max-w-none"
-        style={{ maskImage: `url("${cosmeticAssetUrl('assets/kayden-avatar-mask.svg')}")` }}
-        data-decoration={item.id} data-variant={variant.id} />
+      <img
+        src={cosmeticAssetUrl(asset)}
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        className="cn-avatar-artwork"
+        style={{
+          width: size * (artwork?.width ?? item.avatarScale ?? SCALE),
+          aspectRatio: artwork?.aspect,
+          transform: `translate(-${x}%, -${y}%)`,
+          maskImage: mask,
+        }}
+        data-decoration={item.id}
+        data-variant={variant.id}
+      />
     );
-  }
-  if (item.asset) {
-    const extent = size * (item.avatarScale ?? SCALE);
-    return <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async"
-      className="pointer-events-none absolute max-w-none object-contain"
-      style={{ width: extent, height: extent, left: (size - extent) / 2, top: (size - extent) / 2 }}
-      data-decoration={item.id} data-variant={variant.id} />;
   }
   return (
     <svg
@@ -238,14 +247,6 @@ function Frame({ equipped, size }: { equipped: Equipped; size: number }) {
 /** Recorta o fundo em anel (só a borda aparece). */
 const RING_MASK: React.CSSProperties = { WebkitMask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)', mask: 'linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)' };
 
-/** Moldura de um pacote na borda do cartão de perfil (a mesma do avatar, em volta do cartão). */
-export function ProfileFrame({ equipped }: { equipped: UserCosmetics }) {
-  const item = equipped.moldura ? itemById(equipped.moldura.item) : undefined;
-  const pack = packOf(item);
-  if (!pack) return null;
-  return <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 rounded-[inherit]" style={{ padding: 2, background: pack.art.frame(pack.palette), ...RING_MASK }} data-profile-frame={item!.id} />;
-}
-
 /**
  * Enfeite no nome do servidor: um ícone pequeno ao lado do nick, do tamanho da letra. Parado por padrão (listas,
  * chat); anima só com `animate` (chamada, perfil, prévias), se a pessoa não escolheu "parados" e sem animações
@@ -256,7 +257,11 @@ export function Adornment({ equipped, animate = false, force = false }: { equipp
   const item = itemById(equipped.item);
   const pack = packOf(item);
   if (!item || item.kind !== 'enfeite' || (choice === 'ocultos' && !force)) return null;
-  if (item.asset) return <img src={cosmeticAssetUrl(item.asset)} alt={item.name} className="cn-original-adornment" data-adornment={item.id} data-live="false" />;
+  if (item.asset) {
+    const sampleText = item.presentation?.sampleText;
+    return <img src={cosmeticAssetUrl(item.asset)} alt={item.name} className="cn-original-adornment"
+      style={sampleText ? { clipPath: openingClip(sampleText) } : undefined} data-adornment={item.id} data-live="false" />;
+  }
   if (!pack) return null;
   const live = animate && choice === 'animados' && !reducedMotion();
   return (
@@ -282,22 +287,23 @@ export function useUserCosmetics(userId: string | null | undefined): UserCosmeti
 }
 const EMPTY: UserCosmetics = {};
 
-/** Estilo do nome com a cor equipada (gradiente). */
+/** A cor equipada tem prioridade sobre a paleta da decoração de avatar. */
 export function nameStyle(equipped: UserCosmetics): React.CSSProperties | undefined {
-  const choice = equipped['cor-nome'];
-  const item = choice ? itemById(choice.item) : undefined;
-  if (!item) return undefined;
-  const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
-  const pack = packOf(item);
-  if (item.exactArtwork) return undefined;
-  return { backgroundImage: pack ? pack.art.name(pack.palette) : `linear-gradient(90deg, ${a}, ${b})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', textShadow: 'none' };
-}
-
-/** Lettering painted in the definitive sheet, kept separate from account identity. */
-export function NameArtwork({ equipped }: { equipped: UserCosmetics }) {
-  const item = equipped['cor-nome'] ? itemById(equipped['cor-nome'].item) : undefined;
-  if (!item?.exactArtwork || !item.asset) return null;
-  return <img src={cosmeticAssetUrl(item.asset)} alt={`Arte de nome ${item.name}`} className="cn-name-artwork" data-name-artwork={item.id} />;
+  for (const choice of [equipped['cor-nome'], equipped.decoracao]) {
+    if (!choice) continue;
+    const item = itemById(choice.item);
+    const variant = item?.variants.find((option) => option.id === choice.variant) ?? item?.variants[0];
+    if (!variant) continue;
+    const [start, end] = item?.presentation?.nameColors ?? variant.colors;
+    if (start === end) return { color: start };
+    return {
+      backgroundImage: `linear-gradient(90deg, ${start}, ${end})`,
+      backgroundClip: 'text',
+      color: 'transparent',
+      textShadow: 'none',
+    };
+  }
+  return undefined;
 }
 
 /**
@@ -307,7 +313,7 @@ export function NameArtwork({ equipped }: { equipped: UserCosmetics }) {
 export function CosmeticName({ userId, children, className, adornment = true, animate = false }: { userId: string | null | undefined; children: React.ReactNode; className?: string; adornment?: boolean; animate?: boolean }) {
   const equipped = useUserCosmetics(userId);
   const name = (
-    <span className={className} style={nameStyle(equipped)} data-name-style={equipped['cor-nome']?.item ?? ''}>
+    <span className={className} style={nameStyle(equipped)} data-name-style={equipped['cor-nome']?.item ?? equipped.decoracao?.item ?? ''}>
       {children}
     </span>
   );
@@ -326,7 +332,7 @@ export function backgroundStyle(equipped: UserCosmetics): React.CSSProperties | 
   const item = choice ? itemById(choice.item) : undefined;
   if (!item) return undefined;
   const asset = cosmeticAsset(item, choice?.variant);
-  if (asset) return { backgroundImage: `url("${cosmeticAssetUrl(asset)}")`, backgroundSize: item.exactArtwork ? 'contain' : 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(item.exactArtwork && item.assetAspect ? { aspectRatio: item.assetAspect, height: 'auto' } : {}) };
+  if (asset) return { backgroundImage: `url("${cosmeticAssetUrl(asset)}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
   const pack = packOf(item);
   if (pack) return pack.art.background(pack.palette);
@@ -361,6 +367,8 @@ export function DecoratedAvatar({
   animate = false,
   entrance = false,
   preview,
+  previewPhoto = false,
+  previewPhotoUrl,
 }: {
   userId: string;
   name: string;
@@ -372,42 +380,19 @@ export function DecoratedAvatar({
   entrance?: boolean;
   /** Mostrar estes itens no lugar dos equipados (prévia na loja). */
   preview?: UserCosmetics;
+  /** Na edição de perfil, respeita a escolha ainda não salva. */
+  previewPhoto?: boolean;
+  previewPhotoUrl?: string | null;
 }) {
   const equipped = useUserCosmetics(preview ? null : userId);
   const shown = preview ?? equipped;
-  const artwork = shown.decoracao ? itemById(shown.decoracao.item) : undefined;
-  const behind = artwork?.exactArtwork && !artwork.nameArtwork;
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }} data-decorated={shown.decoracao?.item ?? ''}>
       {shown.moldura && <Frame equipped={shown.moldura} size={size} />}
-      {behind && shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
-      <Avatar id={userId} name={name} size={size} online={online} speaking={speaking} image={image} />
-      {!behind && shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
+      <Avatar id={userId} name={name} size={size} online={online} speaking={speaking} image={image} preview={previewPhoto} previewUrl={previewPhotoUrl} />
+      {shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
     </span>
   );
-}
-
-export function ProfileNameplate({ userId, preview, children }: { userId?: string; preview?: UserCosmetics; children: React.ReactNode }) {
-  const equipped = useUserCosmetics(preview ? null : userId);
-  const choice = (preview ?? equipped).moldura;
-  const item = choice ? itemById(choice.item) : undefined;
-  if (!item?.asset) return <>{children}</>;
-  return <div className="cn-profile-nameplate" data-profile-frame={item.id}>
-    <img src={cosmeticAssetUrl(item.nameplateAsset ?? item.asset)} alt="" aria-hidden="true" decoding="async" />
-    <div className="relative min-w-0 px-6 py-3">{children}</div>
-  </div>;
-}
-
-/** O painel completo mantém a proporção desenhada na folha, inclusive seus cantos. */
-export function ArtworkProfileFrame({ userId, preview, children }: { userId?: string; preview?: UserCosmetics; children: React.ReactNode }) {
-  const equipped = useUserCosmetics(preview ? null : userId);
-  const choice = (preview ?? equipped).moldura;
-  const item = choice ? itemById(choice.item) : undefined;
-  if (!item?.asset || !item.frameAspect) return <>{children}</>;
-  return <div className="cn-profile-frame" style={{ aspectRatio: item.frameAspect }} data-profile-frame={item.id}>
-    <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async" />
-    <div className="cn-profile-frame-content">{children}</div>
-  </div>;
 }
 
 /** Uma única imagem por membro; a camada não participa do layout nem recebe cliques. */
@@ -416,8 +401,13 @@ export function MemberNameEffect({ userId, preview, animate = true }: { userId?:
   const choice = (preview ?? equipped)['efeito-nome'];
   const item = choice ? itemById(choice.item) : undefined;
   if (!item?.asset || item.kind !== 'efeito-nome') return null;
-  return <span className={cx('cn-member-effect', animate && !item.exactArtwork && 'cn-member-effect-live', item.exactArtwork && 'cn-member-effect-exact', item.nameArtwork && 'cn-member-effect-lettered')} aria-hidden="true" data-name-effect={item.id}>
-    <img src={cosmeticAssetUrl(item.asset)} alt="" decoding="async" loading="lazy" />
-    {!item.exactArtwork && <span className="cn-member-effect-veil" />}
+  const sample = item.presentation?.sampleText;
+  return <span className={cx('cn-member-effect', animate && item.animated && !item.exactArtwork && 'cn-member-effect-live')} aria-hidden="true" data-name-effect={item.id}>
+    <img src={cosmeticAssetUrl(item.asset)} alt="" decoding="async" loading="lazy" style={sample ? { clipPath: openingClip(sample) } : undefined} />
+    <span className="cn-member-effect-veil" />
   </span>;
+}
+
+export function openingClip([left, top, right, bottom]: readonly [number, number, number, number]): string {
+  return `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${left}% ${top}%, ${left}% ${bottom}%, ${right}% ${bottom}%, ${right}% ${top}%, ${left}% ${top}%, 0 0)`;
 }

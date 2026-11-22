@@ -431,6 +431,7 @@ export function Avatar({
   speaking,
   image,
   preview = false,
+  previewUrl,
 }: {
   id: string;
   name: string;
@@ -441,6 +442,7 @@ export function Avatar({
   image?: string | null;
   /** Escolha ainda não salva no editor de perfil. */
   preview?: boolean;
+  previewUrl?: string | null;
 }) {
   const known = useStore(avatars, state => state.byUser[id]);
   const source = preview || known === undefined ? image : known;
@@ -454,7 +456,7 @@ export function Avatar({
   }, [failed]);
   const hue = hueFor(id);
   const preset = source?.startsWith('padrao:') ? DEFAULT_AVATARS[Number(source.slice(7))] : undefined;
-  const candidate = mediaUrl(source);
+  const candidate = preview ? previewUrl ?? mediaUrl(source) : mediaUrl(source);
   const photo = candidate && candidate !== failed ? candidate : null;
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>

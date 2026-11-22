@@ -1,4 +1,5 @@
 import { COLLECTIONS } from './cosmetic-collections.ts';
+import { cosmeticPresentation, type CosmeticPresentation } from './cosmetic-presentation.ts';
 export { COLLECTIONS, collectionById, type CosmeticCollection } from './cosmetic-collections.ts';
 
 /**
@@ -44,6 +45,7 @@ export interface CosmeticItem {
   exactArtwork?: boolean;
   nameArtwork?: boolean;
   assetAspect?: number;
+  presentation?: CosmeticPresentation;
 }
 
 export const KIND_NAMES: Record<ItemKind, string> = {
@@ -359,6 +361,7 @@ CATALOG.push(...COLLECTIONS.flatMap((collection) => COLLECTION_SLOTS.map((kind):
   exactArtwork: collection.exactArtwork,
   nameArtwork: collection.nameArtwork,
   assetAspect: kind === 'fundo' ? collection.bannerAspect : undefined,
+  presentation: cosmeticPresentation(collection.id),
 }))));
 
 // Keep previously purchased IDs while replacing their old simplified drawings.
@@ -377,6 +380,7 @@ for (const [index, pack] of PACKS.entries()) {
       frameAspect: item.kind === 'moldura' ? collection.frameAspect ?? undefined : undefined,
       nameplateAsset: item.kind === 'moldura' ? collection.nameplateAsset : undefined,
       avatarScale: collection.avatarScale, assetAspect: item.kind === 'fundo' ? collection.bannerAspect : undefined,
+      presentation: cosmeticPresentation(collection.id),
       animated: false, reactsToVoice: false,
       variants: [{id:'original',name:'Original',colors:collection.colors}]});
   }

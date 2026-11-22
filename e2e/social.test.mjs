@@ -71,6 +71,7 @@ test('perfil: bio, status e foto enviada com prévia; os outros veem no cartão 
   await editor.getByTestId('profile-avatar-file').setInputFiles(pngFile('avatar.png', 128, 128));
   await ana.getByTestId('profile-upload-preview').waitFor();
   await ana.getByTestId('profile-upload-confirm').click();
+  await ana.getByTestId('profile-upload-preview').waitFor({ state: 'detached' });
   await waitFor(async () => (await editor.getByTestId('profile-preview').locator('[data-avatar="foto"]').count()) === 1, 'a foto aparecer na prévia');
   await waitFor(() => imageShows(editor.getByTestId('profile-preview').locator('[data-avatar="foto"] img').first()), 'a foto carregar de verdade');
 
@@ -80,6 +81,7 @@ test('perfil: bio, status e foto enviada com prévia; os outros veem no cartão 
     await editor.getByTestId('profile-avatar-file').setInputFiles(file);
     await ana.getByTestId('profile-upload-preview').waitFor();
     await ana.getByTestId('profile-upload-confirm').click();
+    await ana.getByTestId('profile-upload-preview').waitFor({ state: 'detached' });
     const photo = editor.getByTestId('profile-preview').locator('[data-avatar="foto"] img').first();
     await waitFor(async () => (await photo.getAttribute('src')) !== before && (await imageShows(photo)), `a foto nova (${file.split(/[\\/]/).pop()}) aparecer`);
   }

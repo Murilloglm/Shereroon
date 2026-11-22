@@ -6,7 +6,7 @@ import { dialogs } from '../../lib/dialogs.ts';
 import { groups, type Account } from '../../lib/groups/client.ts';
 import { social } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
-import { Adornment, BackgroundArt, backgroundStyle, DecoratedAvatar, nameStyle, ProfileNameplate } from '../cosmetics/Decoration.tsx';
+import { Adornment, DecoratedAvatar, nameStyle } from '../cosmetics/Decoration.tsx';
 import { ProfilePreview } from '../cosmetics/ProfilePreview.tsx';
 import { errorText } from '../groups/common.tsx';
 import { GiftDialog, PackGiftDialog, RedeemCode } from './GiftsSettings.tsx';
@@ -38,38 +38,7 @@ function Price({ value }: { value: number }) {
 
 /** Como o item fica: no próprio avatar (decoração e moldura), no topo do perfil (fundo) ou no nome (cor do nome). */
 function ItemPreview({ account, item, variant, size = 64 }: { account: Account; item: CosmeticItem; variant: string; size?: number }) {
-  const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
-  const preview: UserCosmetics = { [item.kind]: { item: item.id, variant } };
-  if (item.exactArtwork || item.collectionId) return <CollectionItemPreview account={account} item={item} variant={variant} size={size} />;
-  if (item.kind === 'efeito-nome') return <MemberNamePreview account={account} preview={preview} />;
-  if (item.kind === 'moldura' && item.asset) return <ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold">{account.displayName}</p></ProfileNameplate>;
-  if (item.kind === 'fundo') {
-    return (
-      <div className="relative h-20 w-full overflow-hidden rounded-xl" style={backgroundStyle(preview)} aria-hidden="true">
-        <BackgroundArt equipped={preview} />
-      </div>
-    );
-  }
-  if (item.kind === 'cor-nome') {
-    return (
-      <p className="flex h-20 items-center justify-center text-lg font-extrabold" style={nameStyle(preview)}>
-        {account.displayName}
-      </p>
-    );
-  }
-  if (item.kind === 'enfeite') {
-    return (
-      <p className="flex h-20 items-center justify-center text-lg font-extrabold">
-        {account.displayName}
-        <Adornment equipped={preview.enfeite!} animate force />
-      </p>
-    );
-  }
-  return (
-    <div className="flex h-20 items-center justify-center">
-      <DecoratedAvatar userId={account.id} name={account.displayName} size={size} image={avatar} animate preview={preview} />
-    </div>
-  );
+  return <CollectionItemPreview account={account} item={item} variant={variant} size={size} />;
 }
 
 function Swatches({ item, value, onChange }: { item: CosmeticItem; value: string; onChange: (variant: string) => void }) {

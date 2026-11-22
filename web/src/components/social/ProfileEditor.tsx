@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 import { dialogs } from '../../lib/dialogs.ts';
 import { groups } from '../../lib/groups/client.ts';
 import { prepareProfileImage } from '../../lib/images.ts';
-import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
+import { social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, cx, DEFAULT_AVATARS, TextInput } from '../ui.tsx';
 import { errorText, fieldLabel } from '../groups/common.tsx';
+import { useUserCosmetics } from '../cosmetics/Decoration.tsx';
+import { ProfilePreview } from '../cosmetics/ProfilePreview.tsx';
 
 const BANNER_COLORS = ['#6c4dff', '#4b348e', '#74d7ff', '#14c2f0', '#1d2142', '#e23a66', '#45e283', '#ffc65c'];
 // Qualquer imagem; as extensões entram porque o Windows nem sempre diz que HEIC, AVIF ou JFIF são imagens.
@@ -18,6 +20,7 @@ const ACCEPT = 'image/*,.avif,.bmp,.gif,.heic,.heif,.ico,.jfif,.jpeg,.jpg,.png,.
  */
 export function ProfileEditor({ userId }: { userId: string }) {
   const saved = useStore(social.store, (state) => state.profiles[userId]);
+  const look = useUserCosmetics(userId);
   const [draft, setDraft] = useState<Partial<Profile> | null>(null);
   const [preview, setPreview] = useState<{ kind: 'avatar' | 'banner'; url: string; file: File } | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -86,26 +89,14 @@ export function ProfileEditor({ userId }: { userId: string }) {
     }
   };
 
-  const bannerColor = draft.banner?.startsWith('cor:') ? draft.banner.slice(4) : null;
-  const bannerImage = preview?.kind === 'banner' ? preview.url : mediaUrl(draft.banner);
-  const avatarPreview = preview?.kind === 'avatar' ? preview.url : null;
-
   return (
     <div className="grid gap-4" data-testid="profile-editor">
       {/* Prévia do cartão como os outros vão ver. */}
-      <div className="overflow-hidden rounded-2xl border border-brand-400/40 bg-ink-900" data-testid="profile-preview">
-        <div className="h-20" style={{ background: bannerImage ? `center / cover no-repeat url("${bannerImage}")` : (bannerColor ?? 'linear-gradient(120deg, #4b348e, #6c4dff 55%, #74d7ff)') }} />
-        <div className="flex items-end gap-3 px-4 pb-3">
-          <div className="-mt-8 rounded-full border-4 border-ink-900">
-            {avatarPreview ? <img src={avatarPreview} alt="" className="size-16 rounded-full object-cover" /> : <Avatar preview id={userId} name={draft.displayName || saved.displayName} size={64} image={draft.avatar} />}
-          </div>
-          <div className="min-w-0 pb-1">
-            <p className="truncate font-extrabold">{draft.displayName || saved.displayName}</p>
-            {draft.status && <p className="truncate text-xs text-fog-300">{draft.status}</p>}
-          </div>
-        </div>
+      <ProfilePreview userId={userId} name={draft.displayName || saved.displayName} avatar={draft.avatar} banner={draft.banner} look={look}
+        draft={{ avatarUrl: preview?.kind === 'avatar' ? preview.url : undefined, bannerUrl: preview?.kind === 'banner' ? preview.url : undefined }}>
+        {draft.status && <p className="px-4 pb-3 text-center text-xs text-fog-300">{draft.status}</p>}
         {draft.bio && <p className="px-4 pb-3 text-sm whitespace-pre-line text-fog-300">{draft.bio}</p>}
-      </div>
+      </ProfilePreview>
 
       {preview && (
         <div className="flex items-center gap-3 rounded-xl border border-neon-400/40 bg-neon-500/10 p-3" data-testid="profile-upload-preview">

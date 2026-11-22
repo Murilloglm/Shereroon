@@ -1,12 +1,13 @@
 import { Check, Gift, Image as ImageIcon, Layers3, Search, Sparkles } from 'lucide-react';
 import { useEffect, useState, type CSSProperties } from 'react';
-import { CATALOG, COLLECTIONS, cosmeticAsset, KIND_NAMES, type CosmeticCollection, type CosmeticItem } from '../../../../shared/cosmetics.ts';
+import { CATALOG, COLLECTIONS, KIND_NAMES, type CosmeticCollection, type CosmeticItem } from '../../../../shared/cosmetics.ts';
 import { cosmetics, type UserCosmetics } from '../../lib/cosmetics.ts';
 import { dialogs } from '../../lib/dialogs.ts';
 import { groups, type Account } from '../../lib/groups/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { ArtworkVariants, ItemPreview, MemberNamePreview } from '../cosmetics/CosmeticPreview.tsx';
-import { cosmeticAssetUrl, DecoratedAvatar, nameStyle, ArtworkProfileFrame, ProfileNameplate } from '../cosmetics/Decoration.tsx';
+import { cosmeticAssetUrl, DecoratedAvatar } from '../cosmetics/Decoration.tsx';
+import { ProfilePreview } from '../cosmetics/ProfilePreview.tsx';
 import { social } from '../../lib/social/client.ts';
 import { errorText } from '../groups/common.tsx';
 import { Button, Modal } from '../ui.tsx';
@@ -24,26 +25,11 @@ function collectionEquipment(collection: CosmeticCollection, variants: Record<st
 function CollectionPreview({ account, collection, variants }: { account: Account; collection: CosmeticCollection; variants: Record<string, string> }) {
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   const preview = collectionEquipment(collection, variants);
-  const background = collectionItems(collection.id).find((item) => item.kind === 'fundo')!;
   return <div className="cn-collection-preview" data-testid="collection-preview" style={themeStyle(collection)}>
     <p className="cn-collection-eyebrow">Seu perfil</p>
-    <div className="cn-collection-profile">
-      <img src={cosmeticAssetUrl(cosmeticAsset(background, variants[background.id])!)} alt={'Fundo de perfil ' + collection.name} className="cn-artwork-banner" decoding="async" />
-      <div className="cn-collection-identity">
-        <ArtworkProfileFrame preview={preview}>
-          <div className={collection.frameAspect ? 'flex justify-center py-3' : 'flex justify-center py-7'}>
-            <DecoratedAvatar userId={account.id} name={account.displayName} image={avatar} size={collection.frameAspect ? 80 : 64} preview={preview} />
-          </div>
-          {collection.frameAspect ? <p className="w-full truncate text-center font-extrabold" style={nameStyle(preview)}>{account.displayName}</p>
-            : <ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold" style={nameStyle(preview)}>{account.displayName}</p></ProfileNameplate>}
-        </ArtworkProfileFrame>
-        <p className="mt-2 truncate text-center text-sm text-fog-400">@{account.username}</p>
-      </div>
-    </div>
-    <div className="mt-3"><ItemPreview account={account} item={collectionItems(collection.id).find((entry) => entry.kind === 'cor-nome')!} variant="original" /></div>
+    <ProfilePreview userId={account.id} name={account.displayName} avatar={avatar} look={preview} animate={false} />
     <p className="cn-collection-eyebrow mt-5">Na lista de membros</p>
     <MemberNamePreview account={account} preview={preview} />
-    <p className="mt-3 text-center text-sm text-fog-400">Artes originais preservadas. Sua conta aparece identificada à parte.</p>
   </div>;
 }
 

@@ -9,7 +9,7 @@ import { useStore } from '../../lib/store.ts';
 import { Avatar, Button, Card, cx, IconButton, Toggle } from '../ui.tsx';
 import { UserTrigger } from '../social/UserInteractions.tsx';
 import { StreamHover } from './StreamHover.tsx';
-import { CosmeticName, MemberNameEffect } from '../cosmetics/Decoration.tsx';
+import { CosmeticName, DecoratedAvatar, MemberNameEffect } from '../cosmetics/Decoration.tsx';
 
 export function copyInvite(session: RoomSession, invite: string): void {
   void copyText(inviteLink(invite)).then((done) =>
@@ -175,7 +175,9 @@ export function ParticipantsCard({
             {serverNameEffects && <MemberNameEffect userId={person.accountId ?? person.identity} />}
             <StreamHover session={session} identity={person.identity} name={person.name} enabled={person.sharing} className="flex min-w-0 flex-1 items-center gap-3">
             <UserTrigger userId={person.isLocal ? null : person.accountId ?? person.identity} className="flex min-w-0 flex-1 items-center gap-3">
-            <Avatar id={person.accountId ?? person.identity} name={person.name} image={person.avatar} online speaking={person.speaking} />
+            {person.accountId
+              ? <DecoratedAvatar userId={person.accountId} name={person.name} image={person.avatar} online speaking={person.speaking} />
+              : <Avatar id={person.identity} name={person.name} image={person.avatar} online speaking={person.speaking} />}
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate font-bold">
                 <span className="truncate" data-testid="participant-name">

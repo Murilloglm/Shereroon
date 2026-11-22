@@ -225,6 +225,8 @@
   .cn-member-effect {
     position: absolute;
     inset: 0;
+    display: grid;
+    place-items: center end;
     pointer-events: none;
     overflow: hidden;
     border-radius: inherit;
@@ -238,27 +240,22 @@
     position: relative;
   }
   .cn-member-effect > img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: right center;
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
   }
-  .cn-member-effect-exact > img { object-fit: contain; object-position: center; }
-  .cn-kayden-decoration {
+  .cn-avatar-artwork {
+    position: absolute;
     top: 50%;
     left: 50%;
-    width: 131.25%;
     height: auto;
-    aspect-ratio: 420 / 366;
-    transform: translate(-51.2%, -47.3%);
+    max-width: none;
+    object-fit: contain;
     mask: no-repeat center / 100% 100%;
+    pointer-events: none;
   }
-  .cn-member-effect-lettered { inset: auto 4px 2px; height: 46px; }
-  .cn-member-row:has(.cn-member-effect-lettered) { height: auto; min-height: 88px; padding-bottom: 48px; }
-  .cn-member-row:has(.cn-member-effect-lettered):has(> [data-user-trigger]) { padding-bottom: 0; }
-  .cn-member-row:has(.cn-member-effect-lettered) > [data-user-trigger],
-  [data-server-member]:has(.cn-member-effect-lettered) { padding-bottom: 48px !important; }
-  .cn-name-artwork { display: block; width: 100%; height: auto; max-height: 84px; margin-block: 4px; border-radius: 8px; object-fit: contain; }
   .cn-original-adornment { display: inline-block; width: 32px; height: 22px; margin-inline: 4px; object-fit: contain; vertical-align: middle; }
   .cn-member-effect-live > img {
     animation: cn-member-energy 5s ease-in-out infinite alternate;
@@ -275,49 +272,107 @@
   .cn-member-row[data-online='false']:has(.cn-member-effect) > [data-user-trigger] {
     opacity: .8;
   }
-  .cn-profile-nameplate {
-    position: relative;
-    isolation: isolate;
-    display: grid;
-    align-items: center;
-    min-height: 64px;
-    text-shadow: 0 1px 3px #000;
+  .cn-profile-preview {
+    width: 100%;
+    max-width: 320px;
+    margin-inline: auto;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--color-brand-400) 30%, transparent);
+    border-radius: 14px;
+    background: var(--color-ink-900);
   }
-  .cn-profile-nameplate > img {
-    position: absolute;
-    inset: 0;
+  .cn-profile-banner {
+    position: relative;
+    height: 116px;
+    overflow: hidden;
+    background: linear-gradient(120deg, var(--color-brand-800), var(--color-brand-600) 58%, var(--color-neon-600));
+  }
+  .cn-profile-banner > img {
+    display: block;
     width: 100%;
     height: 100%;
+    object-fit: cover;
+  }
+  .cn-profile-identity {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    margin-top: -38px;
+    padding: 0 16px 12px;
+    min-width: 0;
+  }
+  .cn-profile-avatar {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--color-ink-900);
+    border-radius: 50%;
+    box-shadow: 0 0 18px -7px var(--color-brand-400);
+  }
+  .cn-profile-name-area {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    margin-top: 4px;
+  }
+  .cn-profile-trim {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    height: auto;
+    width: auto;
+    max-width: 100%;
+    max-height: 42px;
     object-fit: contain;
     pointer-events: none;
   }
-  .cn-profile-frame {
-    position: relative;
-    isolation: isolate;
-    width: 100%;
-    overflow: hidden;
+  .cn-profile-trim-tall {
+    bottom: 0;
+    max-height: 108px;
     border-radius: 12px;
   }
-  .cn-profile-frame > img {
-    position: absolute;
-    inset: 0;
+  .cn-profile-name-area[data-tall-frame] { min-height: 65px; }
+  .cn-profile-name {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
     width: 100%;
-    height: 100%;
-    object-fit: contain;
-    pointer-events: none;
+    min-width: 0;
+    padding-inline: 12px;
+    font-size: 20px;
+    font-weight: 850;
+    line-height: 1.35;
+    text-align: center;
   }
-  .cn-profile-frame-content {
-    position: absolute;
-    inset: 17% 15%;
+  .cn-profile-name > span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :root[data-theme='claro'] .cn-profile-name > span {
+    filter: drop-shadow(0 0 1px #11182780);
+  }
+  .cn-profile-badges {
+    position: relative;
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    min-width: 0;
-    text-shadow: 0 1px 4px #000;
+    gap: 4px;
+    margin-top: 6px;
   }
-  .cn-artwork-banner { display: block; width: 100%; height: auto; border-radius: 10px; }
+  .cn-profile-details {
+    margin-inline: 16px;
+    padding-block: 12px 16px;
+    border-top: 1px solid var(--color-ink-700);
+  }
   .cn-collections { display: grid; gap: 24px; min-width: 0; }
   .cn-collections-intro {
     display: flex;
@@ -377,8 +432,6 @@
   .cn-collection-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 20px; }
   .cn-collection-detail-preview { display: grid; min-width: 0; gap: 12px; }
   .cn-collection-preview { padding: 14px; border: 1px solid color-mix(in srgb, var(--collection-a) 18%, transparent); border-radius: 14px; background: var(--color-ink-950); }
-  .cn-collection-profile { overflow: hidden; border: 1px solid #ffffff0c; border-radius: 12px; background: var(--color-ink-900); }
-  .cn-collection-identity { min-width: 0; padding: 10px; }
   .cn-collection-item { display: grid; min-width: 0; gap: 12px; padding: 14px; border: 1px solid #ffffff0c; border-radius: 12px; background: var(--color-ink-900); }
   .cn-collection-item h3 { color: var(--color-fog-100); font-size: 14px; font-weight: 850; }
   .cn-collection-item-art { display: grid; min-width: 0; align-items: center; min-height: 64px; }

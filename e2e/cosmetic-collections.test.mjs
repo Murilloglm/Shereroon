@@ -10,6 +10,7 @@ import { migrate } from '../server/src/db/schema.ts';
 import { CATALOG, COLLECTIONS } from '../shared/cosmetics.ts';
 import { P } from '../shared/permissions.ts';
 import { BASE_URL, launchChrome, root, startStack, useLocalDesktopConfig, waitFor } from './harness.mjs';
+import { pngFile } from './images.mjs';
 
 let stack, browser, ana, beto, caio, folder, a, b, c, g1, g2;
 const password = 'senha-de-teste-cosmeticos';
@@ -131,7 +132,7 @@ test('cinco coleções misturadas, prévia de perfil, efeito na outra conta e de
   evidence.checks.push('Mistura de coleções; perfil; equipar/desequipar sincronizado; altura preservada');
 });
 
-test('11 efeitos originais no administrador, sem substituir por efeito de cargo', async () => {
+test('todos os efeitos de coleção no administrador, com o cargo preservado', async () => {
   assert.equal(await row(ana, b.user.username).getByTestId('member-cosmic-admin').count(), 1);
   for (const collection of COLLECTIONS) {
     await equip(b, 'efeito-nome', `${collection.id}-efeito-nome`);
@@ -143,7 +144,7 @@ test('11 efeitos originais no administrador, sem substituir por efeito de cargo'
   await equip(b, 'efeito-nome', 'omen-efeito-nome');
   await row(ana, b.user.username).locator('[data-name-effect="omen-efeito-nome"]').waitFor();
   await screenshot(ana, 'members-admin-owner');
-  evidence.checks.push('Todos os 11 efeitos na conta de administrador');
+  evidence.checks.push(`Todos os ${COLLECTIONS.length} efeitos na conta de administrador`);
 });
 
 test('presentes da coleção e de item individual pela loja, com itens adquiridos no destinatário', async () => {
@@ -233,7 +234,7 @@ test('artes e máscara do Kayden carregam no navegador e no protocolo do desktop
     ...['cover.webp','avatar-decoration.png','profile-frame.png','profile-banner.webp','username-effect.png','member-name-effect.webp','server-badge.png','nameplate.webp'].map((file) => `assets/cosmetics/${collection.id}/${file}`),
     ...collection.banners.map((banner) => banner.asset), ...collection.references.map((reference) => reference.asset),
   ]))];
-  assets.push('assets/kayden-avatar-mask.svg');
+  assets.push(...new Set(CATALOG.flatMap((item) => item.presentation?.avatar?.mask ? [item.presentation.avatar.mask] : [])));
   const loadAssets = async (page) => page.evaluate(async (paths) => Promise.all(paths.map((path) => new Promise((done) => { const image = new Image(); image.onload = () => done({ path, width: image.naturalWidth }); image.onerror = () => done({ path, width: 0 }); image.src = new URL(path, location.href).href; }))), assets);
   const web = await loadAssets(ana); assert(web.every((asset) => asset.width > 0)); evidence.loadedImages.web = web.length;
   const restore = useLocalDesktopConfig();
@@ -318,7 +319,8 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
   await ribbon.waitFor();
   const ribbonBox = await ribbon.boundingBox();
   const buttonBox = await memberAction.boundingBox();
-  assert(ribbonBox && buttonBox && ribbonBox.y >= buttonBox.y + buttonBox.height, 'a faixa fica abaixo do controle de voz');
+  const participantBox = await participant.boundingBox();
+  assert(ribbonBox && buttonBox && participantBox && ribbonBox.height <= participantBox.height, 'a faixa não aumenta a linha nem desloca o controle de voz');
   await participant.getByTestId('voice-person-menu').click();
   await participant.getByRole('menu').waitFor();
   assert.match(await participant.getByRole('menu').textContent(), /Volume da voz/);
@@ -350,7 +352,7 @@ test('artes grandes, galeria, pesquisa e filtros funcionam em computador e celul
     const modal = beto.getByRole('dialog', { name: collection.name, exact: true });
     const preview = modal.getByTestId('collection-preview');
     await waitFor(() => preview.locator('img').evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)), 'artes grandes carregadas');
-    const frame = preview.locator('.cn-profile-frame');
+    const frame = preview.locator('[data-profile-frame]');
     const geometry = await frame.boundingBox();
     assert(Math.abs(geometry.width / geometry.height - collection.frameAspect) < .01, 'proporção da moldura original');
     await preview.screenshot({ path: resolve(output, `refreshed-preview-${collection.id}.png`), animations: 'disabled' });
@@ -381,10 +383,59 @@ test('artes grandes, galeria, pesquisa e filtros funcionam em computador e celul
   evidence.checks.push('Seis painéis na proporção original; galeria; filtro e busca sem acentos; loja e prévia a 390px');
 });
 
-test('Kayden mantém o avatar visível, sincroniza as cinco peças e persiste após recarregar', { timeout: 60_000 }, async () => {
+test('perfil compacto mantém nome, avatar, banner e datas alinhados em diferentes temas e larguras', async () => {
+  await settings(ana, 'aparencia');
+  await ana.getByTestId('theme-claro').click();
+  await settings(ana, 'acessibilidade');
+  await ana.getByTestId('motion-reduzir').click();
+  await closeSettings(ana);
+  await row(ana, b.user.username).click();
+  const profile = ana.getByTestId('profile-card');
+  const name = profile.getByTestId('profile-name').locator('span');
+  await name.waitFor();
+  assert.equal(await profile.locator('[data-decoration]').count(), 0);
+  assert.equal(await name.textContent(), 'Beto Estelar');
+  assert.equal(await name.evaluate((node) => getComputedStyle(node).backgroundImage), 'none');
+  assert.equal(await profile.getByTestId('profile-avatar').locator('[data-avatar-status="online"]').count(), 1);
+  assert(!(await profile.textContent()).includes(`@${b.user.username}`));
+  assert.match(await profile.textContent(), /Conta desde.*No grupo desde/s);
+  const banner = await profile.getByTestId('profile-banner').boundingBox();
+  const avatar = await profile.getByTestId('profile-avatar').boundingBox();
+  assert(avatar.y < banner.y + banner.height && avatar.y + avatar.height > banner.y + banner.height);
+  assert(Math.abs(avatar.x + avatar.width / 2 - (banner.x + banner.width / 2)) < 1);
+
+  await equip(b, 'decoracao', 'neon-decoracao');
+  await waitFor(() => name.evaluate((node) => getComputedStyle(node).color === 'rgb(84, 234, 255)'), 'nome herda a cor sólida do avatar');
+  await equip(b, 'cor-nome', 'barou-cor-nome');
+  await waitFor(() => name.evaluate((node) => getComputedStyle(node).backgroundClip === 'text'), 'gradiente do nome tem prioridade');
+  await ana.setViewportSize({ width: 390, height: 540 });
+  assert.equal(await ana.locator('html').getAttribute('data-motion'), 'reduzida');
+  assert.equal(await ana.locator('html').getAttribute('data-theme'), 'claro');
+  await waitFor(() => profile.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return box.x >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight && node.scrollWidth <= node.clientWidth + 1;
+  }), 'perfil cabe na janela sem rolagem horizontal');
+  await profile.screenshot({ path: resolve(output, 'profile-narrow-light.png'), animations: 'disabled' });
+  await ana.keyboard.press('Escape');
+  await ana.setViewportSize({ width: 1440, height: 1000 });
+  await settings(ana, 'aparencia');
+  await ana.getByTestId('theme-cosmic').click();
+  await settings(ana, 'acessibilidade');
+  await ana.getByTestId('motion-sistema').click();
+  await closeSettings(ana);
+  evidence.checks.push('Avatar sem decoração, status, cor sólida da decoração, gradiente equipado, tema claro e perfil a 390px sem rolagem lateral');
+});
+
+test('Kayden mantém a foto visível, sincroniza as cinco peças e persiste após recarregar', { timeout: 60_000 }, async () => {
+  await settings(beto, 'perfil');
+  await beto.getByTestId('profile-avatar-file').setInputFiles(pngFile('avatar-cosmeticos.png', 256, 256, [40, 161, 139, 255]));
+  await beto.getByTestId('profile-upload-preview').waitFor();
+  await beto.getByTestId('profile-upload-confirm').click();
+  await beto.getByTestId('profile-upload-preview').waitFor({ state: 'detached' });
+  await beto.getByTestId('profile-preview').locator('[data-avatar="foto"] img').evaluate((img) => img.decode());
   await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click();
   await beto.getByTestId('preview-madu-kaiden').click();
-  await waitFor(() => beto.getByTestId('collection-preview').locator('.cn-artwork-banner').first().evaluate((image) => image.src.includes('madu-kaiden') && image.complete), 'arte definitiva na prévia');
+  await waitFor(async () => (await beto.getByTestId('collection-preview').getByTestId('profile-banner').getAttribute('style')).includes('madu-kaiden'), 'arte definitiva na prévia');
   await beto.getByTestId('equip-collection').click();
   await beto.getByTestId('unequip-madu-kaiden-fundo').waitFor();
   await waitFor(async () => !(await beto.getByTestId('equip-collection').isDisabled()), 'cinco peças equipadas');
@@ -396,12 +447,17 @@ test('Kayden mantém o avatar visível, sincroniza as cinco peças e persiste ap
   await row(ana, b.user.username).locator('[data-name-effect="madu-kaiden-efeito-nome"]').waitFor();
   await row(ana, b.user.username).click();
   const profile = ana.getByTestId('profile-card');
-  try { await profile.locator('.cn-profile-frame[data-profile-frame="madu-kaiden-moldura"]').waitFor({timeout:10_000}); }
+  try { await profile.locator('[data-profile-frame="madu-kaiden-moldura"]').waitFor({timeout:10_000}); }
   catch (error) { await screenshot(ana, 'definitive-profile-failure'); writeFileSync(resolve(output,'definitive-profile-failure.txt'),await ana.locator('body').innerText()); throw error; }
-  await profile.locator('[data-name-artwork="madu-kaiden-cor-nome"]').waitFor();
-  await waitFor(async () => (await profile.getByTestId('profile-banner').getAttribute('style')).includes('madu-kaiden'), 'fundo definitivo no perfil da outra conta');
+  assert.equal(await profile.locator('img[src*="username-effect"]').count(), 0, 'amostra do nome não é exibida');
+  const banner = profile.getByTestId('profile-banner');
+  await waitFor(async () => (await banner.getAttribute('style')).includes('madu-kaiden'), 'fundo definitivo no perfil da outra conta');
+  const bannerBox = await banner.boundingBox();
+  const frameBox = await profile.locator('[data-profile-frame="madu-kaiden-moldura"]').boundingBox();
+  assert(frameBox.y >= bannerBox.y + bannerBox.height, 'moldura do nome não deve cobrir o banner');
   const portrait = profile.locator('[data-decorated="madu-kaiden-decoracao"]');
   const overlay = portrait.locator('[data-decoration="madu-kaiden-decoracao"]');
+  await portrait.locator('[data-avatar="foto"] img').evaluate((img) => img.decode());
   await overlay.evaluate(async (element) => {
     await element.decode();
     const maskUrl = getComputedStyle(element).maskImage.match(/^url\("(.*)"\)$/)?.[1];
@@ -429,5 +485,5 @@ test('Kayden mantém o avatar visível, sincroniza as cinco peças e persiste ap
   await beto.getByTestId('unequip-madu-kaiden-fundo').waitFor();
   await beto.getByRole('dialog', { name: 'Kayden', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
   await closeSettings(beto);
-  evidence.checks.push('Cinco artes definitivas do Kayden pela interface; lettering original; outra conta; escolha persistente');
+  evidence.checks.push('Cinco peças do Kayden pela interface; foto enviada intacta sob a máscara; outra conta e equipamento persistente');
 });

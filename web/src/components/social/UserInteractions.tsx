@@ -26,20 +26,20 @@ import {
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { has, P } from '../../../../shared/permissions.ts';
-import { itemById } from '../../../../shared/cosmetics.ts';
 import { navigate } from '../../App.tsx';
 import { dialogs } from '../../lib/dialogs.ts';
 import { copyText } from '../../lib/format.ts';
 import { moveToVoice } from '../../lib/groups/actions.ts';
 import { groups, type GroupView, type MemberView } from '../../lib/groups/client.ts';
 import type { RoomSession } from '../../lib/session.ts';
-import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
+import { social } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { activities, playingFor, type CurrentActivity } from '../../lib/activities.ts';
 import { GameIcon } from '../settings/GameIcon.tsx';
-import { ArtworkProfileFrame, BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, NameArtwork, ProfileFrame, ProfileNameplate, useUserCosmetics } from '../cosmetics/Decoration.tsx';
+import { useUserCosmetics } from '../cosmetics/Decoration.tsx';
+import { ProfileIdentity } from '../cosmetics/ProfilePreview.tsx';
 import { PersonVolume } from '../room/PersonVolume.tsx';
-import { Avatar, cx } from '../ui.tsx';
+import { cx } from '../ui.tsx';
 import { errorText, memberName, nameColor } from '../groups/common.tsx';
 import { ModerationPanel } from './ModerationPanel.tsx';
 
@@ -192,23 +192,6 @@ export function editNickname(userId: string, name: string): void {
 
 // --- Cartão de perfil (clique) ------------------------------------------------------------------
 
-function Banner({ profile }: { profile: Pick<Profile, 'banner' | 'id'> }) {
-  const color = profile.banner?.startsWith('cor:') ? profile.banner.slice(4) : null;
-  const image = mediaUrl(profile.banner);
-  // Fundo de perfil equipado (loja), quando a pessoa não enviou uma imagem própria de banner.
-  const cosmeticsOf = useUserCosmetics(profile.id);
-  const equipped = backgroundStyle(cosmeticsOf);
-  return (
-    <div
-      className="relative h-24 w-full overflow-hidden bg-cover bg-center"
-      style={equipped ?? (image ? undefined : { background: color ? color : 'linear-gradient(120deg, #4b348e, #6c4dff 55%, #74d7ff)' })}
-      data-testid="profile-banner"
-    >
-      {image && !equipped ? <img src={image} alt="" className="size-full object-cover" /> : <BackgroundArt equipped={cosmeticsOf} />}
-    </div>
-  );
-}
-
 export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { userId: string; anchor: DOMRect; view: GroupView | null; onClose: () => void; onModerate: () => void }) {
   const profile = useStore(social.store, (state) => state.profiles[userId]);
   const me = useStore(groups.store, (state) => state.account?.id);
@@ -218,7 +201,6 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
   const [position, setPosition] = useState({ left: anchor.right + 10, top: anchor.top });
   const member = view?.members.find((item) => item.userId === userId);
   const worn = useUserCosmetics(userId);
-  const framed = Boolean(itemById(worn.moldura?.item ?? '')?.frameAspect);
 
   useEffect(() => {
     void social.profile(userId, true).catch((error: unknown) => setFailure(errorText(error)));
@@ -226,10 +208,23 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
   useLayoutEffect(() => {
     const card = ref.current;
     if (!card) return;
-    const { width, height } = card.getBoundingClientRect();
-    const left = anchor.right + 10 + width > window.innerWidth - 8 ? Math.max(8, anchor.left - 10 - width) : anchor.right + 10;
-    setPosition({ left, top: Math.max(8, Math.min(anchor.top - 20, window.innerHeight - height - 8)) });
-  }, [anchor, profile, worn]);
+    const place = () => {
+      const { width, height } = card.getBoundingClientRect();
+      const preferredLeft = anchor.right + 10 + width <= window.innerWidth - 8 ? anchor.right + 10 : anchor.left - 10 - width;
+      setPosition({
+        left: Math.max(8, Math.min(preferredLeft, window.innerWidth - width - 8)),
+        top: Math.max(8, Math.min(anchor.top - 20, window.innerHeight - height - 8)),
+      });
+    };
+    const observer = new ResizeObserver(place);
+    observer.observe(card);
+    window.addEventListener('resize', place);
+    place();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', place);
+    };
+  }, [anchor]);
   useDismiss(ref, onClose);
 
   const roles = member && view ? view.roles.filter((role) => !role.isEveryone && member.roleIds.includes(role.id)) : [];
@@ -246,50 +241,33 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
       data-testid="profile-card"
       data-user={userId}
     >
-      <ProfileFrame equipped={worn} />
       {!profile ? (
         <p className="p-5 text-sm text-fog-400">{failure ?? 'Carregando o perfil…'}</p>
       ) : (
         <>
-          <Banner profile={profile} />
-          <div className="relative px-4 pb-4">
-            <ArtworkProfileFrame userId={profile.id}>
-              <div className={framed ? 'flex justify-center py-3' : '-mt-10 mb-2 w-fit rounded-full border-4 border-ink-900'}>
-                <DecoratedAvatar userId={profile.id} name={profile.displayName} size={framed ? 80 : 76} image={profile.avatar} animate />
-              </div>
-              {framed ? <p className="flex w-full items-center justify-center text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
-                <CosmeticName userId={profile.id} className="min-w-0 truncate" animate>{name}</CosmeticName>
-              </p> : <>
-            <ProfileNameplate userId={profile.id}>
-            <p className="flex items-center text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
-              <CosmeticName userId={profile.id} className="min-w-0 truncate" animate>
-                {name}
-              </CosmeticName>
-            </p>
-            </ProfileNameplate>
-              </>}
-            </ArtworkProfileFrame>
-            <NameArtwork equipped={worn} />
-            <p className="text-sm text-fog-400">
-              @{profile.username}
-              {profile.nickname && <span className="ml-1 text-xs text-neon-300">(apelido seu)</span>}
-              {profile.cosmicAdmin && <span className="ml-1.5 rounded bg-violet-500/20 px-2 py-1 text-xs font-extrabold text-neon-300" title="Administrador oficial da plataforma">♛ Cosmic Admin</span>}
-              {profile.bot && <span className="ml-1.5 rounded bg-brand-500/30 px-1 text-[10px] font-extrabold text-brand-100">BOT</span>}
-            </p>
-            {profile.status && <p className="mt-2 text-sm text-fog-200" data-testid="profile-status">{profile.status}</p>}
-            <ProfileActivity userId={profile.id} />
-            {profile.bio && <p className="mt-2 text-sm leading-snug whitespace-pre-line text-fog-300" data-testid="profile-bio">{profile.bio}</p>}
-            {roles.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1" data-testid="profile-roles">
+          <ProfileIdentity
+            userId={profile.id}
+            name={name}
+            avatar={profile.avatar}
+            banner={profile.banner}
+            look={worn}
+            online={member?.online}
+            roleColor={member && view ? nameColor(view, member) : undefined}
+            badges={profile.cosmicAdmin || profile.bot || roles.length ? <>
+              {profile.cosmicAdmin && <span className="rounded bg-violet-500/20 px-2 py-1 text-xs font-extrabold text-neon-300" title="Administrador oficial da plataforma">♛ Cosmic Admin</span>}
+              {profile.bot && <span className="rounded bg-brand-500/30 px-1 text-xs font-extrabold text-brand-100">BOT</span>}
+              {roles.length > 0 && <div className="contents" data-testid="profile-roles">
                 {roles.map((role) => (
                   <span key={role.id} className="flex items-center gap-1 rounded-md border border-ink-600 px-1.5 py-0.5 text-xs font-semibold">
                     <span className="size-2 rounded-full" style={{ background: role.color ?? 'var(--color-fog-500)' }} />
                     {role.name}
                   </span>
                 ))}
-              </div>
-            )}
-            <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-xs text-fog-400">
+              </div>}
+            </> : undefined}
+          />
+          <div className="cn-profile-details">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-xs text-fog-400">
               <dt>Conta desde</dt>
               <dd className="text-fog-300">{new Date(profile.createdAt).toLocaleDateString('pt-BR')}</dd>
               {member && (
@@ -305,6 +283,9 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
                 </>
               )}
             </dl>
+            {profile.status && <p className="mt-2 text-sm text-fog-200" data-testid="profile-status">{profile.status}</p>}
+            <ProfileActivity userId={profile.id} />
+            {profile.bio && <p className="mt-2 text-sm leading-snug whitespace-pre-line text-fog-300" data-testid="profile-bio">{profile.bio}</p>}
             {profile.mutualGroups && profile.mutualGroups.length > 0 && (
               <p className="mt-2 text-xs text-fog-400">
                 Grupos em comum: <span className="text-fog-300">{profile.mutualGroups.map((group) => group.name).join(', ')}</span>

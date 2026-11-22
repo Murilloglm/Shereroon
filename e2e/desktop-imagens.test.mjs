@@ -69,6 +69,7 @@ test('foto de perfil enviada aparece dentro do aplicativo, inclusive de um forma
     await editor.getByTestId('profile-avatar-file').setInputFiles(file);
     await page.getByTestId('profile-upload-preview').waitFor();
     await page.getByTestId('profile-upload-confirm').click();
+    await page.getByTestId('profile-upload-preview').waitFor({ state: 'detached' });
     await waitFor(async () => (await photo.count()) > 0 && (await photo.getAttribute('src')) !== before, 'a foto nova entrar no perfil');
     assert.match(await photo.getAttribute('src'), new RegExp(`^${BASE_URL}/api/media/`), 'a foto vem do backend, não de um blob local');
     await waitFor(() => imageShows(photo), `a foto (${file.split(/[\\/]/).pop()}) carregar de verdade`);
