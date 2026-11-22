@@ -18,6 +18,8 @@ export interface CosmeticVariant {
   name: string;
   /** Cores principais da variação (o desenho usa como quiser). */
   colors: [string, string];
+  /** Alternate artwork from an original sheet. */
+  asset?: string;
 }
 
 export interface CosmeticItem {
@@ -37,6 +39,8 @@ export interface CosmeticItem {
   collectionId?: string;
   asset?: string;
   avatarScale?: number;
+  frameAspect?: number;
+  nameplateAsset?: string;
 }
 
 export const KIND_NAMES: Record<ItemKind, string> = {
@@ -343,13 +347,19 @@ CATALOG.push(...COLLECTIONS.flatMap((collection) => COLLECTION_SLOTS.map((kind):
   description: `${KIND_NAMES[kind]} da coleção ${collection.name}, com a arte da referência original.`,
   price: CATALOG.find((item) => item.id === PRICE_REFERENCE[kind])!.price,
   rarity: 'epica', animated: kind === 'efeito-nome', reactsToVoice: false,
-  variants: [{ id: 'original', name: 'Original', colors: collection.colors }],
+  variants: [{ id: 'original', name: 'Original', colors: collection.colors },
+    ...(kind === 'fundo' ? collection.banners.map((banner) => ({ ...banner, colors: collection.colors })) : [])],
   asset: `assets/cosmetics/${collection.id}/${ASSET_FILES[kind]}`,
   avatarScale: kind === 'decoracao' ? collection.avatarScale : undefined,
+  frameAspect: kind === 'moldura' ? collection.frameAspect ?? undefined : undefined,
+  nameplateAsset: kind === 'moldura' ? collection.nameplateAsset : undefined,
 }))));
 
 
 export const itemById = (id: string): CosmeticItem | undefined => CATALOG.find((item) => item.id === id);
+
+export const cosmeticAsset = (item: CosmeticItem, variant?: string): string | undefined =>
+  item.variants.find((entry) => entry.id === variant)?.asset ?? item.asset;
 export const packById = (id: string): CosmeticPack | undefined => PACKS.find((pack) => pack.id === id);
 
 /**

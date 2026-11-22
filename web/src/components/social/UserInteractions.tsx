@@ -26,6 +26,7 @@ import {
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { has, P } from '../../../../shared/permissions.ts';
+import { itemById } from '../../../../shared/cosmetics.ts';
 import { navigate } from '../../App.tsx';
 import { dialogs } from '../../lib/dialogs.ts';
 import { copyText } from '../../lib/format.ts';
@@ -36,7 +37,7 @@ import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { activities, playingFor, type CurrentActivity } from '../../lib/activities.ts';
 import { GameIcon } from '../settings/GameIcon.tsx';
-import { BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, ProfileFrame, ProfileNameplate, useUserCosmetics } from '../cosmetics/Decoration.tsx';
+import { ArtworkProfileFrame, BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, ProfileFrame, ProfileNameplate, useUserCosmetics } from '../cosmetics/Decoration.tsx';
 import { PersonVolume } from '../room/PersonVolume.tsx';
 import { Avatar, cx } from '../ui.tsx';
 import { errorText, memberName, nameColor } from '../groups/common.tsx';
@@ -233,6 +234,7 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
   const name = member ? memberName(member) : profile ? social.nameFor(profile.id, profile.displayName) : '';
   const self = me === userId;
   const worn = useUserCosmetics(userId);
+  const framed = Boolean(itemById(worn.moldura?.item ?? '')?.frameAspect);
 
   return createPortal(
     <div
@@ -251,9 +253,13 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
         <>
           <Banner profile={profile} />
           <div className="relative px-4 pb-4">
-            <div className="-mt-10 mb-2 w-fit rounded-full border-4 border-ink-900">
-              <DecoratedAvatar userId={profile.id} name={profile.displayName} size={76} image={profile.avatar} animate />
-            </div>
+            <ArtworkProfileFrame userId={profile.id}>
+              <div className={framed ? 'flex justify-center py-3' : '-mt-10 mb-2 w-fit rounded-full border-4 border-ink-900'}>
+                <DecoratedAvatar userId={profile.id} name={profile.displayName} size={framed ? 48 : 76} image={profile.avatar} animate />
+              </div>
+              {framed ? <p className="flex w-full items-center justify-center text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
+                <CosmeticName userId={profile.id} className="min-w-0 truncate" animate>{name}</CosmeticName>
+              </p> : <>
             <ProfileNameplate userId={profile.id}>
             <p className="flex items-center text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
               <CosmeticName userId={profile.id} className="min-w-0 truncate" animate>
@@ -261,6 +267,8 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
               </CosmeticName>
             </p>
             </ProfileNameplate>
+              </>}
+            </ArtworkProfileFrame>
             <p className="text-sm text-fog-400">
               @{profile.username}
               {profile.nickname && <span className="ml-1 text-xs text-neon-300">(apelido seu)</span>}

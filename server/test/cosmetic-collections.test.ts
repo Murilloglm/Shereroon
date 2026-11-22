@@ -123,6 +123,23 @@ describe('coleções com arte original e cinco espaços independentes', () => {
     expect((await w.ok('GET', '/api/me/gifts', b.token)).gifts[0]).toMatchObject({ itemId: 'collection:raze', price: q.price });
   });
 
+  it('fundos alternativos pertencem ao mesmo item, persistem e sincronizam sem nova compra', async () => {
+    const a = await person(), b = await person(); await fund(a);
+    const group = await w.group(a); await w.join(a, group, b);
+    await w.ok('POST', '/api/shop/buy', a.token, { itemId: 'rimuru-fundo', expectedPrice: 200 });
+    const before = await points(a), observer = await w.connect(b);
+    const saved = await w.ok('PUT', '/api/me/equipped', a.token, { slot: 'fundo', itemId: 'rimuru-fundo', variant: 'celestial' });
+    expect(saved.equipped.fundo).toEqual({ item: 'rimuru-fundo', variant: 'celestial' });
+    expect((await inventory(a)).items).toHaveLength(1);
+    expect(await points(a)).toBe(before);
+    expect((await w.ok('GET', `/api/cosmetics?ids=${a.id}`, b.token)).cosmetics[a.id].fundo).toEqual(saved.equipped.fundo);
+    expect(observer.of('profile.changed').some((event: any) => event.userId === a.id)).toBe(true);
+    expect((await w.api('PUT', '/api/me/equipped', a.token, { slot: 'fundo', itemId: 'rimuru-fundo', variant: 'nao-existe' })).status).toBe(400);
+    expect((await inventory(a)).equipped.fundo.variant).toBe('celestial');
+    expect((await equip(a, 'fundo', 'rimuru-fundo')).equipped.fundo.variant).toBe('original');
+    observer.close();
+  });
+
   it('administrador adquire e equipa efeito sem vínculo com cargos locais nem débito', async () => {
     const admin = await person();
     await w.db.query('INSERT INTO global_permissions(user_id) VALUES ($1)', [admin.id]);

@@ -8,23 +8,61 @@
   ],
   "avatarScale": 1.64,
   "resolution": "sheet",
+  "tagline": "Raios dourados e um gato nada comum.",
+  "frameAspect": 0.980545,
+  "nameplateAsset": "assets/cosmetics/madu-kaiden/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/reference-07.webp",
+      "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-19.webp",
+      "name": "Pacote Neon do Gato Elétrico-5"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-12.webp",
+      "name": "Kit de Perfil Felino Elétrico Neon-6"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-20.webp",
+      "name": "Pacote Visual Gato Elétrico Neon-2"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-01.webp",
+      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+    }
+  ],
+  "banners": [
+    {
+      "id": "tempestade",
+      "name": "Tempestade elétrica",
+      "asset": "assets/cosmetics/madu-kaiden/profile-banner-tempestade.webp"
+    },
+    {
+      "id": "dourado",
+      "name": "Energia dourada",
+      "asset": "assets/cosmetics/madu-kaiden/profile-banner-dourado.webp"
+    }
+  ],
   "notes": [
     "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
     "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
   ],
   "files": {
     "cover.webp": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Neon do Gato Elétrico-5.png",
+      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
       "crop": [
-        521,
-        8,
-        764,
-        128
+        24,
+        564,
+        1231,
+        924
       ],
       "size": [
-        243,
-        120
+        1207,
+        360
       ],
       "alpha": [
         255,
@@ -43,109 +81,34 @@
         1254
       ],
       "size": [
-        512,
-        512
+        1254,
+        1254
       ],
       "alpha": [
         0,
         255
       ],
       "mask": "original alpha",
-      "processing": [
-        "Lanczos downsample to max 512px (no upscaling)"
-      ]
+      "processing": []
     },
     "profile-frame.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Neon do Gato Elétrico-5.png",
+      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
       "crop": [
-        529,
-        289,
-        756,
-        342
+        694,
+        30,
+        1198,
+        544
       ],
       "size": [
-        227,
-        53
+        504,
+        514
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": {
-        "outer": [
-          [
-            0,
-            8
-          ],
-          [
-            12,
-            2
-          ],
-          [
-            215,
-            2
-          ],
-          [
-            226,
-            8
-          ],
-          [
-            226,
-            45
-          ],
-          [
-            215,
-            51
-          ],
-          [
-            12,
-            51
-          ],
-          [
-            0,
-            45
-          ]
-        ],
-        "hole": [
-          [
-            19,
-            18
-          ],
-          [
-            97.61,
-            18
-          ],
-          [
-            113.5,
-            28
-          ],
-          [
-            129.39,
-            18
-          ],
-          [
-            208,
-            18
-          ],
-          [
-            211,
-            35
-          ],
-          [
-            202,
-            40
-          ],
-          [
-            23,
-            40
-          ],
-          [
-            16,
-            34
-          ]
-        ]
-      },
+      "mask": "original alpha",
       "processing": []
     },
     "profile-banner.webp": {
@@ -209,21 +172,81 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Neon do Gato Elétrico-5.png",
+      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
       "crop": [
-        674,
-        183,
-        749,
-        259
+        780,
+        996,
+        1203,
+        1160
       ],
       "size": [
-        75,
-        76
+        423,
+        164
       ],
       "alpha": [
         255,
         255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Pacote Visual Gato Elétrico Neon-2.png",
+      "sha256": "16eb9f6ac562ec293e5c492d321becf54b1f78916c9376d023f43e39aab02f0d",
+      "crop": [
+        532,
+        451,
+        1325,
+        648
+      ],
+      "size": [
+        793,
+        197
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-tempestade.webp": {
+      "source": "Kit de Perfil Felino Elétrico Neon-6.png",
+      "sha256": "7d09c8c9da67fdb53be3feb271f2392699fe90f3148d9f171bed27dc99c8d6bf",
+      "crop": [
+        35,
+        583,
+        1216,
+        946
+      ],
+      "size": [
+        1181,
+        363
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-dourado.webp": {
+      "source": "Pacote Visual Gato Elétrico Neon-2.png",
+      "sha256": "16eb9f6ac562ec293e5c492d321becf54b1f78916c9376d023f43e39aab02f0d",
+      "crop": [
+        958,
+        37,
+        1671,
+        478
+      ],
+      "size": [
+        713,
+        441
+      ],
+      "alpha": [
+        0,
+        254
       ],
       "mask": "original alpha",
       "processing": []

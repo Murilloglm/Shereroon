@@ -8,23 +8,61 @@
   ],
   "avatarScale": 1.55,
   "resolution": "sheet",
+  "tagline": "Slimes, magia e as águas de Tempest.",
+  "frameAspect": 1.721485,
+  "nameplateAsset": "assets/cosmetics/rimuru/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/reference-08.webp",
+      "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-14.webp",
+      "name": "Pacote Cósmico de Slime Azul-7"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-02.webp",
+      "name": "Conjunto de Cosméticos do Slime Azul-3"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-03.webp",
+      "name": "Cosméticos de Rimuru em Néon Celestial-8"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-01.webp",
+      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+    }
+  ],
+  "banners": [
+    {
+      "id": "tempest",
+      "name": "Tempest",
+      "asset": "assets/cosmetics/rimuru/profile-banner-tempest.webp"
+    },
+    {
+      "id": "celestial",
+      "name": "Celestial",
+      "asset": "assets/cosmetics/rimuru/profile-banner-celestial.webp"
+    }
+  ],
   "notes": [
     "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
     "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
   ],
   "files": {
     "cover.webp": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Cósmico de Slime Azul-7.png",
+      "sha256": "a8ffd88eb6dded188b96b3d7744f4430d5e9d8857202cc838e363dc1c77531be",
       "crop": [
-        775,
-        8,
-        1018,
-        128
+        45,
+        513,
+        1208,
+        839
       ],
       "size": [
-        243,
-        120
+        1163,
+        326
       ],
       "alpha": [
         255,
@@ -43,109 +81,34 @@
         1254
       ],
       "size": [
-        512,
-        512
+        1254,
+        1254
       ],
       "alpha": [
         0,
         255
       ],
       "mask": "original alpha",
-      "processing": [
-        "Lanczos downsample to max 512px (no upscaling)"
-      ]
+      "processing": []
     },
     "profile-frame.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Cósmico de Slime Azul-7.png",
+      "sha256": "a8ffd88eb6dded188b96b3d7744f4430d5e9d8857202cc838e363dc1c77531be",
       "crop": [
-        783,
-        289,
-        1010,
-        342
+        553,
+        111,
+        1202,
+        488
       ],
       "size": [
-        227,
-        53
+        649,
+        377
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": {
-        "outer": [
-          [
-            0,
-            8
-          ],
-          [
-            12,
-            2
-          ],
-          [
-            215,
-            2
-          ],
-          [
-            226,
-            8
-          ],
-          [
-            226,
-            45
-          ],
-          [
-            215,
-            51
-          ],
-          [
-            12,
-            51
-          ],
-          [
-            0,
-            45
-          ]
-        ],
-        "hole": [
-          [
-            19,
-            18
-          ],
-          [
-            97.61,
-            18
-          ],
-          [
-            113.5,
-            28
-          ],
-          [
-            129.39,
-            18
-          ],
-          [
-            208,
-            18
-          ],
-          [
-            211,
-            35
-          ],
-          [
-            202,
-            40
-          ],
-          [
-            23,
-            40
-          ],
-          [
-            16,
-            34
-          ]
-        ]
-      },
+      "mask": "original alpha",
       "processing": []
     },
     "profile-banner.webp": {
@@ -209,17 +172,77 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Cósmico de Slime Azul-7.png",
+      "sha256": "a8ffd88eb6dded188b96b3d7744f4430d5e9d8857202cc838e363dc1c77531be",
       "crop": [
-        928,
-        183,
-        1003,
-        259
+        781,
+        866,
+        1189,
+        1011
       ],
       "size": [
-        75,
-        76
+        408,
+        145
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Pacote Cósmico de Slime Azul-7.png",
+      "sha256": "a8ffd88eb6dded188b96b3d7744f4430d5e9d8857202cc838e363dc1c77531be",
+      "crop": [
+        28,
+        879,
+        726,
+        1020
+      ],
+      "size": [
+        698,
+        141
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-tempest.webp": {
+      "source": "Conjunto de Cosméticos do Slime Azul-3.png",
+      "sha256": "6292902071c35c92cc1ef8f0213d991efe07c845784d83cc43d9349d52c668ee",
+      "crop": [
+        957,
+        72,
+        1672,
+        430
+      ],
+      "size": [
+        715,
+        358
+      ],
+      "alpha": [
+        0,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-celestial.webp": {
+      "source": "Cosméticos de Rimuru em Néon Celestial-8.png",
+      "sha256": "2d80bb150149440c044cba63a99c8949cba6089f616dd0c41342f129bd2a0ef5",
+      "crop": [
+        25,
+        622,
+        1231,
+        932
+      ],
+      "size": [
+        1206,
+        310
       ],
       "alpha": [
         255,

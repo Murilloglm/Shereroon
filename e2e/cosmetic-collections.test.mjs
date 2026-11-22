@@ -15,7 +15,14 @@ let stack, browser, ana, beto, caio, folder, a, b, c, g1, g2;
 const password = 'senha-de-teste-cosmeticos';
 const output = resolve(root, 'e2e/.artifacts/cosmetic-collections');
 const evidence = { screenshots: [], geometry: [], loadedImages: {}, checks: [] };
+const requests = { direct: 0, browser: 0, limited: [] };
+const observeRequests = (page) => page.on('response', (response) => {
+  if (!response.url().includes('/api/')) return;
+  requests.browser++;
+  if (response.status() === 429) requests.limited.push(new URL(response.url()).pathname);
+});
 const api = async (who, method, path, body) => {
+  requests.direct++;
   const res = await fetch(`${BASE_URL}${path}`, { method, headers: { authorization: `Bearer ${who.token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
   const json = await res.json(); assert.equal(res.status, 200, `${method} ${path}: ${JSON.stringify(json)}`); return json;
 };
@@ -63,12 +70,14 @@ before(async () => {
   ana = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
   beto = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
   caio = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
+  for (const page of [ana, beto, caio]) observeRequests(page);
   await login(ana, a); await login(caio, c);
   await beto.addInitScript((token) => localStorage.setItem('shareroom:conta', token), b.token);
   for (const page of [ana,beto,caio]) { await page.goto(`${BASE_URL}/#/grupos/${g1}`); await page.getByTestId('chat').waitFor(); }
 }, { timeout: 60_000 });
 
 after(async () => {
+  evidence.requests = requests;
   writeFileSync(resolve(output, 'validation.json'), `${JSON.stringify(evidence, null, 2)}\n`);
   await browser?.close(); await stack?.stop();
   if (folder && resolve(folder).startsWith(resolve(tmpdir(), 'cosmic-collections-'))) rmSync(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
@@ -208,7 +217,17 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
 });
 
 test('arquivos PNG/WebP carregam no navegador e no protocolo do desktop', { timeout: 60_000 }, async () => {
-  const assets = COLLECTIONS.flatMap((collection) => ['cover.webp','avatar-decoration.png','profile-frame.png','profile-banner.webp','username-effect.png','member-name-effect.webp','server-badge.png'].map((file) => `assets/cosmetics/${collection.id}/${file}`));
+  // This check can also run alone, without relying on the earlier gift test.
+  const current = await api(c, 'GET', '/api/me/inventory');
+  if (!current.items.some((item) => item.id === 'madu-kaiden-efeito-nome')) {
+    await api(c, 'POST', '/api/dev/points', { amount: 500 });
+    await api(c, 'POST', '/api/shop/buy', { itemId: 'madu-kaiden-efeito-nome', expectedPrice: 250 });
+  }
+  await equip(c, 'efeito-nome', 'madu-kaiden-efeito-nome');
+  const assets = [...new Set(COLLECTIONS.flatMap((collection) => [
+    ...['cover.webp','avatar-decoration.png','profile-frame.png','profile-banner.webp','username-effect.png','member-name-effect.webp','server-badge.png','nameplate.webp'].map((file) => `assets/cosmetics/${collection.id}/${file}`),
+    ...collection.banners.map((banner) => banner.asset), ...collection.references.map((reference) => reference.asset),
+  ]))];
   const loadAssets = async (page) => page.evaluate(async (paths) => Promise.all(paths.map((path) => new Promise((done) => { const image = new Image(); image.onload = () => done({ path, width: image.naturalWidth }); image.onerror = () => done({ path, width: 0 }); image.src = new URL(path, location.href).href; }))), assets);
   const web = await loadAssets(ana); assert(web.every((asset) => asset.width > 0)); evidence.loadedImages.web = web.length;
   const restore = useLocalDesktopConfig();
@@ -218,13 +237,14 @@ test('arquivos PNG/WebP carregam no navegador e no protocolo do desktop', { time
   try {
     app = await electron.launch({ executablePath: resolve(root, 'desktop/node_modules/electron/dist/electron.exe'), args: [resolve(root, 'desktop')], env: { ...env, SHAREROOM_E2E: '1', SHAREROOM_USER_DATA: userData, SHAREROOM_API_URL: BASE_URL, SHAREROOM_SITE_URL: 'https://exemplo.github.io/shareroom/' } });
     const page = await app.firstWindow();
+    observeRequests(page);
     await page.getByTestId('auth-username').fill(c.user.username); await page.getByTestId('auth-password').fill(password); await page.getByTestId('auth-submit').click();
     await page.getByTestId('account-settings-open').waitFor();
     const desktop = await loadAssets(page); assert(desktop.every((asset) => asset.width > 0)); evidence.loadedImages.desktop = desktop.length;
     await settings(page, 'efeitos-nome'); await page.getByTestId('unequip-madu-kaiden-efeito-nome').waitFor();
     await screenshot(page, 'desktop-name-effects');
   } finally { await app?.close(); restore(); }
-  evidence.checks.push('77 imagens carregadas no navegador e no Electron');
+  evidence.checks.push(`${assets.length} imagens carregadas no navegador e no Electron`);
 });
 
 test('troca durante resposta atrasada mantém a arte visível e descarta o equipamento antigo', async () => {
@@ -274,8 +294,14 @@ test('lista com 200 linhas: medição de quadros com e sem efeitos', async () =>
 });
 
 test('efeito permanece na lateral durante chamada e os controles de voz continuam acessíveis', async () => {
+  await equip(b, 'efeito-nome', 'neon-efeito-nome');
   await ana.goto(`${BASE_URL}/#/grupos/${g1}`); await ana.getByTestId('chat').waitFor();
-  await beto.goto(`${BASE_URL}/#/grupos/${g1}`); await beto.getByTestId('chat').waitFor();
+  await beto.goto(`${BASE_URL}/#/grupos/${g1}`);
+  try { await beto.getByTestId('chat').waitFor({ timeout: 10_000 }); }
+  catch (error) {
+    writeFileSync(resolve(output, 'voice-navigation-failure.txt'), (await beto.locator('body').innerText()) + '\n' + JSON.stringify(requests, null, 2));
+    throw error;
+  }
   for (const page of [ana, beto]) {
     await page.getByTestId('channel').filter({ hasText: /^Sala de voz$/ }).click();
     await waitFor(async () => (await page.getByTestId('connection').getAttribute('data-phase')) === 'connected', 'conexão LiveKit real');
@@ -302,4 +328,72 @@ test('reiniciar o backend e recarregar preserva equipamento e inventário anteri
   assert.equal(saved.equipped.decoracao.item, 'neon-decoracao');
   assert.equal(saved.equipped['efeito-nome'].item, 'night-fury-efeito-nome');
   evidence.checks.push('Reinício real com banco em disco; sessão, slots e item antigo preservados');
+});
+
+test('artes grandes, galeria, pesquisa e filtros funcionam em computador e celular', { timeout: 60_000 }, async () => {
+  await beto.setViewportSize({ width: 1440, height: 1000 });
+  await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click();
+  await screenshot(beto, 'refreshed-collections-shop');
+  for (const collection of COLLECTIONS.filter((entry) => entry.frameAspect)) {
+    await beto.getByTestId(`preview-${collection.id}`).click();
+    const modal = beto.getByRole('dialog', { name: collection.name, exact: true });
+    const preview = modal.getByTestId('collection-preview');
+    await waitFor(() => preview.locator('img').evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)), 'artes grandes carregadas');
+    const frame = preview.locator('.cn-profile-frame');
+    const geometry = await frame.boundingBox();
+    assert(Math.abs(geometry.width / geometry.height - collection.frameAspect) < .01, 'proporção da moldura original');
+    await preview.screenshot({ path: resolve(output, `refreshed-preview-${collection.id}.png`), animations: 'disabled' });
+    evidence.screenshots.push(`refreshed-preview-${collection.id}.png`);
+    await modal.getByRole('tab', { name: 'Artes originais', exact: true }).click();
+    assert.equal(await modal.locator('.cn-original-thumbnails button').count(), collection.references.length);
+    await modal.locator('.cn-original-thumbnails button').nth(1).click();
+    await waitFor(() => modal.locator('.cn-original-artwork > img').evaluate((image) => image.complete && image.naturalWidth > 0), 'folha original carregada');
+    if (collection.id === 'clove') await screenshot(beto, 'refreshed-original-clove');
+    await modal.getByRole('button', { name: 'Fechar', exact: true }).click();
+  }
+  await beto.getByRole('button', { name: 'Valorant', exact: true }).click();
+  assert.equal(await beto.getByTestId('collection-card').count(), 6);
+  await beto.getByRole('button', { name: 'Todas', exact: true }).click();
+  await beto.getByRole('textbox', { name: 'Buscar coleção', exact: true }).fill('furia');
+  assert.equal(await beto.getByTestId('collection-card').count(), 2);
+  await beto.getByRole('textbox', { name: 'Buscar coleção', exact: true }).fill('nao-existe');
+  assert.match(await beto.locator('.cn-collection-empty').textContent(), /Nenhuma coleção/);
+  await beto.getByRole('textbox', { name: 'Buscar coleção', exact: true }).fill('');
+  await beto.setViewportSize({ width: 390, height: 844 });
+  await screenshot(beto, 'refreshed-mobile-shop');
+  await beto.getByTestId('preview-clove').click();
+  const mobile = beto.getByRole('dialog', { name: 'Clove', exact: true });
+  assert.equal(await mobile.evaluate((element) => element.scrollWidth <= element.clientWidth + 1), true);
+  await screenshot(beto, 'refreshed-mobile-preview');
+  await mobile.getByRole('button', { name: 'Fechar', exact: true }).click();
+  await closeSettings(beto); await beto.setViewportSize({ width: 1440, height: 1000 });
+  evidence.checks.push('Seis painéis na proporção original; galeria; filtro e busca sem acentos; loja e prévia a 390px');
+});
+
+test('estilo alternativo e coleção completa equipam pela interface, sincronizam e persistem após recarregar', { timeout: 60_000 }, async () => {
+  await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click();
+  await beto.getByTestId('preview-rimuru').click();
+  await beto.getByTestId('variant-rimuru-fundo-celestial').click();
+  await waitFor(() => beto.getByTestId('collection-preview').locator('.cn-artwork-banner').evaluate((image) => image.src.includes('celestial') && image.complete), 'fundo alternativo na prévia');
+  await beto.getByTestId('equip-collection').click();
+  await beto.getByTestId('unequip-rimuru-fundo').waitFor();
+  await waitFor(async () => !(await beto.getByTestId('equip-collection').isDisabled()), 'cinco peças equipadas');
+  const saved = await api(b, 'GET', '/api/me/inventory');
+  assert.equal(Object.values(saved.equipped).filter((entry) => entry.item.startsWith('rimuru-')).length, 5);
+  assert.equal(saved.equipped.fundo.variant, 'celestial');
+  await beto.getByRole('dialog', { name: 'Rimuru Tempest', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
+  await closeSettings(beto);
+  await row(ana, b.user.username).locator('[data-name-effect="rimuru-efeito-nome"]').waitFor();
+  await row(ana, b.user.username).click();
+  const profile = ana.getByTestId('profile-card');
+  await profile.locator('.cn-profile-frame[data-profile-frame="rimuru-moldura"]').waitFor();
+  await waitFor(async () => (await profile.getByTestId('profile-banner').getAttribute('style')).includes('celestial'), 'fundo alternativo no perfil da outra conta');
+  await screenshot(ana, 'refreshed-live-profile-rimuru');
+  await ana.keyboard.press('Escape');
+  await beto.reload(); await beto.getByTestId('chat').waitFor();
+  await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click(); await beto.getByTestId('preview-rimuru').click();
+  assert.equal(await beto.getByTestId('variant-rimuru-fundo-celestial').getAttribute('aria-checked'), 'true');
+  await beto.getByRole('dialog', { name: 'Rimuru Tempest', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
+  await closeSettings(beto);
+  evidence.checks.push('Coleção completa e estilo Celestial pela interface; outra conta; recarregamento preserva a escolha');
 });

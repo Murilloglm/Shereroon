@@ -8,8 +8,23 @@
   ],
   "avatarScale": 1.85,
   "resolution": "overview-only",
+  "tagline": "Precisão em tons de ouro.",
+  "frameAspect": null,
+  "nameplateAsset": "assets/cosmetics/tejo/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/reference-04.webp",
+      "name": "Grade de skins sci-fi neon em português-2"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-01.webp",
+      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+    }
+  ],
+  "banners": [],
   "notes": [
     "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
     "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick.",
     "Avatar, moldura, banner e capa disponíveis somente na grade; enviar elementos separados em alta resolução para maior definição."
   ],
@@ -218,6 +233,26 @@
       "size": [
         84,
         79
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "crop": [
+        939,
+        779,
+        1197,
+        832
+      ],
+      "size": [
+        258,
+        53
       ],
       "alpha": [
         255,

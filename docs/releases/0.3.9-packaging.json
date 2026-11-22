@@ -1,0 +1,42 @@
+{
+  "version": "0.3.9",
+  "productionDependencies": [
+    "electron-updater",
+    "builder-util-runtime",
+    "fs-extra",
+    "js-yaml",
+    "lazy-val",
+    "lodash.escaperegexp",
+    "lodash.isequal",
+    "semver",
+    "tiny-typed-emitter"
+  ],
+  "config": {
+    "connectionMode": "cloud",
+    "apiUrl": "https://shareroom-api-y1r7.onrender.com",
+    "siteUrl": "https://shareroom-api-y1r7.onrender.com"
+  },
+  "asarFiles": 313,
+  "fuseWire": {
+    "0": 48,
+    "1": 49,
+    "2": 48,
+    "3": 48,
+    "4": 49,
+    "5": 49,
+    "6": 48,
+    "7": 48,
+    "8": 49,
+    "version": "1"
+  },
+  "webFiles": 153,
+  "webByteIdentical": true,
+  "audioHelperByteIdentical": true,
+  "publish": "never",
+  "authenticode": "NotSigned",
+  "installer": {
+    "name": "CosmicNight-Setup-0.3.9.exe",
+    "bytes": 173880926,
+    "sha256": "8e9eced0b5c875dfbe1f775735fc915220e0ac024deebfa831f04d10213dd119"
+  }
+}

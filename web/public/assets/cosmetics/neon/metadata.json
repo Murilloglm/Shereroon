@@ -8,23 +8,57 @@
   ],
   "avatarScale": 1.56,
   "resolution": "sheet",
+  "tagline": "Azul elétrico em velocidade máxima.",
+  "frameAspect": 1.687657,
+  "nameplateAsset": "assets/cosmetics/neon/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/reference-22.webp",
+      "name": "Painel Neon_ Arsenal Elétrico Futurista-11"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-10.webp",
+      "name": "Kit cosmético neon de Valorant-12"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-13.webp",
+      "name": "Kit de UI Neon com Energia Elétrica-5"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-01.webp",
+      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+    }
+  ],
+  "banners": [
+    {
+      "id": "velocidade",
+      "name": "Velocidade",
+      "asset": "assets/cosmetics/neon/profile-banner-velocidade.webp"
+    },
+    {
+      "id": "eletrica",
+      "name": "Energia elétrica",
+      "asset": "assets/cosmetics/neon/profile-banner-eletrica.webp"
+    }
+  ],
   "notes": [
     "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
     "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
   ],
   "files": {
     "cover.webp": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Painel Neon_ Arsenal Elétrico Futurista-11.png",
+      "sha256": "328afc4d962cbf86f049fa463117a8ced144bdac526d61ac1ea787ec72cf8b82",
       "crop": [
-        1285,
-        8,
-        1529,
-        128
+        56,
+        736,
+        1199,
+        1002
       ],
       "size": [
-        244,
-        120
+        1143,
+        266
       ],
       "alpha": [
         255,
@@ -103,96 +137,23 @@
       "processing": []
     },
     "profile-frame.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Painel Neon_ Arsenal Elétrico Futurista-11.png",
+      "sha256": "328afc4d962cbf86f049fa463117a8ced144bdac526d61ac1ea787ec72cf8b82",
       "crop": [
-        1293,
-        289,
-        1521,
-        342
+        538,
+        302,
+        1208,
+        699
       ],
       "size": [
-        228,
-        53
+        670,
+        397
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": {
-        "outer": [
-          [
-            0,
-            8
-          ],
-          [
-            12,
-            2
-          ],
-          [
-            216,
-            2
-          ],
-          [
-            227,
-            8
-          ],
-          [
-            227,
-            45
-          ],
-          [
-            216,
-            51
-          ],
-          [
-            12,
-            51
-          ],
-          [
-            0,
-            45
-          ]
-        ],
-        "hole": [
-          [
-            19,
-            18
-          ],
-          [
-            98.03999999999999,
-            18
-          ],
-          [
-            114.0,
-            28
-          ],
-          [
-            129.95999999999998,
-            18
-          ],
-          [
-            209,
-            18
-          ],
-          [
-            212,
-            35
-          ],
-          [
-            203,
-            40
-          ],
-          [
-            23,
-            40
-          ],
-          [
-            16,
-            34
-          ]
-        ]
-      },
+      "mask": "original alpha",
       "processing": []
     },
     "profile-banner.webp": {
@@ -256,21 +217,81 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Painel Neon_ Arsenal Elétrico Futurista-11.png",
+      "sha256": "328afc4d962cbf86f049fa463117a8ced144bdac526d61ac1ea787ec72cf8b82",
       "crop": [
-        1438,
-        183,
-        1514,
-        259
+        793,
+        1040,
+        1145,
+        1191
       ],
       "size": [
-        76,
-        76
+        352,
+        151
       ],
       "alpha": [
         255,
         255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Painel Neon_ Arsenal Elétrico Futurista-11.png",
+      "sha256": "328afc4d962cbf86f049fa463117a8ced144bdac526d61ac1ea787ec72cf8b82",
+      "crop": [
+        96,
+        1066,
+        661,
+        1174
+      ],
+      "size": [
+        565,
+        108
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-velocidade.webp": {
+      "source": "Kit cosmético neon de Valorant-12.png",
+      "sha256": "0dc1a61947ac94fc3b48c428db9ffc21a2019c6b4f82fcff21659393e63bd251",
+      "crop": [
+        38,
+        583,
+        1215,
+        987
+      ],
+      "size": [
+        1177,
+        404
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-eletrica.webp": {
+      "source": "Kit de UI Neon com Energia Elétrica-5.png",
+      "sha256": "7da2d8bf3e7523a6f12badfa9760a80121737a98fa7758d83cc8a2ee78243d70",
+      "crop": [
+        22,
+        533,
+        1169,
+        921
+      ],
+      "size": [
+        1147,
+        388
+      ],
+      "alpha": [
+        76,
+        252
       ],
       "mask": "original alpha",
       "processing": []

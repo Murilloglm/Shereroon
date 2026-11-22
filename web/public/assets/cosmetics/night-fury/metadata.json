@@ -8,23 +8,42 @@
   ],
   "avatarScale": 1.52,
   "resolution": "sheet",
+  "tagline": "Asas violetas, escamas e luar.",
+  "frameAspect": 1.181193,
+  "nameplateAsset": "assets/cosmetics/night-fury/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/reference-05.webp",
+      "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-18.webp",
+      "name": "Pacote Fúria da Noite em Neon-1"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-01.webp",
+      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+    }
+  ],
+  "banners": [],
   "notes": [
     "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
     "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
   ],
   "files": {
     "cover.webp": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Fúria da Noite em Neon-1.png",
+      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
       "crop": [
-        8,
-        8,
-        253,
-        128
+        44,
+        632,
+        1208,
+        911
       ],
       "size": [
-        245,
-        120
+        1164,
+        279
       ],
       "alpha": [
         255,
@@ -43,109 +62,34 @@
         1254
       ],
       "size": [
-        512,
-        512
+        1254,
+        1254
       ],
       "alpha": [
         0,
         255
       ],
       "mask": "original alpha",
-      "processing": [
-        "Lanczos downsample to max 512px (no upscaling)"
-      ]
+      "processing": []
     },
     "profile-frame.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Fúria da Noite em Neon-1.png",
+      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
       "crop": [
-        16,
-        289,
-        245,
-        342
+        645,
+        174,
+        1160,
+        610
       ],
       "size": [
-        229,
-        53
+        515,
+        436
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": {
-        "outer": [
-          [
-            0,
-            8
-          ],
-          [
-            12,
-            2
-          ],
-          [
-            217,
-            2
-          ],
-          [
-            228,
-            8
-          ],
-          [
-            228,
-            45
-          ],
-          [
-            217,
-            51
-          ],
-          [
-            12,
-            51
-          ],
-          [
-            0,
-            45
-          ]
-        ],
-        "hole": [
-          [
-            19,
-            18
-          ],
-          [
-            98.47,
-            18
-          ],
-          [
-            114.5,
-            28
-          ],
-          [
-            130.53,
-            18
-          ],
-          [
-            210,
-            18
-          ],
-          [
-            213,
-            35
-          ],
-          [
-            204,
-            40
-          ],
-          [
-            23,
-            40
-          ],
-          [
-            16,
-            34
-          ]
-        ]
-      },
+      "mask": "original alpha",
       "processing": []
     },
     "profile-banner.webp": {
@@ -209,17 +153,37 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote Fúria da Noite em Neon-1.png",
+      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
       "crop": [
-        161,
-        183,
-        238,
-        259
+        789,
+        970,
+        1198,
+        1114
       ],
       "size": [
-        77,
-        76
+        409,
+        144
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Pacote Fúria da Noite em Neon-1.png",
+      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "crop": [
+        73,
+        977,
+        758,
+        1109
+      ],
+      "size": [
+        685,
+        132
       ],
       "alpha": [
         255,

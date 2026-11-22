@@ -1,5 +1,5 @@
 import { useEffect, useId } from 'react';
-import { itemById, packById, type CosmeticItem, type Equipped, type PackPalette } from '../../../../shared/cosmetics.ts';
+import { cosmeticAsset, itemById, packById, type CosmeticItem, type Equipped, type PackPalette } from '../../../../shared/cosmetics.ts';
 import { appearance, reducedMotion } from '../../lib/appearance.ts';
 import { cosmetics, type UserCosmetics } from '../../lib/cosmetics.ts';
 import { useStore } from '../../lib/store.ts';
@@ -305,7 +305,8 @@ export function backgroundStyle(equipped: UserCosmetics): React.CSSProperties | 
   const choice = equipped.fundo;
   const item = choice ? itemById(choice.item) : undefined;
   if (!item) return undefined;
-  if (item.asset) return { backgroundImage: `url("${cosmeticAssetUrl(item.asset)}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
+  const asset = cosmeticAsset(item, choice?.variant);
+  if (asset) return { backgroundImage: `url("${cosmeticAssetUrl(asset)}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
   const pack = packOf(item);
   if (pack) return pack.art.background(pack.palette);
@@ -369,8 +370,20 @@ export function ProfileNameplate({ userId, preview, children }: { userId?: strin
   const item = choice ? itemById(choice.item) : undefined;
   if (!item?.asset) return <>{children}</>;
   return <div className="cn-profile-nameplate" data-profile-frame={item.id}>
-    <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async" />
+    <img src={cosmeticAssetUrl(item.nameplateAsset ?? item.asset)} alt="" aria-hidden="true" decoding="async" />
     <div className="relative min-w-0 px-6 py-3">{children}</div>
+  </div>;
+}
+
+/** O painel completo mantém a proporção desenhada na folha, inclusive seus cantos. */
+export function ArtworkProfileFrame({ userId, preview, children }: { userId?: string; preview?: UserCosmetics; children: React.ReactNode }) {
+  const equipped = useUserCosmetics(preview ? null : userId);
+  const choice = (preview ?? equipped).moldura;
+  const item = choice ? itemById(choice.item) : undefined;
+  if (!item?.asset || !item.frameAspect) return <>{children}</>;
+  return <div className="cn-profile-frame" style={{ aspectRatio: item.frameAspect }} data-profile-frame={item.id}>
+    <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async" />
+    <div className="cn-profile-frame-content">{children}</div>
   </div>;
 }
 

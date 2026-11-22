@@ -11,7 +11,7 @@ import { ProfilePreview } from '../cosmetics/ProfilePreview.tsx';
 import { errorText } from '../groups/common.tsx';
 import { GiftDialog, PackGiftDialog, RedeemCode } from './GiftsSettings.tsx';
 import { Button, cx, Toggle } from '../ui.tsx';
-import { MemberNamePreview } from '../cosmetics/CosmeticPreview.tsx';
+import { ArtworkVariants, ItemPreview as CollectionItemPreview, MemberNamePreview } from '../cosmetics/CosmeticPreview.tsx';
 import { appearance, setAppearance } from '../../lib/appearance.ts';
 import { CollectionsShop } from './CollectionsShop.tsx';
 
@@ -40,6 +40,7 @@ function Price({ value }: { value: number }) {
 function ItemPreview({ account, item, variant, size = 64 }: { account: Account; item: CosmeticItem; variant: string; size?: number }) {
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   const preview: UserCosmetics = { [item.kind]: { item: item.id, variant } };
+  if (item.collectionId) return <CollectionItemPreview account={account} item={item} variant={variant} size={size} />;
   if (item.kind === 'efeito-nome') return <MemberNamePreview account={account} preview={preview} />;
   if (item.kind === 'moldura' && item.asset) return <ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold">{account.displayName}</p></ProfileNameplate>;
   if (item.kind === 'fundo') {
@@ -73,6 +74,7 @@ function ItemPreview({ account, item, variant, size = 64 }: { account: Account; 
 
 function Swatches({ item, value, onChange }: { item: CosmeticItem; value: string; onChange: (variant: string) => void }) {
   if (item.variants.length < 2) return null;
+  if (item.variants.some((variant) => variant.asset)) return <ArtworkVariants item={item} value={value} onChange={onChange} />;
   return (
     <div className="flex gap-1.5" role="radiogroup" aria-label={`Cores de ${item.name}`}>
       {item.variants.map((variant) => (

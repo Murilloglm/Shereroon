@@ -8,23 +8,61 @@
   ],
   "avatarScale": 1.6,
   "resolution": "sheet",
+  "tagline": "Aurora, cristais e luz celestial.",
+  "frameAspect": 1.408696,
+  "nameplateAsset": "assets/cosmetics/light-fury/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/reference-06.webp",
+      "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-15.webp",
+      "name": "Pacote de Avatar Dragão Luminoso-3"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-17.webp",
+      "name": "Pacote de UI Light Fury com Aurora-1"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-21.webp",
+      "name": "Painel Neon da Fúria da Luz-4"
+    },
+    {
+      "asset": "assets/cosmetic-references/reference-01.webp",
+      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+    }
+  ],
+  "banners": [
+    {
+      "id": "aurora",
+      "name": "Aurora",
+      "asset": "assets/cosmetics/light-fury/profile-banner-aurora.webp"
+    },
+    {
+      "id": "luar",
+      "name": "Luar",
+      "asset": "assets/cosmetics/light-fury/profile-banner-luar.webp"
+    }
+  ],
   "notes": [
     "Máscaras espaciais preservam áreas pretas decorativas.",
+    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
     "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
   ],
   "files": {
     "cover.webp": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote de Avatar Dragão Luminoso-3.png",
+      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
       "crop": [
-        266,
-        8,
-        510,
-        128
+        40,
+        683,
+        1204,
+        969
       ],
       "size": [
-        244,
-        120
+        1164,
+        286
       ],
       "alpha": [
         255,
@@ -43,109 +81,34 @@
         1254
       ],
       "size": [
-        512,
-        512
+        1254,
+        1254
       ],
       "alpha": [
         0,
         255
       ],
       "mask": "original alpha",
-      "processing": [
-        "Lanczos downsample to max 512px (no upscaling)"
-      ]
+      "processing": []
     },
     "profile-frame.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote de Avatar Dragão Luminoso-3.png",
+      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
       "crop": [
-        274,
-        289,
-        502,
-        342
+        560,
+        215,
+        1208,
+        675
       ],
       "size": [
-        228,
-        53
+        648,
+        460
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": {
-        "outer": [
-          [
-            0,
-            8
-          ],
-          [
-            12,
-            2
-          ],
-          [
-            216,
-            2
-          ],
-          [
-            227,
-            8
-          ],
-          [
-            227,
-            45
-          ],
-          [
-            216,
-            51
-          ],
-          [
-            12,
-            51
-          ],
-          [
-            0,
-            45
-          ]
-        ],
-        "hole": [
-          [
-            19,
-            18
-          ],
-          [
-            98.03999999999999,
-            18
-          ],
-          [
-            114.0,
-            28
-          ],
-          [
-            129.95999999999998,
-            18
-          ],
-          [
-            209,
-            18
-          ],
-          [
-            212,
-            35
-          ],
-          [
-            203,
-            40
-          ],
-          [
-            23,
-            40
-          ],
-          [
-            16,
-            34
-          ]
-        ]
-      },
+      "mask": "original alpha",
       "processing": []
     },
     "profile-banner.webp": {
@@ -209,17 +172,77 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "source": "Pacote de Avatar Dragão Luminoso-3.png",
+      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
       "crop": [
-        419,
-        183,
-        495,
-        259
+        723,
+        1017,
+        1199,
+        1203
       ],
       "size": [
-        76,
-        76
+        476,
+        186
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Pacote de Avatar Dragão Luminoso-3.png",
+      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
+      "crop": [
+        74,
+        1045,
+        642,
+        1170
+      ],
+      "size": [
+        568,
+        125
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-aurora.webp": {
+      "source": "Pacote de UI Light Fury com Aurora-1.png",
+      "sha256": "baf6a9ea551048fd09933b7b3e6729ea8e206567ab549f06198261d07bf760c1",
+      "crop": [
+        939,
+        111,
+        1662,
+        533
+      ],
+      "size": [
+        723,
+        422
+      ],
+      "alpha": [
+        223,
+        252
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner-luar.webp": {
+      "source": "Painel Neon da Fúria da Luz-4.png",
+      "sha256": "3bb1be3438b670d634bdaf0f623fd7ea3a16977ed9ee6916ef54b18f55d5b3c0",
+      "crop": [
+        19,
+        682,
+        1240,
+        1235
+      ],
+      "size": [
+        1221,
+        553
       ],
       "alpha": [
         255,
