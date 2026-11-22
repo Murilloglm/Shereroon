@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { after, before, test } from 'node:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -72,6 +73,7 @@ before(async () => {
   beto = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
   caio = await (await browser.newContext({ viewport: { width: 1440, height: 1000 } })).newPage();
   for (const page of [ana, beto, caio]) observeRequests(page);
+  for (const page of [ana, beto]) await page.addInitScript(() => localStorage.setItem('shareroom:microfone', JSON.stringify({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, gain: 1 })));
   await login(ana, a); await login(caio, c);
   await beto.addInitScript((token) => localStorage.setItem('shareroom:conta', token), b.token);
   for (const page of [ana,beto,caio]) { await page.goto(`${BASE_URL}/#/grupos/${g1}`); await page.getByTestId('chat').waitFor(); }
@@ -193,7 +195,8 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
     const narrow = width < 1024;
     if (narrow) {
       const button = ana.getByRole('button', { name: 'Membros', exact: true });
-      if (!await button.count()) await ana.getByTestId('channel').and(ana.locator('[data-name="geral"]')).click();
+      await ana.getByTestId('back-to-channels').waitFor({state: 'attached'});
+      if (!await button.isVisible()) await ana.getByTestId('channel').and(ana.locator('[data-name="geral"]')).click();
       await button.click();
       await ana.getByRole('dialog', { name: 'Membros', exact: true }).evaluate((el) => Promise.allSettled(el.getAnimations().map((animation) => animation.finished)));
     }
@@ -250,6 +253,40 @@ test('artes e máscara do Kayden carregam no navegador e no protocolo do desktop
     const desktop = await loadAssets(page); assert(desktop.every((asset) => asset.width > 0)); evidence.loadedImages.desktop = desktop.length;
     await settings(page, 'efeitos-nome'); await page.getByTestId('unequip-madu-kaiden-efeito-nome').waitFor();
     await screenshot(page, 'desktop-name-effects');
+    await settings(page, 'loja'); await page.getByTestId('shop-collections').click();
+    await page.getByTestId('preview-hinata').click();
+    const fx = page.getByTestId('collection-preview').locator('[data-fx-surface="avatar"]');
+    await fx.scrollIntoViewIfNeeded();
+    await fx.locator('[data-motif=lily]').waitFor();
+    const sample = async () => {
+      await app.evaluate(({app}) => app.getAppMetrics());
+      const frames = await page.evaluate(() => new Promise(resolve => {
+        const deltas = []; let last;
+        function frame(now) {
+          if (last) deltas.push(now - last);
+          last = now;
+          if (deltas.length < 90) requestAnimationFrame(frame);
+          else resolve(deltas.sort((a,b) => a-b));
+        }
+        requestAnimationFrame(frame);
+      }));
+      const metrics = await app.evaluate(({app}) => app.getAppMetrics().map(p => ({ type: p.type, cpu: p.cpu.percentCPUUsage, workingSetMiB: p.memory.workingSetSize / 1024 })));
+      let systemGpu = null;
+      try { systemGpu = execFileSync('nvidia-smi', ['--query-gpu=name,utilization.gpu,memory.used','--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 3000, windowsHide: true }).trim(); } catch { /* Optional hardware counter. */ }
+      return { frameP95Ms: frames[Math.floor(frames.length * .95)], processes: metrics, systemGpu };
+    };
+    evidence.frameMotion = { animated: await sample() };
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await waitFor(async () => await fx.getAttribute('data-fx-level') === '0', 'redução de movimento');
+    assert.equal(await fx.locator('svg').count(), 0);
+    evidence.frameMotion.static = await sample();
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await fx.locator('[data-motif=lily]').waitFor();
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].minimize());
+    await waitFor(async () => await fx.getAttribute('data-fx-level') === '0', 'efeitos pausados ao minimizar o desktop');
+    await app.evaluate(({ BrowserWindow }) => { const win = BrowserWindow.getAllWindows()[0]; win.restore(); win.show(); });
+    await fx.locator('[data-motif=lily]').waitFor();
+    await screenshot(page, 'desktop-hinata-animated');
   } finally { await app?.close(); restore(); }
   evidence.checks.push(`${assets.length} imagens carregadas no navegador e no Electron`);
 });
@@ -323,6 +360,13 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
   await equip(b, 'decoracao', 'hinata-decoracao');
   const flower = remoteCard.locator('[data-decoration="hinata-decoracao"]');
   await flower.evaluate(img => img.decode());
+  const flowers = remoteCard.locator('[data-theme-id=hinata]');
+  await flowers.locator('[data-motif=lily]').waitFor();
+  for (const page of [ana, beto]) await page.getByTestId('dock-mic').click();
+  try {
+    await waitFor(async () => await ana.locator('[data-testid=call-card][data-speaking=true] [data-fx-speaking=true] .cn-fx-aura').count() === 2, 'duas molduras reagem simultaneamente à voz do LiveKit', 20_000);
+  } finally { for (const page of [ana, beto]) await page.getByTestId('dock-mic').click(); }
+  await waitFor(async () => await ana.locator('[data-testid=call-card] [data-fx-speaking]').count() === 0, 'reação encerra ao silenciar');
   assert.match(await flower.evaluate(img => getComputedStyle(img).maskImage), /hinata-avatar/);
   const remoteName = remoteCard.getByTestId('call-card-name').locator('[data-name-style]');
   await waitFor(() => remoteName.evaluate(el => el.dataset.nameStyle === 'hinata-decoracao' && getComputedStyle(el).backgroundImage.includes('linear-gradient')), 'gradiente floral na call');
@@ -449,6 +493,32 @@ test('perfil compacto mantém nome, avatar, banner e datas alinhados em diferent
   await ana.getByTestId('motion-sistema').click();
   await closeSettings(ana);
   evidence.checks.push('Avatar sem decoração, status, cor sólida da decoração, gradiente equipado, tema claro e perfil a 390px sem rolagem lateral');
+});
+
+test('cada coleção anima as duas superfícies e respeita a intensidade selecionada', { timeout: 120_000 }, async () => {
+  for (const value of ['baixo','alto','desativado','medio']) {
+    await settings(beto, 'acessibilidade'); await beto.getByTestId('frame-intensity-' + value).click();
+    assert.equal(await beto.locator('html').getAttribute('data-frame-intensity'), value);
+    await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click();
+    for (const collection of value === 'medio' ? COLLECTIONS : COLLECTIONS.slice(0,1)) {
+      await beto.getByTestId('preview-' + collection.id).click();
+      const detail = beto.getByTestId('collection-preview');
+      for (const surface of ['avatar','frame']) {
+        const fx = detail.locator('[data-fx-surface="' + surface + '"][data-theme-id="' + collection.id + '"]');
+        await fx.locator('..').scrollIntoViewIfNeeded();
+        if (value === 'desativado') {
+          assert.equal(await fx.getAttribute('data-fx-level'), '0');
+          assert.equal(await fx.locator('svg').count(), 0);
+        } else {
+          await fx.locator('.cn-fx-motif').first().waitFor();
+          const count = await fx.locator('.cn-fx-motif').count();
+          assert(count >= 1 && count <= ({ baixo: 2, medio: 4, alto: 5 })[value]);
+        }
+      }
+      await beto.getByRole('dialog', {name: collection.name, exact:true}).getByRole('button', {name:'Fechar',exact:true}).click();
+    }
+  }
+  await closeSettings(beto);
 });
 
 test('Kayden mantém a foto visível, sincroniza as cinco peças e persiste após recarregar', { timeout: 60_000 }, async () => {

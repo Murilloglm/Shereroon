@@ -5,11 +5,13 @@ import { storage } from './storage.ts';
 import { Store } from './store.ts';
 import { applyTheme, isThemeId, type ThemeId } from './themes.ts';
 
+export type FrameIntensity = 'desativado' | 'baixo' | 'medio' | 'alto';
 export type MotionChoice = 'sistema' | 'reduzir' | 'normal';
 /** Enfeites no nome (cosméticos de outras pessoas): animados onde cabe, sempre parados, ou escondidos. */
 export type AdornmentChoice = 'animados' | 'parados' | 'ocultos';
 
 export interface AppearancePrefs {
+  frameIntensity: FrameIntensity;
   theme: ThemeId;
   motion: MotionChoice;
   adornments: AdornmentChoice;
@@ -17,11 +19,13 @@ export interface AppearancePrefs {
 }
 
 const KEY = 'cosmic:aparencia';
-const DEFAULTS: AppearancePrefs = { theme: 'cosmic', motion: 'sistema', adornments: 'animados', cosmeticAnimations: true };
+const DEFAULTS: AppearancePrefs = { frameIntensity: 'medio', theme: 'cosmic', motion: 'sistema', adornments: 'animados', cosmeticAnimations: true };
 
 function load(): AppearancePrefs {
   const saved = storage.get<Partial<AppearancePrefs>>(KEY, {}) ?? {};
   return {
+    frameIntensity: ['desativado', 'baixo', 'medio', 'alto'].includes(String(saved.frameIntensity))
+      ? saved.frameIntensity! : saved.cosmeticAnimations === false ? 'desativado' : DEFAULTS.frameIntensity,
     cosmeticAnimations: saved.cosmeticAnimations !== false,
     theme: isThemeId(saved.theme) ? saved.theme : DEFAULTS.theme,
     motion: ['sistema', 'reduzir', 'normal'].includes(String(saved.motion)) ? (saved.motion as MotionChoice) : DEFAULTS.motion,
@@ -42,6 +46,7 @@ function apply(): void {
   if (typeof document === 'undefined') return;
   const prefs = appearance.get();
   applyTheme(prefs.theme);
+  document.documentElement.dataset.frameIntensity = prefs.frameIntensity;
   document.documentElement.dataset.cosmeticMotion = prefs.cosmeticAnimations ? 'normal' : 'reduzida';
   document.documentElement.dataset.motion = reducedMotion(prefs) ? 'reduzida' : 'normal';
 }

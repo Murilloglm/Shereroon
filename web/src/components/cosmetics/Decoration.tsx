@@ -4,6 +4,7 @@ import { appearance, reducedMotion } from '../../lib/appearance.ts';
 import { cosmetics, type UserCosmetics } from '../../lib/cosmetics.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, cx } from '../ui.tsx';
+import { CharacterEffects } from './CharacterEffects.tsx';
 import { PACK_ART, type PackArt } from './packs.tsx';
 
 /** Desenho e paleta do pacote do item (null para itens avulsos). */
@@ -368,6 +369,7 @@ export function DecoratedAvatar({
   animate = false,
   entrance = false,
   preview,
+  separateFrame = false,
   previewPhoto = false,
   previewPhotoUrl,
 }: {
@@ -381,17 +383,21 @@ export function DecoratedAvatar({
   entrance?: boolean;
   /** Mostrar estes itens no lugar dos equipados (prévia na loja). */
   preview?: UserCosmetics;
+  separateFrame?: boolean;
   /** Na edição de perfil, respeita a escolha ainda não salva. */
   previewPhoto?: boolean;
   previewPhotoUrl?: string | null;
 }) {
   const equipped = useUserCosmetics(preview ? null : userId);
   const shown = preview ?? equipped;
+  const theme = itemById(shown.decoracao?.item ?? '')?.presentation?.motionTheme
+    ?? (separateFrame ? undefined : itemById(shown.moldura?.item ?? '')?.presentation?.motionTheme);
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }} data-decorated={shown.decoracao?.item ?? ''}>
       {shown.moldura && <Frame equipped={shown.moldura} size={size} />}
       <Avatar id={userId} name={name} size={size} online={online} speaking={speaking} image={image} preview={previewPhoto} previewUrl={previewPhotoUrl} />
       {shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
+      {animate && theme && <CharacterEffects key={theme} theme={theme} speaking={speaking} />}
     </span>
   );
 }

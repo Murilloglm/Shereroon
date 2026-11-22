@@ -1,3 +1,5 @@
+import { characterEffect } from './character-effects.ts';
+
 export interface AvatarArtwork {
   width: number;
   aspect: number;
@@ -6,6 +8,7 @@ export interface AvatarArtwork {
 }
 
 export interface CosmeticPresentation {
+  motionTheme?: string;
   avatar?: AvatarArtwork;
   /** Position of baked-in sample text within the member artwork, in percentages. */
   sampleText?: [left: number, top: number, right: number, bottom: number];
@@ -52,5 +55,7 @@ const presentation: Record<string, CosmeticPresentation> = {
 
 export function cosmeticPresentation(collectionId: string): CosmeticPresentation | undefined {
   const settings = presentation[collectionId];
-  return settings && { ...settings, backdropMask: `assets/cosmetic-masks/${collectionId}-avatar.png` };
+  const motionTheme = characterEffect(collectionId) ? collectionId : undefined;
+  if (!settings) return motionTheme ? { motionTheme } : undefined;
+  return { ...settings, motionTheme, backdropMask: `assets/cosmetic-masks/${collectionId}-avatar.png` };
 }

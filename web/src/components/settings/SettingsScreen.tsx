@@ -485,12 +485,22 @@ function Choices<T extends string>({ label, value, options, onChange, testId }: 
 }
 
 function AccessibilitySettings() {
+  const intensity = useStore(appearance, (state) => state.frameIntensity);
   const motion = useStore(appearance, (state) => state.motion);
   const adornments = useStore(appearance, (state) => state.adornments);
   return (
     <>
       <Block title="Movimento">
         <Choices label="Animações" value={motion} options={MOTION} onChange={(next) => setAppearance({ motion: next })} testId="motion" />
+      </Block>
+      <Block title="Intensidade das molduras">
+        <Choices label="Efeitos de personagem" value={intensity} testId="frame-intensity"
+          onChange={(frameIntensity) => setAppearance({ frameIntensity })} options={[
+            { value: 'desativado', label: 'Desativado', about: 'Exibe a arte estática.' },
+            { value: 'baixo', label: 'Baixo', about: 'Brilho discreto e até duas partículas.' },
+            { value: 'medio', label: 'Médio', about: 'Até quatro partículas por moldura.' },
+            { value: 'alto', label: 'Alto', about: 'Até cinco partículas por moldura.' },
+          ]} />
       </Block>
       <Block title="Enfeites no nome">
         <Choices label="Enfeites no nome" value={adornments} options={ADORNMENTS} onChange={(next) => setAppearance({ adornments: next })} testId="adornments" />

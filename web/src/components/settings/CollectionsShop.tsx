@@ -27,7 +27,7 @@ function CollectionPreview({ account, collection, variants }: { account: Account
   const preview = collectionEquipment(collection, variants);
   return <div className="cn-collection-preview" data-testid="collection-preview" style={themeStyle(collection)}>
     <p className="cn-collection-eyebrow">Seu perfil</p>
-    <ProfilePreview userId={account.id} name={account.displayName} avatar={avatar} look={preview} animate={false} />
+    <ProfilePreview userId={account.id} name={account.displayName} avatar={avatar} look={preview} />
     <p className="cn-collection-eyebrow mt-5">Na lista de membros</p>
     <MemberNamePreview account={account} preview={preview} />
   </div>;

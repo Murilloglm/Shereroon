@@ -1,0 +1,73 @@
+.cn-character-fx {
+  position: absolute;
+  inset: -7%;
+  border-radius: 50%;
+  color: var(--fx-primary);
+  pointer-events: none;
+  opacity: min(1, calc(var(--fx-base) * var(--fx-gain)));
+  transition: opacity 140ms ease-out;
+}
+.cn-character-fx[data-fx-surface=frame] { inset: 0; border-radius: inherit; }
+.cn-character-fx[data-fx-level="0"] { visibility: hidden; }
+[data-decorated]:hover > .cn-character-fx, .cn-profile-name-area:hover .cn-character-fx {
+  opacity: min(1, calc(var(--fx-base) * var(--fx-gain) * var(--fx-hover)));
+}
+.cn-fx-aura, .cn-fx-track { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; }
+.cn-fx-aura {
+  box-shadow: 0 0 6px 1px color-mix(in srgb, var(--fx-primary) 55%, transparent), inset 0 0 3px var(--fx-secondary);
+  animation: cn-fx-breathe var(--fx-period) ease-in-out infinite alternate;
+}
+.cn-character-fx[data-fx-speaking] .cn-fx-aura {
+  box-shadow: 0 0 9px 2px color-mix(in srgb, var(--fx-primary) 75%, transparent), inset 0 0 4px var(--fx-secondary);
+}
+.cn-fx-track {
+  stroke: var(--fx-secondary);
+  stroke-width: 1.15;
+  stroke-dasharray: 12 65 3 80;
+  animation: cn-fx-turn calc(var(--fx-period)*2) linear infinite;
+}
+[data-fx-track=lightning] .cn-fx-track { stroke-dasharray: 2 8 17 63; animation-timing-function: cubic-bezier(.36,.18,.62,.9); }
+[data-fx-track=speed] .cn-fx-track { stroke-dasharray: 24 3 5 70; }
+[data-fx-track=waves] .cn-fx-track { stroke-dasharray: 38 16 3 40; animation: cn-fx-wave var(--fx-period) ease-in-out infinite; }
+[data-fx-track=vortex] .cn-fx-track { stroke-dasharray: 51 42 3 56; animation: cn-fx-vortex calc(var(--fx-period)*1.8) linear infinite; }
+[data-fx-track=radar] .cn-fx-track { stroke-dasharray: 33 4 1 5 1 92; }
+.cn-character-fx[data-fx-surface=frame] .cn-fx-track { animation: cn-fx-perimeter var(--fx-period) linear infinite; }
+@keyframes cn-fx-perimeter { to { stroke-dashoffset: -160; } }
+.cn-character-fx[data-fx-surface=frame] .cn-fx-aura { border-radius: 12%; }
+.cn-fx-anchor {
+  position: absolute;
+  width: 14%;
+  max-width: 16px;
+  height: auto;
+  aspect-ratio: 1;
+  transform: translate(-50%,-50%);
+}
+[data-fx-surface=frame] .cn-fx-anchor { max-width: 10px; }
+.cn-fx-anchor:nth-child(even) { color: var(--fx-secondary); }
+.cn-fx-motif {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: cn-fx-glint var(--fx-period) ease-in-out var(--fx-delay) infinite;
+}
+.cn-fx-motif:is([data-motif=galaxy],[data-motif=spiral]) { animation-name: cn-fx-turn; animation-timing-function: linear; }
+.cn-fx-motif:is([data-motif=wing],[data-motif=lily],[data-motif=butterfly]) { transform-origin: 50% 85%; animation-name: cn-fx-sway; }
+.cn-fx-motif:is([data-motif=petal],[data-motif=feather],[data-motif=sand],[data-motif=mist]) { animation-name: cn-fx-drift; }
+.cn-fx-motif:is([data-motif=bubble],[data-motif=drop]) { animation-name: cn-fx-rise; }
+.cn-fx-motif:is([data-motif=arrow],[data-motif=trail],[data-motif=bolt]) { animation-name: cn-fx-streak; }
+.cn-fx-motif[data-motif=burst] { animation-name: cn-fx-burst; }
+[data-fx-speaking][data-fx-track=lightning] .cn-fx-motif { animation-duration: calc(var(--fx-period)*.65); }
+@keyframes cn-fx-breathe { from { opacity: .24; } to { opacity: .78; } }
+@keyframes cn-fx-turn { to { transform: rotate(360deg); } }
+@keyframes cn-fx-vortex { 0% { transform: rotate(0) scaleX(.97); } 50% { transform: rotate(180deg) scaleY(.94); } 100% { transform: rotate(360deg) scaleX(.97); } }
+@keyframes cn-fx-wave { 0%,100% { opacity: .22; transform: scale(.97,1); } 55% { opacity: .85; transform: scale(1.04,1.01); } }
+@keyframes cn-fx-glint { 0%,100% { opacity: .2; transform: scale(.76); } 52% { opacity: .96; transform: scale(1.12); } }
+@keyframes cn-fx-sway { 0%,100% { transform: rotate(-9deg) scaleX(.88); } 55% { transform: rotate(8deg) scaleX(1.04); } }
+@keyframes cn-fx-drift { 0%,100% { opacity: .35; transform: translate(-10%,12%) rotate(-10deg); } 50% { opacity: .95; transform: translate(19%,-24%) rotate(15deg); } }
+@keyframes cn-fx-rise { 0% { opacity: 0; transform: translateY(25%) scale(.65); } 40% { opacity: .95; } 100% { opacity: 0; transform: translateY(-42%) scale(1.04); } }
+@keyframes cn-fx-streak { 0%,65%,100% { opacity: .18; transform: translate(-12%,11%) scale(.86); } 32% { opacity: 1; transform: translate(13%,-12%) scale(1.08); } }
+@keyframes cn-fx-burst { 0%,75%,100% { opacity: .15; transform: scale(.6); } 48% { opacity: .9; transform: scale(1.13); } }
+@media (prefers-reduced-motion: reduce) { .cn-character-fx { display: none; } }
+:root[data-frame-intensity=desativado] .cn-deco, :root[data-frame-intensity=desativado] .cn-deco * { animation: none !important; }
+:root[data-window-hidden] .cn-character-fx, :root[data-motion=reduzida] .cn-character-fx { display: none; }

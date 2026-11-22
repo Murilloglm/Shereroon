@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { itemById } from '../../../../shared/cosmetics.ts';
 import type { UserCosmetics } from '../../lib/cosmetics.ts';
 import { mediaUrl } from '../../lib/social/client.ts';
+import { CharacterEffects } from './CharacterEffects.tsx';
 import { Adornment, BackgroundArt, backgroundStyle, cosmeticAssetUrl, DecoratedAvatar, nameStyle, openingClip } from './Decoration.tsx';
 
 interface ProfileIdentityProps {
@@ -47,21 +48,23 @@ export function ProfileIdentity({
       <div className="cn-profile-identity" data-testid="profile-identity">
         <div className="cn-profile-avatar" data-testid="profile-avatar">
           <DecoratedAvatar userId={userId} name={name} image={avatar} size={76} online={online} animate={animate}
-            preview={look} previewPhoto={Boolean(draft)} previewPhotoUrl={draft?.avatarUrl} />
+            separateFrame preview={look} previewPhoto={Boolean(draft)} previewPhotoUrl={draft?.avatarUrl} />
         </div>
         <div className="cn-profile-name-area" data-tall-frame={tallFrame || undefined}>
           {frame?.asset && (
-            <img
-              className={tallFrame ? 'cn-profile-trim cn-profile-trim-tall' : 'cn-profile-trim'}
-              src={cosmeticAssetUrl(frame.asset)}
-              alt=""
-              aria-hidden="true"
-              decoding="async"
-              style={frame.presentation?.frameMask
-                ? { maskImage: `url("${cosmeticAssetUrl(frame.presentation.frameMask)}")`, maskSize: '100% 100%' }
-                : tallFrame ? { clipPath: openingClip([16, 20, 84, 79]) } : undefined}
-              data-profile-frame={frame.id}
-            />
+            <span className={tallFrame ? 'cn-profile-trim cn-profile-trim-tall' : 'cn-profile-trim'}>
+              <img
+                src={cosmeticAssetUrl(frame.asset)}
+                alt=""
+                aria-hidden="true"
+                decoding="async"
+                style={frame.presentation?.frameMask
+                  ? { maskImage: `url("${cosmeticAssetUrl(frame.presentation.frameMask)}")`, maskSize: '100% 100%' }
+                  : tallFrame ? { clipPath: openingClip([16, 20, 84, 79]) } : undefined}
+                data-profile-frame={frame.id}
+              />
+              {animate && frame.presentation?.motionTheme && <CharacterEffects key={frame.id} theme={frame.presentation.motionTheme} surface="frame" />}
+            </span>
           )}
           <p className="cn-profile-name" data-testid="profile-name">
             <span title={name} style={nameStyle(look) ?? { color: roleColor }}>{name}</span>

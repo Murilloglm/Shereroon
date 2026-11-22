@@ -28,7 +28,7 @@ NAMES = [
 FLOWER_PACK = 'hinata'
 FLOWER_PORTRAIT = 'WhatsApp Image 2026-11-21 at 23.32.39.jpeg'
 FLOWER_SHEET = 'WhatsApp Image 2026-11-21 at 23.32.40.jpeg'
-NAMES.append((FLOWER_PACK, 'Hinata • Luar de Cerejeira', 'Naruto', ['#ffd8ed','#d58ab7']))
+NAMES.append((FLOWER_PACK, 'Hinata • Lírios ao Luar', 'Naruto', ['#ffd8ed','#d58ab7']))
 SHEETS = {FLOWER_PACK: FLOWER_SHEET, 'madu-kaiden':'kayden definitivo.png','barou':'Barou_ Pacote Cosmetico do Rei dos Artilheiros.png','garou':'Pacote Cósmico do Garou.png'}
 DETAILS = {
     FLOWER_PACK: [(91,466,449,753),(545,465,891,758),(48,850,934,1027),(57,1105,423,1208),(474,1104,925,1209)],

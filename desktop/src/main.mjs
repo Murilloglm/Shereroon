@@ -447,7 +447,7 @@ function createWindow() {
     win = null;
   });
   // O cabeçalho da interface troca o ícone de maximizar/restaurar e apaga quando a janela perde o foco.
-  for (const name of ['maximize', 'unmaximize', 'restore', 'enter-full-screen', 'leave-full-screen', 'focus', 'blur']) {
+  for (const name of ['minimize', 'show', 'hide', 'maximize', 'unmaximize', 'restore', 'enter-full-screen', 'leave-full-screen', 'focus', 'blur']) {
     win.on(name, () => {
       if (win && !win.isDestroyed()) win.webContents.send('window:state', windowState());
     });
@@ -481,7 +481,7 @@ function installPermissions(ses) {
   ses.setPermissionCheckHandler((_contents, permission, requestingOrigin) => fromApp(requestingOrigin) && ALLOWED_PERMISSIONS.has(permission));
 }
 
-const windowState = () => ({ maximized: Boolean(win?.isMaximized()), fullscreen: Boolean(win?.isFullScreen()), focused: Boolean(win?.isFocused()) });
+const windowState = () => ({ hidden: !win?.isVisible() || win.isMinimized(), maximized: Boolean(win?.isMaximized()), fullscreen: Boolean(win?.isFullScreen()), focused: Boolean(win?.isFocused()) });
 
 const run = promisify(execFile);
 

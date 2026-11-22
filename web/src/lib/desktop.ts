@@ -73,6 +73,7 @@ export interface AutostartState {
 }
 
 export interface WindowState {
+  hidden?: boolean;
   maximized: boolean;
   fullscreen: boolean;
   focused: boolean;

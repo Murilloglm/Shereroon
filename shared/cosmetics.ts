@@ -346,12 +346,16 @@ const PRICE_REFERENCE: Record<CollectionItemKind, string> = {
   'cor-nome': 'nome-aurora', 'efeito-nome': 'nome-aurora',
 };
 
+function hasFrameMotion(collection: string, kind: ItemKind) {
+  return (kind === 'decoracao' || kind === 'moldura') && Boolean(cosmeticPresentation(collection)?.motionTheme);
+}
+
 CATALOG.push(...COLLECTIONS.flatMap((collection) => COLLECTION_SLOTS.map((kind): CosmeticItem => ({
   id: `${collection.id}-${kind}`, kind, collectionId: collection.id,
   name: `${collection.name} · ${KIND_NAMES[kind]}`,
   description: `${KIND_NAMES[kind]} da coleção ${collection.name}, com a arte da referência original.`,
   price: CATALOG.find((item) => item.id === PRICE_REFERENCE[kind])!.price,
-  rarity: 'epica', animated: kind === 'efeito-nome', reactsToVoice: false,
+  rarity: 'epica', animated: kind === 'efeito-nome' || hasFrameMotion(collection.id, kind), reactsToVoice: hasFrameMotion(collection.id, kind),
   variants: [{ id: 'original', name: 'Original', colors: collection.colors },
     ...(kind === 'fundo' ? collection.banners.map((banner) => ({ ...banner, colors: collection.colors })) : [])],
   asset: `assets/cosmetics/${collection.id}/${ASSET_FILES[kind]}`,
@@ -381,7 +385,7 @@ for (const [index, pack] of PACKS.entries()) {
       nameplateAsset: item.kind === 'moldura' ? collection.nameplateAsset : undefined,
       avatarScale: collection.avatarScale, assetAspect: item.kind === 'fundo' ? collection.bannerAspect : undefined,
       presentation: cosmeticPresentation(collection.id),
-      animated: false, reactsToVoice: false,
+      animated: hasFrameMotion(collection.id, item.kind), reactsToVoice: hasFrameMotion(collection.id, item.kind),
       variants: [{id:'original',name:'Original',colors:collection.colors}]});
   }
 }

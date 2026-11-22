@@ -320,7 +320,7 @@ export const COLLECTIONS: CosmeticCollection[] = [
   },
   {
     "id": "hinata",
-    "name": "Hinata • Luar de Cerejeira",
+    "name": "Hinata • Lírios ao Luar",
     "franchise": "Naruto",
     "colors": [
       "#ffd8ed",

@@ -22,14 +22,16 @@ export function TitleBar() {
     return () => {
       stop();
       delete document.documentElement.dataset.titlebar;
+      delete document.documentElement.dataset.windowHidden;
     };
   }, [controls]);
 
   useEffect(() => {
     if (!controls) return;
+    document.documentElement.toggleAttribute('data-window-hidden', Boolean(state.hidden));
     if (state.fullscreen) document.documentElement.dataset.titlebar = 'cheia';
     else document.documentElement.dataset.titlebar = 'on';
-  }, [controls, state.fullscreen]);
+  }, [controls, state.fullscreen, state.hidden]);
 
   if (!controls || state.fullscreen) return null;
   const button = 'flex h-full w-[46px] items-center justify-center text-fog-400 transition-colors duration-150 [-webkit-app-region:no-drag] hover:bg-white/8 hover:text-fog-100 focus-visible:bg-white/10 focus-visible:outline-none';

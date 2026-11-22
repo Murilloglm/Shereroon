@@ -91,7 +91,7 @@ export function Header({ session, onLeave, embedded = false, actions }: { sessio
         align="end"
         trigger={({ toggle, open }) => (
           <button type="button" onClick={toggle} aria-expanded={open} aria-label="Sua conta nesta sala" className="flex items-center gap-1.5 rounded-full">
-            <DecoratedAvatar userId={me?.accountId ?? identity} name={me?.name ?? '?'} image={me?.avatar} size={38} online />
+            <DecoratedAvatar userId={me?.accountId ?? identity} name={me?.name ?? '?'} image={me?.avatar} size={38} animate speaking={me?.speaking} online />
             <ChevronDown className="hidden size-4 text-fog-400 lg:block" />
           </button>
         )}

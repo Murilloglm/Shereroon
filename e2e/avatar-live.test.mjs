@@ -73,6 +73,7 @@ test('voice header shows the photo and a logged-in private caller shares it with
   const ownerCard = guest.getByTestId('call-card').filter({hasText:'Photoowner'});
   const cardName = ownerCard.getByTestId('call-card-name');
   await ownerCard.locator('[data-decoration="hinata-decoracao"]').evaluate(img => img.decode());
+  await ownerCard.locator('[data-theme-id=hinata] [data-motif=lily]').first().waitFor();
   await photoShows(guest,photo,ownerCard);
   await cardName.locator('[data-name-style="neon-cor-nome"]').waitFor();
   await changeLook('PUT','/api/me/equipped',{slot:'cor-nome',itemId:'hinata-cor-nome',variant:'original'});
