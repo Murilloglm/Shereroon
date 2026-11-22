@@ -216,7 +216,7 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
   evidence.checks.push('Redimensionamento; desligar movimento persistido; prefers-reduced-motion');
 });
 
-test('arquivos PNG/WebP carregam no navegador e no protocolo do desktop', { timeout: 60_000 }, async () => {
+test('artes e máscara do Kayden carregam no navegador e no protocolo do desktop', { timeout: 60_000 }, async () => {
   // Separate the bulk shop/profile phase from asset and voice checks. Production
   // rate limits stay enabled; all accounts and purchases remain in the same DB.
   await stack.stop();
@@ -233,6 +233,7 @@ test('arquivos PNG/WebP carregam no navegador e no protocolo do desktop', { time
     ...['cover.webp','avatar-decoration.png','profile-frame.png','profile-banner.webp','username-effect.png','member-name-effect.webp','server-badge.png','nameplate.webp'].map((file) => `assets/cosmetics/${collection.id}/${file}`),
     ...collection.banners.map((banner) => banner.asset), ...collection.references.map((reference) => reference.asset),
   ]))];
+  assets.push('assets/kayden-avatar-mask.svg');
   const loadAssets = async (page) => page.evaluate(async (paths) => Promise.all(paths.map((path) => new Promise((done) => { const image = new Image(); image.onload = () => done({ path, width: image.naturalWidth }); image.onerror = () => done({ path, width: 0 }); image.src = new URL(path, location.href).href; }))), assets);
   const web = await loadAssets(ana); assert(web.every((asset) => asset.width > 0)); evidence.loadedImages.web = web.length;
   const restore = useLocalDesktopConfig();
@@ -299,7 +300,7 @@ test('lista com 200 linhas: medição de quadros com e sem efeitos', async () =>
 });
 
 test('efeito permanece na lateral durante chamada e os controles de voz continuam acessíveis', async () => {
-  await equip(b, 'efeito-nome', 'neon-efeito-nome');
+  await equip(b, 'efeito-nome', 'madu-kaiden-efeito-nome');
   await ana.goto(`${BASE_URL}/#/grupos/${g1}`); await ana.getByTestId('chat').waitFor();
   await beto.goto(`${BASE_URL}/#/grupos/${g1}`);
   try { await beto.getByTestId('chat').waitFor({ timeout: 10_000 }); }
@@ -312,7 +313,12 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
     await waitFor(async () => (await page.getByTestId('connection').getAttribute('data-phase')) === 'connected', 'conexão LiveKit real');
   }
   const participant = ana.getByTestId('participants').getByTestId('participant').and(ana.locator(`[data-identity="${b.user.id}"]`));
-  await participant.locator('[data-name-effect="neon-efeito-nome"]').waitFor();
+  const ribbon = participant.locator('[data-name-effect="madu-kaiden-efeito-nome"]');
+  const memberAction = participant.getByTestId('voice-person-menu');
+  await ribbon.waitFor();
+  const ribbonBox = await ribbon.boundingBox();
+  const buttonBox = await memberAction.boundingBox();
+  assert(ribbonBox && buttonBox && ribbonBox.y >= buttonBox.y + buttonBox.height, 'a faixa fica abaixo do controle de voz');
   await participant.getByTestId('voice-person-menu').click();
   await participant.getByRole('menu').waitFor();
   assert.match(await participant.getByRole('menu').textContent(), /Volume da voz/);
@@ -375,7 +381,7 @@ test('artes grandes, galeria, pesquisa e filtros funcionam em computador e celul
   evidence.checks.push('Seis painéis na proporção original; galeria; filtro e busca sem acentos; loja e prévia a 390px');
 });
 
-test('Kayden definitivo equipa as cinco artes, sincroniza e persiste após recarregar', { timeout: 60_000 }, async () => {
+test('Kayden mantém o avatar visível, sincroniza as cinco peças e persiste após recarregar', { timeout: 60_000 }, async () => {
   await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click();
   await beto.getByTestId('preview-madu-kaiden').click();
   await waitFor(() => beto.getByTestId('collection-preview').locator('.cn-artwork-banner').first().evaluate((image) => image.src.includes('madu-kaiden') && image.complete), 'arte definitiva na prévia');
@@ -394,7 +400,29 @@ test('Kayden definitivo equipa as cinco artes, sincroniza e persiste após recar
   catch (error) { await screenshot(ana, 'definitive-profile-failure'); writeFileSync(resolve(output,'definitive-profile-failure.txt'),await ana.locator('body').innerText()); throw error; }
   await profile.locator('[data-name-artwork="madu-kaiden-cor-nome"]').waitFor();
   await waitFor(async () => (await profile.getByTestId('profile-banner').getAttribute('style')).includes('madu-kaiden'), 'fundo definitivo no perfil da outra conta');
-  await screenshot(ana, 'definitive-live-profile-kayden');
+  const portrait = profile.locator('[data-decorated="madu-kaiden-decoracao"]');
+  const overlay = portrait.locator('[data-decoration="madu-kaiden-decoracao"]');
+  await overlay.evaluate(async (element) => {
+    await element.decode();
+    const maskUrl = getComputedStyle(element).maskImage.match(/^url\("(.*)"\)$/)?.[1];
+    if (!maskUrl) throw new Error('A decoração do Kayden está sem máscara.');
+    const mask = new Image();
+    mask.src = maskUrl;
+    await mask.decode();
+  });
+  const bounds = await portrait.boundingBox();
+  assert(bounds);
+  const center = { x: Math.round(bounds.x + bounds.width / 4), y: Math.round(bounds.y + bounds.height / 4), width: Math.floor(bounds.width / 2), height: Math.floor(bounds.height / 2) };
+  const centerWithDecoration = await ana.screenshot({ clip: center, animations: 'disabled' });
+  const decorated = await portrait.screenshot({ animations: 'disabled' });
+  await overlay.evaluate((element) => { element.style.visibility = 'hidden'; });
+  try {
+    assert.deepEqual(await ana.screenshot({ clip: center, animations: 'disabled' }), centerWithDecoration, 'a borda deve deixar a foto do usuário visível no centro');
+    assert.notDeepEqual(await portrait.screenshot({ animations: 'disabled' }), decorated, 'a decoração deve continuar visível nas bordas');
+  } finally {
+    await overlay.evaluate((element) => { element.style.removeProperty('visibility'); });
+  }
+  await profile.screenshot({ path: resolve(output, 'kayden-avatar-adjusted.png'), animations: 'disabled' });
   await ana.keyboard.press('Escape');
   await beto.reload(); await beto.getByTestId('chat').waitFor();
   await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click(); await beto.getByTestId('preview-madu-kaiden').click();

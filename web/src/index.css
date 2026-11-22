@@ -244,11 +244,21 @@
     object-position: right center;
   }
   .cn-member-effect-exact > img { object-fit: contain; object-position: center; }
-  .cn-member-effect-lettered { inset: auto 4px 2px; height: 60px; }
-  .cn-member-row:has(.cn-member-effect-lettered) { height: 104px !important; padding-bottom: 62px; }
+  .cn-kayden-decoration {
+    top: 50%;
+    left: 50%;
+    width: 131.25%;
+    height: auto;
+    aspect-ratio: 420 / 366;
+    transform: translate(-51.2%, -47.3%);
+    mask: no-repeat center / 100% 100%;
+  }
+  .cn-member-effect-lettered { inset: auto 4px 2px; height: 46px; }
+  .cn-member-row:has(.cn-member-effect-lettered) { height: auto; min-height: 88px; padding-bottom: 48px; }
   .cn-member-row:has(.cn-member-effect-lettered):has(> [data-user-trigger]) { padding-bottom: 0; }
-  .cn-member-row:has(.cn-member-effect-lettered) > [data-user-trigger] { padding-bottom: 66px !important; }
-  .cn-name-artwork { display: block; width: 100%; height: auto; max-height: 100px; object-fit: contain; }
+  .cn-member-row:has(.cn-member-effect-lettered) > [data-user-trigger],
+  [data-server-member]:has(.cn-member-effect-lettered) { padding-bottom: 48px !important; }
+  .cn-name-artwork { display: block; width: 100%; height: auto; max-height: 84px; margin-block: 4px; border-radius: 8px; object-fit: contain; }
   .cn-original-adornment { display: inline-block; width: 32px; height: 22px; margin-inline: 4px; object-fit: contain; vertical-align: middle; }
   .cn-member-effect-live > img {
     animation: cn-member-energy 5s ease-in-out infinite alternate;
@@ -336,14 +346,21 @@
   .cn-collection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
   .cn-collection-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid color-mix(in srgb, var(--collection-b) 28%, transparent); border-radius: 17px; background: var(--color-ink-900); transition: border-color 180ms ease-out; }
   .cn-collection-card:hover { border-color: color-mix(in srgb, var(--collection-a) 60%, transparent); }
-  .cn-collection-cover { display: grid; align-items: center; aspect-ratio: 3.3; background: #050713; }
-  .cn-collection-cover > img { display: block; width: 100%; height: 100%; max-height: 100%; object-fit: contain; }
+  .cn-collection-cover {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    aspect-ratio: 2.6;
+    padding: 6px;
+    border-bottom: 1px solid var(--color-ink-700);
+    background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--collection-b) 14%, transparent), var(--color-ink-950) 75%);
+  }
+  .cn-collection-cover > img { display: block; width: 100%; height: 100%; object-fit: contain; }
   .cn-collection-card-body { display: grid; align-content: start; flex: 1; gap: 14px; padding: 18px; }
   .cn-collection-card-title { display: flex; align-items: center; min-height: 88px; gap: 16px; }
   .cn-collection-avatar { display: flex; flex: 0 0 72px; align-items: center; justify-content: center; width: 72px; height: 80px; }
   .cn-collection-franchise { margin-bottom: 3px; font-size: 11px; font-weight: 850; letter-spacing: .045em; color: var(--collection-a); text-transform: uppercase; }
   .cn-collection-card h3 { margin-bottom: 4px; font-size: 21px; font-weight: 900; letter-spacing: -.02em; line-height: 1.15; }
-  .cn-collection-card-sample { padding: 8px; border: 1px solid #ffffff08; border-radius: 10px; background: #03040b88; }
+  .cn-collection-card-sample { padding: 8px; border: 1px solid var(--color-ink-700); border-radius: 10px; background: var(--color-ink-950); }
   .cn-collection-pieces { display: flex; flex-wrap: wrap; gap: 5px; }
   .cn-collection-pieces li { display: flex; align-items: center; gap: 3px; padding: 4px 7px; border: 1px solid #ffffff0c; border-radius: 6px; font-size: 12px; font-weight: 700; color: var(--color-fog-300); }
   .cn-collection-pieces svg { color: var(--color-ok-400); }

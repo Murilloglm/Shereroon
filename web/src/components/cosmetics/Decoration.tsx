@@ -16,6 +16,7 @@ function packOf(item: CosmeticItem | undefined): { art: PackArt; palette: PackPa
 
 /** Tamanho da arte em relação ao avatar: a decoração ocupa o anel em volta dele. */
 const SCALE = 1.36;
+const KAYDEN_DECORATION = 'assets/cosmetics/madu-kaiden/avatar-decoration.png';
 
 /** Caminhos relativos preservam instalações em subpastas e o protocolo local do Electron. */
 export const cosmeticAssetUrl = (path: string) => `${import.meta.env.BASE_URL}${path}`;
@@ -180,6 +181,14 @@ export function Decoration({ equipped, size, speaking = false, animate = false, 
   const pack = packOf(item);
   const box = size * SCALE;
   const live = animate && !reducedMotion();
+  if (item.asset === KAYDEN_DECORATION) {
+    return (
+      <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async"
+        className="cn-kayden-decoration pointer-events-none absolute max-w-none"
+        style={{ maskImage: `url("${cosmeticAssetUrl('assets/kayden-avatar-mask.svg')}")` }}
+        data-decoration={item.id} data-variant={variant.id} />
+    );
+  }
   if (item.asset) {
     const extent = size * (item.avatarScale ?? SCALE);
     return <img src={cosmeticAssetUrl(item.asset)} alt="" aria-hidden="true" decoding="async"
