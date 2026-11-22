@@ -37,7 +37,7 @@ import { mediaUrl, social, type Profile } from '../../lib/social/client.ts';
 import { useStore } from '../../lib/store.ts';
 import { activities, playingFor, type CurrentActivity } from '../../lib/activities.ts';
 import { GameIcon } from '../settings/GameIcon.tsx';
-import { ArtworkProfileFrame, BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, ProfileFrame, ProfileNameplate, useUserCosmetics } from '../cosmetics/Decoration.tsx';
+import { ArtworkProfileFrame, BackgroundArt, backgroundStyle, CosmeticName, DecoratedAvatar, NameArtwork, ProfileFrame, ProfileNameplate, useUserCosmetics } from '../cosmetics/Decoration.tsx';
 import { PersonVolume } from '../room/PersonVolume.tsx';
 import { Avatar, cx } from '../ui.tsx';
 import { errorText, memberName, nameColor } from '../groups/common.tsx';
@@ -217,6 +217,8 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: anchor.right + 10, top: anchor.top });
   const member = view?.members.find((item) => item.userId === userId);
+  const worn = useUserCosmetics(userId);
+  const framed = Boolean(itemById(worn.moldura?.item ?? '')?.frameAspect);
 
   useEffect(() => {
     void social.profile(userId, true).catch((error: unknown) => setFailure(errorText(error)));
@@ -226,22 +228,20 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
     if (!card) return;
     const { width, height } = card.getBoundingClientRect();
     const left = anchor.right + 10 + width > window.innerWidth - 8 ? Math.max(8, anchor.left - 10 - width) : anchor.right + 10;
-    setPosition({ left, top: Math.min(Math.max(8, anchor.top - 20), window.innerHeight - height - 8) });
-  }, [anchor, profile]);
+    setPosition({ left, top: Math.max(8, Math.min(anchor.top - 20, window.innerHeight - height - 8)) });
+  }, [anchor, profile, worn]);
   useDismiss(ref, onClose);
 
   const roles = member && view ? view.roles.filter((role) => !role.isEveryone && member.roleIds.includes(role.id)) : [];
   const name = member ? memberName(member) : profile ? social.nameFor(profile.id, profile.displayName) : '';
   const self = me === userId;
-  const worn = useUserCosmetics(userId);
-  const framed = Boolean(itemById(worn.moldura?.item ?? '')?.frameAspect);
 
   return createPortal(
     <div
       ref={ref}
       role="dialog"
       aria-label={`Perfil de ${name || 'usuário'}`}
-      className="fixed z-[70] w-80 animate-rise overflow-hidden rounded-2xl border border-brand-400/50 bg-ink-900 shadow-glow"
+      className="fixed z-[70] max-h-[calc(100dvh-16px)] w-80 max-w-[calc(100vw-16px)] animate-rise overflow-y-auto rounded-2xl border border-brand-400/50 bg-ink-900 shadow-glow"
       style={position}
       data-testid="profile-card"
       data-user={userId}
@@ -255,7 +255,7 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
           <div className="relative px-4 pb-4">
             <ArtworkProfileFrame userId={profile.id}>
               <div className={framed ? 'flex justify-center py-3' : '-mt-10 mb-2 w-fit rounded-full border-4 border-ink-900'}>
-                <DecoratedAvatar userId={profile.id} name={profile.displayName} size={framed ? 48 : 76} image={profile.avatar} animate />
+                <DecoratedAvatar userId={profile.id} name={profile.displayName} size={framed ? 80 : 76} image={profile.avatar} animate />
               </div>
               {framed ? <p className="flex w-full items-center justify-center text-lg leading-tight font-extrabold" style={{ color: member && view ? nameColor(view, member) : undefined }} data-testid="profile-name">
                 <CosmeticName userId={profile.id} className="min-w-0 truncate" animate>{name}</CosmeticName>
@@ -269,6 +269,7 @@ export function ProfileCard({ userId, anchor, view, onClose, onModerate }: { use
             </ProfileNameplate>
               </>}
             </ArtworkProfileFrame>
+            <NameArtwork equipped={worn} />
             <p className="text-sm text-fog-400">
               @{profile.username}
               {profile.nickname && <span className="ml-1 text-xs text-neon-300">(apelido seu)</span>}

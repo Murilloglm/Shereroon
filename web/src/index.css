@@ -243,6 +243,13 @@
     object-fit: cover;
     object-position: right center;
   }
+  .cn-member-effect-exact > img { object-fit: contain; object-position: center; }
+  .cn-member-effect-lettered { inset: auto 4px 2px; height: 60px; }
+  .cn-member-row:has(.cn-member-effect-lettered) { height: 104px !important; padding-bottom: 62px; }
+  .cn-member-row:has(.cn-member-effect-lettered):has(> [data-user-trigger]) { padding-bottom: 0; }
+  .cn-member-row:has(.cn-member-effect-lettered) > [data-user-trigger] { padding-bottom: 66px !important; }
+  .cn-name-artwork { display: block; width: 100%; height: auto; max-height: 100px; object-fit: contain; }
+  .cn-original-adornment { display: inline-block; width: 32px; height: 22px; margin-inline: 4px; object-fit: contain; vertical-align: middle; }
   .cn-member-effect-live > img {
     animation: cn-member-energy 5s ease-in-out infinite alternate;
   }

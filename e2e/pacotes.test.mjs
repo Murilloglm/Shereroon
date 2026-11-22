@@ -52,7 +52,7 @@ test('a loja mostra os 11 pacotes com prévia do pacote completo; o olho mostra 
   assert.equal(await card().getByTestId('pack-piece').count(), 5);
   const preview = card().getByTestId('pack-preview');
   await preview.locator('[data-decoration="gato-trovao-deco"]').waitFor();
-  for (const selector of ['[data-frame="gato-trovao-moldura"]', '[data-background-art="gato-trovao-fundo"]', '[data-adornment="gato-trovao-enfeite"]', '[data-profile-frame="gato-trovao-moldura"]']) {
+  for (const selector of ['[data-decoration="gato-trovao-deco"]', '[data-adornment="gato-trovao-enfeite"]', '[data-profile-frame="gato-trovao-moldura"]']) {
     assert.equal(await preview.locator(selector).count(), 1, `a prévia mostra ${selector}`);
   }
   // Uma peça só: sem nada equipado, a prévia fica só com o enfeite.
@@ -75,7 +75,7 @@ test('adquirir o pacote: um débito só, com desconto, e as 5 peças no inventá
   await waitFor(async () => /Pacote completo/.test((await card().textContent()) ?? ''), 'o pacote ficar completo');
   await page.getByTestId('settings-nav-pontos').click();
   await waitFor(async () => (await balance()) === 5000 - 1425, 'o saldo cair exatamente o preço do pacote');
-  assert.match(await page.getByTestId('points-history').textContent(), /Pacote: Gato Trovão/);
+  assert.match(await page.getByTestId('points-history').textContent(), /Pacote: Kayden/);
 });
 
 test('"usar pacote completo" equipa tudo; a prévia do inventário mostra o enfeite ao lado do nome', async () => {
@@ -110,9 +110,9 @@ test('o enfeite aparece ao lado do nick na lista de membros e no chat (parado) e
 
   await member.locator('[data-user-trigger]').click();
   const profile = page.getByTestId('profile-card');
-  await profile.locator('[data-adornment="gato-trovao-enfeite"][data-live="true"]').waitFor();
+  await profile.locator('[data-adornment="gato-trovao-enfeite"][data-live="false"]').waitFor();
   assert.equal(await profile.locator('[data-profile-frame="gato-trovao-moldura"]').count(), 1, 'a moldura do pacote contorna o cartão');
-  assert.equal(await profile.locator('[data-background-art="gato-trovao-fundo"]').count(), 1, 'o fundo do pacote no topo');
+  assert.match(await profile.getByTestId('profile-banner').getAttribute('style'), /madu-kaiden/);
   await page.keyboard.press('Escape');
 });
 

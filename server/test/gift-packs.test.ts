@@ -52,7 +52,7 @@ describe('presentear um pacote', () => {
     live.close();
     const [gift] = (await w.ok('GET', '/api/me/gifts', beto.token)).gifts;
     expect(gift).toMatchObject({ senderId: ana.id, packId: 'gato-trovao', items: q.missing, price: q.price, message: 'Miau!', unread: true });
-    expect((await w.ok('GET', '/api/me/points', ana.token)).history[0]).toMatchObject({ delta: -q.price, reason: 'presente', detail: 'Presente: pacote Gato Trovão' });
+    expect((await w.ok('GET', '/api/me/points', ana.token)).history[0]).toMatchObject({ delta: -q.price, reason: 'presente', detail: 'Presente: pacote Kayden' });
   });
 
   it('se o amigo já tem tudo, recusa sem cobrar', async () => {

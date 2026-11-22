@@ -7,40 +7,34 @@
     "#7ddcff"
   ],
   "avatarScale": 1.85,
-  "resolution": "overview-only",
-  "tagline": "Vento, gelo e céu aberto.",
+  "resolution": "definitive-grid",
+  "exactArtwork": true,
+  "nameArtwork": false,
+  "tagline": "Arte original do arquivo definitivo.",
   "frameAspect": null,
+  "bannerAspect": 3.8260869565217392,
   "nameplateAsset": "assets/cosmetics/jett/nameplate.webp",
   "references": [
     {
-      "asset": "assets/cosmetic-references/reference-04.webp",
+      "asset": "assets/cosmetic-references/definitive-02.png",
       "name": "Grade de skins sci-fi neon em português-2"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-01.webp",
-      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
     }
   ],
   "banners": [],
-  "notes": [
-    "Máscaras espaciais preservam áreas pretas decorativas.",
-    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
-    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick.",
-    "Avatar, moldura, banner e capa disponíveis somente na grade; enviar elementos separados em alta resolução para maior definição."
-  ],
   "files": {
     "cover.webp": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
         317,
         520,
         607,
-        630
+        671
       ],
       "size": [
         290,
-        110
+        151
       ],
       "alpha": [
         255,
@@ -51,6 +45,7 @@
     },
     "avatar-decoration.png": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
         346,
@@ -63,13 +58,15 @@
         87
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": "explicit ring aperture and outer ellipse"
+      "mask": "original alpha",
+      "processing": []
     },
     "profile-frame.png": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
         335,
@@ -82,87 +79,15 @@
         53
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": {
-        "outer": [
-          [
-            0,
-            8
-          ],
-          [
-            12,
-            2
-          ],
-          [
-            242,
-            2
-          ],
-          [
-            253,
-            8
-          ],
-          [
-            253,
-            45
-          ],
-          [
-            242,
-            51
-          ],
-          [
-            12,
-            51
-          ],
-          [
-            0,
-            45
-          ]
-        ],
-        "hole": [
-          [
-            19,
-            18
-          ],
-          [
-            109.22,
-            18
-          ],
-          [
-            127.0,
-            28
-          ],
-          [
-            144.78,
-            18
-          ],
-          [
-            235,
-            18
-          ],
-          [
-            238,
-            35
-          ],
-          [
-            229,
-            40
-          ],
-          [
-            23,
-            40
-          ],
-          [
-            16,
-            34
-          ]
-        ]
-      },
+      "mask": "original alpha",
       "processing": []
     },
     "profile-banner.webp": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
         330,
@@ -183,16 +108,17 @@
     },
     "username-effect.png": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        450,
-        956,
-        571,
-        993
+        443,
+        951,
+        577,
+        995
       ],
       "size": [
-        121,
-        37
+        134,
+        44
       ],
       "alpha": [
         255,
@@ -202,17 +128,18 @@
       "processing": []
     },
     "member-name-effect.webp": {
-      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
-      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        783,
-        841,
-        1093,
-        898
+        335,
+        779,
+        589,
+        832
       ],
       "size": [
-        310,
-        57
+        254,
+        53
       ],
       "alpha": [
         255,
@@ -223,6 +150,7 @@
     },
     "server-badge.png": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
         499,
@@ -243,6 +171,7 @@
     },
     "nameplate.webp": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
         335,

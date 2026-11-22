@@ -41,6 +41,9 @@ export interface CosmeticItem {
   avatarScale?: number;
   frameAspect?: number;
   nameplateAsset?: string;
+  exactArtwork?: boolean;
+  nameArtwork?: boolean;
+  assetAspect?: number;
 }
 
 export const KIND_NAMES: Record<ItemKind, string> = {
@@ -353,7 +356,31 @@ CATALOG.push(...COLLECTIONS.flatMap((collection) => COLLECTION_SLOTS.map((kind):
   avatarScale: kind === 'decoracao' ? collection.avatarScale : undefined,
   frameAspect: kind === 'moldura' ? collection.frameAspect ?? undefined : undefined,
   nameplateAsset: kind === 'moldura' ? collection.nameplateAsset : undefined,
+  exactArtwork: collection.exactArtwork,
+  nameArtwork: collection.nameArtwork,
+  assetAspect: kind === 'fundo' ? collection.bannerAspect : undefined,
 }))));
+
+// Keep previously purchased IDs while replacing their old simplified drawings.
+const LEGACY_ARTWORK = ['night-fury','light-fury','madu-kaiden','rimuru','clove','neon','omen','jett','raze','tejo','rush'];
+for (const [index, pack] of PACKS.entries()) {
+  const collection = COLLECTIONS.find((entry) => entry.id === LEGACY_ARTWORK[index])!;
+  pack.name = collection.name;
+  pack.palette = {...pack.palette, glow: collection.colors[0], accent: collection.colors[1]};
+  pack.description = 'Pacote com as artes originais da referência definitiva.';
+  pack.rules = ['Arte original preservada, sem redesenho, filtros ou simplificação.'];
+  for (const item of CATALOG.filter((entry) => entry.pack === pack.id)) {
+    const file = item.kind === 'enfeite' ? 'server-badge.png' : ASSET_FILES[item.kind];
+    Object.assign(item, {asset: `assets/cosmetics/${collection.id}/${file}`,
+      name: `${collection.name} · ${KIND_NAMES[item.kind]}`, description: pack.description,
+      exactArtwork: true, nameArtwork: collection.nameArtwork,
+      frameAspect: item.kind === 'moldura' ? collection.frameAspect ?? undefined : undefined,
+      nameplateAsset: item.kind === 'moldura' ? collection.nameplateAsset : undefined,
+      avatarScale: collection.avatarScale, assetAspect: item.kind === 'fundo' ? collection.bannerAspect : undefined,
+      animated: false, reactsToVoice: false,
+      variants: [{id:'original',name:'Original',colors:collection.colors}]});
+  }
+}
 
 
 export const itemById = (id: string): CosmeticItem | undefined => CATALOG.find((item) => item.id === id);

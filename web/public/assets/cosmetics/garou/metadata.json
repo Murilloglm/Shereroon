@@ -1,0 +1,194 @@
+{
+  "id": "garou",
+  "name": "Garou Cósmico",
+  "franchise": "One Punch Man",
+  "colors": [
+    "#d8baff",
+    "#578fff"
+  ],
+  "avatarScale": 1.5,
+  "resolution": "definitive-sheet",
+  "exactArtwork": true,
+  "nameArtwork": true,
+  "tagline": "Arte original do arquivo definitivo.",
+  "frameAspect": 1.1337047353760445,
+  "bannerAspect": 2.6607142857142856,
+  "nameplateAsset": "assets/cosmetics/garou/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/definitive-04.png",
+      "name": "Pacote Cósmico do Garou"
+    }
+  ],
+  "banners": [],
+  "files": {
+    "cover.webp": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        0,
+        0,
+        1092,
+        272
+      ],
+      "size": [
+        1092,
+        272
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        85,
+        325,
+        500,
+        681
+      ],
+      "size": [
+        415,
+        356
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-frame.png": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        609,
+        321,
+        1016,
+        680
+      ],
+      "size": [
+        407,
+        359
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        25,
+        700,
+        1068,
+        1092
+      ],
+      "size": [
+        1043,
+        392
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        46,
+        1180,
+        464,
+        1340
+      ],
+      "size": [
+        418,
+        160
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        514,
+        1175,
+        1054,
+        1345
+      ],
+      "size": [
+        540,
+        170
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        514,
+        1175,
+        1054,
+        1345
+      ],
+      "size": [
+        540,
+        170
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Pacote Cósmico do Garou.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "crop": [
+        514,
+        1175,
+        1054,
+        1345
+      ],
+      "size": [
+        540,
+        170
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

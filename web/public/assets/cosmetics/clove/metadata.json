@@ -6,59 +6,35 @@
     "#f4bdff",
     "#cb70ff"
   ],
-  "avatarScale": 1.8,
-  "resolution": "sheet",
-  "tagline": "Borboletas e energia espectral.",
-  "frameAspect": 1.638889,
+  "avatarScale": 1.85,
+  "resolution": "definitive-grid",
+  "exactArtwork": true,
+  "nameArtwork": false,
+  "tagline": "Arte original do arquivo definitivo.",
+  "frameAspect": null,
+  "bannerAspect": 3.40625,
   "nameplateAsset": "assets/cosmetics/clove/nameplate.webp",
   "references": [
     {
-      "asset": "assets/cosmetic-references/reference-16.webp",
-      "name": "Pacote de Cosméticos Neon Roxo da Clove-9"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-09.webp",
-      "name": "Kit Cosmético Neon de Clove-4"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-11.webp",
-      "name": "Kit de Interface Neon da Clove-10"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-01.webp",
-      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+      "asset": "assets/cosmetic-references/definitive-02.png",
+      "name": "Grade de skins sci-fi neon em português-2"
     }
   ],
-  "banners": [
-    {
-      "id": "espectral",
-      "name": "Espectral",
-      "asset": "assets/cosmetics/clove/profile-banner-espectral.webp"
-    },
-    {
-      "id": "borboletas",
-      "name": "Borboletas",
-      "asset": "assets/cosmetics/clove/profile-banner-borboletas.webp"
-    }
-  ],
-  "notes": [
-    "Máscaras espaciais preservam áreas pretas decorativas.",
-    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
-    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
-  ],
+  "banners": [],
   "files": {
     "cover.webp": {
-      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
-      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        44,
-        721,
-        1212,
-        987
+        1029,
+        8,
+        1273,
+        177
       ],
       "size": [
-        1168,
-        266
+        244,
+        169
       ],
       "alpha": [
         255,
@@ -68,90 +44,39 @@
       "processing": []
     },
     "avatar-decoration.png": {
-      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
-      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        90,
-        326,
-        510,
-        704
+        1040,
+        179,
+        1153,
+        264
       ],
       "size": [
-        420,
-        378
+        113,
+        85
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
-      "mask": {
-        "outer": [
-          [
-            15,
-            80
-          ],
-          [
-            90,
-            30
-          ],
-          [
-            220,
-            0
-          ],
-          [
-            310,
-            38
-          ],
-          [
-            395,
-            45
-          ],
-          [
-            420,
-            180
-          ],
-          [
-            394,
-            288
-          ],
-          [
-            230,
-            378
-          ],
-          [
-            100,
-            367
-          ],
-          [
-            10,
-            290
-          ],
-          [
-            0,
-            163
-          ]
-        ],
-        "ellipse": [
-          94,
-          93,
-          322,
-          293
-        ]
-      },
+      "mask": "original alpha",
       "processing": []
     },
     "profile-frame.png": {
-      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
-      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        565,
-        337,
-        1155,
-        697
+        1037,
+        289,
+        1265,
+        342
       ],
       "size": [
-        590,
-        360
+        228,
+        53
       ],
       "alpha": [
         255,
@@ -161,17 +86,18 @@
       "processing": []
     },
     "profile-banner.webp": {
-      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
-      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        44,
-        721,
-        1212,
-        987
+        1042,
+        364,
+        1260,
+        428
       ],
       "size": [
-        1168,
-        266
+        218,
+        64
       ],
       "alpha": [
         255,
@@ -182,16 +108,17 @@
     },
     "username-effect.png": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        1152,
-        455,
-        1256,
-        487
+        1143,
+        451,
+        1259,
+        490
       ],
       "size": [
-        104,
-        32
+        116,
+        39
       ],
       "alpha": [
         255,
@@ -201,17 +128,18 @@
       "processing": []
     },
     "member-name-effect.webp": {
-      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
-      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        783,
-        606,
-        1093,
-        665
+        1037,
+        289,
+        1265,
+        342
       ],
       "size": [
-        310,
-        59
+        228,
+        53
       ],
       "alpha": [
         255,
@@ -221,17 +149,18 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
-      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        825,
-        1025,
-        1154,
-        1153
+        1182,
+        183,
+        1258,
+        259
       ],
       "size": [
-        329,
-        128
+        76,
+        76
       ],
       "alpha": [
         255,
@@ -241,57 +170,18 @@
       "processing": []
     },
     "nameplate.webp": {
-      "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
-      "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        93,
-        1041,
-        742,
-        1156
+        1037,
+        289,
+        1265,
+        342
       ],
       "size": [
-        649,
-        115
-      ],
-      "alpha": [
-        255,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "profile-banner-espectral.webp": {
-      "source": "Kit Cosmético Neon de Clove-4.png",
-      "sha256": "a5fc62b1082c2ef53a6adfeadc8862233d77309f398a6ec498ef1ed87d0b202e",
-      "crop": [
-        22,
-        508,
-        1515,
-        996
-      ],
-      "size": [
-        1493,
-        488
-      ],
-      "alpha": [
-        145,
-        253
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "profile-banner-borboletas.webp": {
-      "source": "Kit de Interface Neon da Clove-10.png",
-      "sha256": "832a3d66daef7b496d46ad2c6e672e0559db0b0642fc64a8fad7dcaa63864d56",
-      "crop": [
-        24,
-        15,
-        1232,
-        437
-      ],
-      "size": [
-        1208,
-        422
+        228,
+        53
       ],
       "alpha": [
         255,

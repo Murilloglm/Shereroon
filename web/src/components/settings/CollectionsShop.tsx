@@ -32,7 +32,7 @@ function CollectionPreview({ account, collection, variants }: { account: Account
       <div className="cn-collection-identity">
         <ArtworkProfileFrame preview={preview}>
           <div className={collection.frameAspect ? 'flex justify-center py-3' : 'flex justify-center py-7'}>
-            <DecoratedAvatar userId={account.id} name={account.displayName} image={avatar} size={collection.frameAspect ? 48 : 64} preview={preview} />
+            <DecoratedAvatar userId={account.id} name={account.displayName} image={avatar} size={collection.frameAspect ? 80 : 64} preview={preview} />
           </div>
           {collection.frameAspect ? <p className="w-full truncate text-center font-extrabold" style={nameStyle(preview)}>{account.displayName}</p>
             : <ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold" style={nameStyle(preview)}>{account.displayName}</p></ProfileNameplate>}
@@ -40,10 +40,10 @@ function CollectionPreview({ account, collection, variants }: { account: Account
         <p className="mt-2 truncate text-center text-sm text-fog-400">@{account.username}</p>
       </div>
     </div>
-    {collection.frameAspect && <div className="mt-3"><ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold" style={nameStyle(preview)}>{account.displayName}</p></ProfileNameplate></div>}
+    <div className="mt-3"><ItemPreview account={account} item={collectionItems(collection.id).find((entry) => entry.kind === 'cor-nome')!} variant="original" /></div>
     <p className="cn-collection-eyebrow mt-5">Na lista de membros</p>
     <MemberNamePreview account={account} preview={preview} />
-    <p className="mt-3 text-center text-sm text-fog-400">A prévia usa seu nome e seu avatar.</p>
+    <p className="mt-3 text-center text-sm text-fog-400">Artes originais preservadas. Sua conta aparece identificada à parte.</p>
   </div>;
 }
 
@@ -124,7 +124,7 @@ export function CollectionsShop({ account }: { account: Account }) {
   };
   const categories = ['Todas', 'Dragões', 'Anime', 'Valorant', 'Deadlock'];
   const visible = COLLECTIONS.filter((collection) => {
-    const category = collection.franchise === 'Como Treinar Seu Dragão' ? 'Dragões' : ['Eleceed', 'Tensei Shitara Slime'].includes(collection.franchise) ? 'Anime' : collection.franchise;
+    const category = collection.franchise === 'Como Treinar Seu Dragão' ? 'Dragões' : ['Eleceed', 'Tensei Shitara Slime','Blue Lock','One Punch Man'].includes(collection.franchise) ? 'Anime' : collection.franchise;
     return (filter === 'Todas' || filter === category) && normalize(collection.name + ' ' + collection.franchise).includes(normalize(query.trim()));
   });
   const selectedItems = selected ? collectionItems(selected.id) : [];
@@ -134,7 +134,7 @@ export function CollectionsShop({ account }: { account: Account }) {
     <header className="cn-collections-intro">
       <div><p className="cn-collection-eyebrow"><Layers3 className="size-4" aria-hidden="true" /> Cosmic Night · Coleções</p>
         <h2>Seu universo. Seu estilo.</h2><p>Avatar, moldura, fundo e nome. Escolha um pacote completo ou combine suas peças favoritas.</p></div>
-      <span className="cn-collections-count"><Sparkles aria-hidden="true" />11 coleções<span>55 itens para combinar</span></span>
+      <span className="cn-collections-count"><Sparkles aria-hidden="true" />{COLLECTIONS.length} coleções<span>{COLLECTIONS.length * 5} itens para combinar</span></span>
     </header>
     <div className="cn-collection-toolbar">
       <div className="cn-collection-filters" aria-label="Filtrar coleções">{categories.map((category) => <button type="button" key={category} onClick={() => setFilter(category)} aria-pressed={filter === category}>{category}</button>)}</div>

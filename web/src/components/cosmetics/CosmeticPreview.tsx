@@ -37,6 +37,8 @@ export function ItemPreview({ account, item, variant, size = 48 }: { account: Ac
   if (item.kind === 'moldura' && item.asset) return item.frameAspect
     ? <div className="mx-auto w-full max-w-64"><ArtworkProfileFrame preview={preview}><p className="truncate text-center font-extrabold">{account.displayName}</p></ArtworkProfileFrame></div>
     : <ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold">{account.displayName}</p></ProfileNameplate>;
+  if (item.kind === 'cor-nome' && item.asset) return <img className="cn-artwork-banner" src={cosmeticAssetUrl(item.asset)} alt={`Arte original de nome ${item.name}`} decoding="async" />;
+  if (item.kind === 'enfeite' && item.asset) return <img className="mx-auto h-16 max-w-full object-contain" src={cosmeticAssetUrl(item.asset)} alt={item.name} />;
   if (item.kind === 'cor-nome') return <p className="flex h-20 items-center justify-center truncate text-lg font-extrabold" style={nameStyle(preview)}>{account.displayName}</p>;
   return <div className="flex h-24 items-center justify-center"><DecoratedAvatar userId={account.id} name={account.displayName} size={size} image={avatar} animate preview={preview} /></div>;
 }

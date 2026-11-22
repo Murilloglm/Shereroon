@@ -65,7 +65,7 @@ describe('comprar o pacote', () => {
     expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
     const after = await balance(ana);
     expect(after.points).toBe(before - price);
-    expect(after.history[0]).toMatchObject({ delta: -price, reason: 'compra', detail: 'Pacote: Gato Trovão' });
+    expect(after.history[0]).toMatchObject({ delta: -price, reason: 'compra', detail: `Pacote: ${gato.name}` });
     expect(await owned(ana)).toEqual(Object.values(gato.items).sort());
     const pack = ((await w.ok('GET', '/api/shop', ana.token)) as any).packs.find((entry: any) => entry.id === 'gato-trovao');
     expect(pack).toMatchObject({ missing: [], price: 0 });

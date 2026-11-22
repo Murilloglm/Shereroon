@@ -1,0 +1,194 @@
+{
+  "id": "barou",
+  "name": "Barou",
+  "franchise": "Blue Lock",
+  "colors": [
+    "#fff1ed",
+    "#ff334f"
+  ],
+  "avatarScale": 1.5,
+  "resolution": "definitive-sheet",
+  "exactArtwork": true,
+  "nameArtwork": true,
+  "tagline": "Arte original do arquivo definitivo.",
+  "frameAspect": 1.1296829971181557,
+  "bannerAspect": 2.7022900763358777,
+  "nameplateAsset": "assets/cosmetics/barou/nameplate.webp",
+  "references": [
+    {
+      "asset": "assets/cosmetic-references/definitive-01.png",
+      "name": "Barou_ Pacote Cosmetico do Rei dos Artilheiros"
+    }
+  ],
+  "banners": [],
+  "files": {
+    "cover.webp": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        0,
+        0,
+        1092,
+        272
+      ],
+      "size": [
+        1092,
+        272
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "avatar-decoration.png": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        93,
+        319,
+        479,
+        663
+      ],
+      "size": [
+        386,
+        344
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-frame.png": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        611,
+        318,
+        1003,
+        665
+      ],
+      "size": [
+        392,
+        347
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "profile-banner.webp": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        17,
+        685,
+        1079,
+        1078
+      ],
+      "size": [
+        1062,
+        393
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        41,
+        1164,
+        468,
+        1328
+      ],
+      "size": [
+        427,
+        164
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        522,
+        1142,
+        1060,
+        1340
+      ],
+      "size": [
+        538,
+        198
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        522,
+        1142,
+        1060,
+        1340
+      ],
+      "size": [
+        538,
+        198
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "crop": [
+        522,
+        1142,
+        1060,
+        1340
+      ],
+      "size": [
+        538,
+        198
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    }
+  }
+}

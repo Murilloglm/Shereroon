@@ -40,7 +40,7 @@ function Price({ value }: { value: number }) {
 function ItemPreview({ account, item, variant, size = 64 }: { account: Account; item: CosmeticItem; variant: string; size?: number }) {
   const avatar = useStore(social.store, (state) => state.profiles[account.id]?.avatar ?? null);
   const preview: UserCosmetics = { [item.kind]: { item: item.id, variant } };
-  if (item.collectionId) return <CollectionItemPreview account={account} item={item} variant={variant} size={size} />;
+  if (item.exactArtwork || item.collectionId) return <CollectionItemPreview account={account} item={item} variant={variant} size={size} />;
   if (item.kind === 'efeito-nome') return <MemberNamePreview account={account} preview={preview} />;
   if (item.kind === 'moldura' && item.asset) return <ProfileNameplate preview={preview}><p className="truncate text-center font-extrabold">{account.displayName}</p></ProfileNameplate>;
   if (item.kind === 'fundo') {

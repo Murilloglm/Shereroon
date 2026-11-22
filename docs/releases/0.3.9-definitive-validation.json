@@ -1,0 +1,230 @@
+{
+  "version": "0.3.9",
+  "revision": "definitive-artwork",
+  "published": false,
+  "sources": "enfeites definitivos",
+  "collections": 13,
+  "collectionItems": 65,
+  "legacyPackItemsUpdated": 55,
+  "totalCatalogItems": 134,
+  "kaydenSource": "kayden definitivo.png",
+  "artwork": {
+    "collections": 13,
+    "images": 104,
+    "exact_rgba_crops": 104,
+    "references": 4,
+    "original_files": {
+      "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
+      "Grade de skins sci-fi neon em português-2.png": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
+      "Pacote Cósmico do Garou.png": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
+      "kayden definitivo.png": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45"
+    },
+    "bytes": 16790360,
+    "sourceDirectory": "enfeites definitivos",
+    "masks": false,
+    "resizing": false,
+    "recoloring": false
+  },
+  "tests": {
+    "server": 300,
+    "web": 217,
+    "desktopScripts": 39,
+    "endToEnd": 18,
+    "failed": 0,
+    "totalPassed": 574,
+    "typecheck": "passed",
+    "build": "passed"
+  },
+  "ui": {
+    "screenshots": [
+      "shop-collections.png",
+      "night-fury-preview.png",
+      "mixed-profile.png",
+      "members-admin-owner.png",
+      "name-effects-inventory.png",
+      "offline-effect.png",
+      "desktop-name-effects.png",
+      "voice-member-effect.png",
+      "refreshed-collections-shop.png",
+      "refreshed-preview-madu-kaiden.png",
+      "refreshed-preview-barou.png",
+      "refreshed-preview-garou.png",
+      "refreshed-mobile-shop.png",
+      "refreshed-mobile-preview.png",
+      "definitive-live-profile-kayden.png"
+    ],
+    "geometry": [
+      {
+        "width": 1440,
+        "member": {
+          "x": 1185,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1419,
+          "bottom": 212.75,
+          "left": 1185
+        },
+        "effect": {
+          "x": 1185,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1419,
+          "bottom": 212.75,
+          "left": 1185
+        }
+      },
+      {
+        "width": 1100,
+        "member": {
+          "x": 845,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1079,
+          "bottom": 212.75,
+          "left": 845
+        },
+        "effect": {
+          "x": 845,
+          "y": 164.75,
+          "width": 234,
+          "height": 48,
+          "top": 164.75,
+          "right": 1079,
+          "bottom": 212.75,
+          "left": 845
+        }
+      },
+      {
+        "width": 900,
+        "member": {
+          "x": 193,
+          "y": 462.375,
+          "width": 514,
+          "height": 48,
+          "top": 462.375,
+          "right": 707,
+          "bottom": 510.375,
+          "left": 193
+        },
+        "effect": {
+          "x": 193,
+          "y": 462.375,
+          "width": 514,
+          "height": 48,
+          "top": 462.375,
+          "right": 707,
+          "bottom": 510.375,
+          "left": 193
+        }
+      },
+      {
+        "width": 390,
+        "member": {
+          "x": 31,
+          "y": 685,
+          "width": 328,
+          "height": 48,
+          "top": 685,
+          "right": 359,
+          "bottom": 733,
+          "left": 31
+        },
+        "effect": {
+          "x": 31,
+          "y": 685,
+          "width": 328,
+          "height": 48,
+          "top": 685,
+          "right": 359,
+          "bottom": 733,
+          "left": 31
+        }
+      }
+    ],
+    "loadedImages": {
+      "web": 108,
+      "desktop": 108
+    },
+    "checks": [
+      "Compra de coleção e item avulso pela interface",
+      "Mistura de coleções; perfil; equipar/desequipar sincronizado; altura preservada",
+      "Todos os 11 efeitos na conta de administrador",
+      "Presente de coleção e item; recebimento e equipamento pelo destinatário",
+      "Apelido, cargo, offline e efeitos entre servidores",
+      "Redimensionamento; desligar movimento persistido; prefers-reduced-motion",
+      "108 imagens carregadas no navegador e no Electron",
+      "Resposta antiga descartada sem apagar o efeito durante atualização",
+      "Efeito na lista de voz, duas contas LiveKit e menu de moderação acessível",
+      "Reinício real com banco em disco; sessão, slots e item antigo preservados",
+      "Seis painéis na proporção original; galeria; filtro e busca sem acentos; loja e prévia a 390px",
+      "Cinco artes definitivas do Kayden pela interface; lettering original; outra conta; escolha persistente"
+    ],
+    "performance": {
+      "baseline": {
+        "meanMs": 3.6116666666666712,
+        "p95Ms": 3.400000000000091
+      },
+      "decorated": {
+        "meanMs": 3.556666666666668,
+        "p95Ms": 3.400000000000091
+      },
+      "rows": 200
+    },
+    "requests": {
+      "direct": 64,
+      "browser": 732,
+      "limited": []
+    }
+  },
+  "packaging": {
+    "version": "0.3.9",
+    "revision": "definitive-artwork",
+    "productionDependencies": [
+      "electron-updater",
+      "builder-util-runtime",
+      "fs-extra",
+      "js-yaml",
+      "lazy-val",
+      "lodash.escaperegexp",
+      "lodash.isequal",
+      "semver",
+      "tiny-typed-emitter"
+    ],
+    "config": {
+      "connectionMode": "cloud",
+      "apiUrl": "https://shareroom-api-y1r7.onrender.com",
+      "siteUrl": "https://shareroom-api-y1r7.onrender.com"
+    },
+    "asarFiles": 313,
+    "fuseWire": {
+      "0": 48,
+      "1": 49,
+      "2": 48,
+      "3": 48,
+      "4": 49,
+      "5": 49,
+      "6": 48,
+      "7": 48,
+      "8": 49,
+      "version": "1"
+    },
+    "publish": "never",
+    "installer": {
+      "name": "CosmicNight-Setup-0.3.9.exe",
+      "bytes": 139849039,
+      "sha256": "ce703794283d168e6758f27f67038fd0cd1ef43bf5de0e38f952459e0ea8ed1d"
+    },
+    "webFiles": 143,
+    "webByteIdentical": true,
+    "audioHelperByteIdentical": true,
+    "authenticode": "NotSigned"
+  },
+  "productionChanged": false,
+  "backendDeployRequired": true
+}

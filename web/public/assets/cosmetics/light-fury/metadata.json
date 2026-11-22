@@ -6,63 +6,35 @@
     "#ffffff",
     "#b9d7ff"
   ],
-  "avatarScale": 1.6,
-  "resolution": "sheet",
-  "tagline": "Aurora, cristais e luz celestial.",
-  "frameAspect": 1.408696,
+  "avatarScale": 1.85,
+  "resolution": "definitive-grid",
+  "exactArtwork": true,
+  "nameArtwork": false,
+  "tagline": "Arte original do arquivo definitivo.",
+  "frameAspect": null,
+  "bannerAspect": 3.40625,
   "nameplateAsset": "assets/cosmetics/light-fury/nameplate.webp",
   "references": [
     {
-      "asset": "assets/cosmetic-references/reference-06.webp",
-      "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-15.webp",
-      "name": "Pacote de Avatar Dragão Luminoso-3"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-17.webp",
-      "name": "Pacote de UI Light Fury com Aurora-1"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-21.webp",
-      "name": "Painel Neon da Fúria da Luz-4"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-01.webp",
-      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+      "asset": "assets/cosmetic-references/definitive-02.png",
+      "name": "Grade de skins sci-fi neon em português-2"
     }
   ],
-  "banners": [
-    {
-      "id": "aurora",
-      "name": "Aurora",
-      "asset": "assets/cosmetics/light-fury/profile-banner-aurora.webp"
-    },
-    {
-      "id": "luar",
-      "name": "Luar",
-      "asset": "assets/cosmetics/light-fury/profile-banner-luar.webp"
-    }
-  ],
-  "notes": [
-    "Máscaras espaciais preservam áreas pretas decorativas.",
-    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
-    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
-  ],
+  "banners": [],
   "files": {
     "cover.webp": {
-      "source": "Pacote de Avatar Dragão Luminoso-3.png",
-      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        40,
-        683,
-        1204,
-        969
+        266,
+        8,
+        510,
+        177
       ],
       "size": [
-        1164,
-        286
+        244,
+        169
       ],
       "alpha": [
         255,
@@ -72,37 +44,39 @@
       "processing": []
     },
     "avatar-decoration.png": {
-      "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png",
-      "sha256": "06091ca7dd704ba6cd85e3ecd22570096e1cefadfcbf183c3e54d852086cc452",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        0,
-        0,
-        1254,
-        1254
+        277,
+        179,
+        390,
+        264
       ],
       "size": [
-        1254,
-        1254
+        113,
+        85
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
       "mask": "original alpha",
       "processing": []
     },
     "profile-frame.png": {
-      "source": "Pacote de Avatar Dragão Luminoso-3.png",
-      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        560,
-        215,
-        1208,
-        675
+        274,
+        289,
+        502,
+        342
       ],
       "size": [
-        648,
-        460
+        228,
+        53
       ],
       "alpha": [
         255,
@@ -112,17 +86,18 @@
       "processing": []
     },
     "profile-banner.webp": {
-      "source": "Pacote de Avatar Dragão Luminoso-3.png",
-      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        40,
-        683,
-        1204,
-        969
+        279,
+        364,
+        497,
+        428
       ],
       "size": [
-        1164,
-        286
+        218,
+        64
       ],
       "alpha": [
         255,
@@ -133,16 +108,17 @@
     },
     "username-effect.png": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        389,
-        455,
-        493,
-        487
+        380,
+        451,
+        496,
+        490
       ],
       "size": [
-        104,
-        32
+        116,
+        39
       ],
       "alpha": [
         255,
@@ -152,17 +128,18 @@
       "processing": []
     },
     "member-name-effect.webp": {
-      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
-      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        783,
-        365,
-        1093,
-        424
+        274,
+        289,
+        502,
+        342
       ],
       "size": [
-        310,
-        59
+        228,
+        53
       ],
       "alpha": [
         255,
@@ -172,17 +149,18 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Pacote de Avatar Dragão Luminoso-3.png",
-      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        723,
-        1017,
-        1199,
-        1203
+        419,
+        183,
+        495,
+        259
       ],
       "size": [
-        476,
-        186
+        76,
+        76
       ],
       "alpha": [
         255,
@@ -192,57 +170,18 @@
       "processing": []
     },
     "nameplate.webp": {
-      "source": "Pacote de Avatar Dragão Luminoso-3.png",
-      "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        74,
-        1045,
-        642,
-        1170
+        274,
+        289,
+        502,
+        342
       ],
       "size": [
-        568,
-        125
-      ],
-      "alpha": [
-        255,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "profile-banner-aurora.webp": {
-      "source": "Pacote de UI Light Fury com Aurora-1.png",
-      "sha256": "baf6a9ea551048fd09933b7b3e6729ea8e206567ab549f06198261d07bf760c1",
-      "crop": [
-        939,
-        111,
-        1662,
-        533
-      ],
-      "size": [
-        723,
-        422
-      ],
-      "alpha": [
-        223,
-        252
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "profile-banner-luar.webp": {
-      "source": "Painel Neon da Fúria da Luz-4.png",
-      "sha256": "3bb1be3438b670d634bdaf0f623fd7ea3a16977ed9ee6916ef54b18f55d5b3c0",
-      "crop": [
-        19,
-        682,
-        1240,
-        1235
-      ],
-      "size": [
-        1221,
-        553
+        228,
+        53
       ],
       "alpha": [
         255,

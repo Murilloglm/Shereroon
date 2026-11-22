@@ -8,6 +8,7 @@ import { PACK_ART, type PackArt } from './packs.tsx';
 
 /** Desenho e paleta do pacote do item (null para itens avulsos). */
 function packOf(item: CosmeticItem | undefined): { art: PackArt; palette: PackPalette } | null {
+  if (item?.exactArtwork) return null;
   const pack = item?.pack ? packById(item.pack) : undefined;
   const art = pack ? PACK_ART[pack.id] : undefined;
   return pack && art ? { art, palette: pack.palette } : null;
@@ -245,7 +246,9 @@ export function Adornment({ equipped, animate = false, force = false }: { equipp
   const choice = useStore(appearance, (state) => state.adornments);
   const item = itemById(equipped.item);
   const pack = packOf(item);
-  if (!item || item.kind !== 'enfeite' || !pack || (choice === 'ocultos' && !force)) return null;
+  if (!item || item.kind !== 'enfeite' || (choice === 'ocultos' && !force)) return null;
+  if (item.asset) return <img src={cosmeticAssetUrl(item.asset)} alt={item.name} className="cn-original-adornment" data-adornment={item.id} data-live="false" />;
+  if (!pack) return null;
   const live = animate && choice === 'animados' && !reducedMotion();
   return (
     <svg viewBox="-10 -10 20 20" className={cx('cn-adorn', live && 'cn-adorn-live')} role="img" aria-label={item.name} data-adornment={item.id} data-live={live}>
@@ -277,7 +280,15 @@ export function nameStyle(equipped: UserCosmetics): React.CSSProperties | undefi
   if (!item) return undefined;
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
   const pack = packOf(item);
+  if (item.exactArtwork) return undefined;
   return { backgroundImage: pack ? pack.art.name(pack.palette) : `linear-gradient(90deg, ${a}, ${b})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', textShadow: 'none' };
+}
+
+/** Lettering painted in the definitive sheet, kept separate from account identity. */
+export function NameArtwork({ equipped }: { equipped: UserCosmetics }) {
+  const item = equipped['cor-nome'] ? itemById(equipped['cor-nome'].item) : undefined;
+  if (!item?.exactArtwork || !item.asset) return null;
+  return <img src={cosmeticAssetUrl(item.asset)} alt={`Arte de nome ${item.name}`} className="cn-name-artwork" data-name-artwork={item.id} />;
 }
 
 /**
@@ -306,7 +317,7 @@ export function backgroundStyle(equipped: UserCosmetics): React.CSSProperties | 
   const item = choice ? itemById(choice.item) : undefined;
   if (!item) return undefined;
   const asset = cosmeticAsset(item, choice?.variant);
-  if (asset) return { backgroundImage: `url("${cosmeticAssetUrl(asset)}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
+  if (asset) return { backgroundImage: `url("${cosmeticAssetUrl(asset)}")`, backgroundSize: item.exactArtwork ? 'contain' : 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', ...(item.exactArtwork && item.assetAspect ? { aspectRatio: item.assetAspect, height: 'auto' } : {}) };
   const [a, b] = (item.variants.find((option) => option.id === choice!.variant) ?? item.variants[0]!).colors;
   const pack = packOf(item);
   if (pack) return pack.art.background(pack.palette);
@@ -355,11 +366,14 @@ export function DecoratedAvatar({
 }) {
   const equipped = useUserCosmetics(preview ? null : userId);
   const shown = preview ?? equipped;
+  const artwork = shown.decoracao ? itemById(shown.decoracao.item) : undefined;
+  const behind = artwork?.exactArtwork && !artwork.nameArtwork;
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }} data-decorated={shown.decoracao?.item ?? ''}>
       {shown.moldura && <Frame equipped={shown.moldura} size={size} />}
+      {behind && shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
       <Avatar id={userId} name={name} size={size} online={online} speaking={speaking} image={image} />
-      {shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
+      {!behind && shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
     </span>
   );
 }
@@ -393,8 +407,8 @@ export function MemberNameEffect({ userId, preview, animate = true }: { userId?:
   const choice = (preview ?? equipped)['efeito-nome'];
   const item = choice ? itemById(choice.item) : undefined;
   if (!item?.asset || item.kind !== 'efeito-nome') return null;
-  return <span className={cx('cn-member-effect', animate && 'cn-member-effect-live')} aria-hidden="true" data-name-effect={item.id}>
+  return <span className={cx('cn-member-effect', animate && !item.exactArtwork && 'cn-member-effect-live', item.exactArtwork && 'cn-member-effect-exact', item.nameArtwork && 'cn-member-effect-lettered')} aria-hidden="true" data-name-effect={item.id}>
     <img src={cosmeticAssetUrl(item.asset)} alt="" decoding="async" loading="lazy" />
-    <span className="cn-member-effect-veil" />
+    {!item.exactArtwork && <span className="cn-member-effect-veil" />}
   </span>;
 }

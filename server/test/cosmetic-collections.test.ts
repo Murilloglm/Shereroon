@@ -19,8 +19,8 @@ const friends = async (a: Person, b: Person) => { await w.ok('POST', '/api/frien
 
 describe('coleções com arte original e cinco espaços independentes', () => {
   it('oferece 11 coleções e 55 itens, preservando os 14 itens anteriores e seus preços', async () => {
-    expect(COLLECTIONS).toHaveLength(11);
-    expect(CATALOG.filter((item) => item.collectionId)).toHaveLength(55);
+    expect(COLLECTIONS).toHaveLength(13);
+    expect(CATALOG.filter((item) => item.collectionId)).toHaveLength(65);
     expect(CATALOG.filter((item) => !item.collectionId && !item.pack)).toHaveLength(14);
     for (const collection of COLLECTIONS) {
       expect(CATALOG.filter((item) => item.collectionId === collection.id).map((item) => item.kind)).toEqual(COLLECTION_SLOTS);
@@ -68,7 +68,7 @@ describe('coleções com arte original e cinco espaços independentes', () => {
       expect((await equip(a, item.kind, item.id)).equipped[item.kind]).toEqual({ item: item.id, variant: 'original' });
       expect((await equip(a, item.kind, null)).equipped[item.kind]).toBeUndefined();
     }
-    expect((await inventory(a)).items).toHaveLength(56);
+    expect((await inventory(a)).items).toHaveLength(66);
   }, 30_000);
 
   it('combina cinco coleções e sincroniza equipar/desequipar com observadores em dois servidores', async () => {
@@ -76,7 +76,7 @@ describe('coleções com arte original e cinco espaços independentes', () => {
     const g1 = await w.group(a), g2 = await w.group(b);
     await w.join(a, g1, b); await w.join(b, g2, a);
     const observer = await w.connect(b);
-    const ids = ['neon-decoracao', 'omen-moldura', 'rimuru-fundo', 'clove-cor-nome', 'night-fury-efeito-nome'];
+    const ids = ['neon-decoracao', 'omen-moldura', 'madu-kaiden-fundo', 'clove-cor-nome', 'night-fury-efeito-nome'];
     for (const id of ids) {
       const item = CATALOG.find((entry) => entry.id === id)!;
       await w.ok('POST', '/api/shop/buy', a.token, { itemId: id, expectedPrice: item.price });
@@ -123,20 +123,20 @@ describe('coleções com arte original e cinco espaços independentes', () => {
     expect((await w.ok('GET', '/api/me/gifts', b.token)).gifts[0]).toMatchObject({ itemId: 'collection:raze', price: q.price });
   });
 
-  it('fundos alternativos pertencem ao mesmo item, persistem e sincronizam sem nova compra', async () => {
+  it('arte definitiva do Kayden equipa, persiste e sincroniza sem nova compra', async () => {
     const a = await person(), b = await person(); await fund(a);
     const group = await w.group(a); await w.join(a, group, b);
-    await w.ok('POST', '/api/shop/buy', a.token, { itemId: 'rimuru-fundo', expectedPrice: 200 });
+    await w.ok('POST', '/api/shop/buy', a.token, { itemId: 'madu-kaiden-fundo', expectedPrice: 200 });
     const before = await points(a), observer = await w.connect(b);
-    const saved = await w.ok('PUT', '/api/me/equipped', a.token, { slot: 'fundo', itemId: 'rimuru-fundo', variant: 'celestial' });
-    expect(saved.equipped.fundo).toEqual({ item: 'rimuru-fundo', variant: 'celestial' });
+    const saved = await w.ok('PUT', '/api/me/equipped', a.token, { slot: 'fundo', itemId: 'madu-kaiden-fundo', variant: 'original' });
+    expect(saved.equipped.fundo).toEqual({ item: 'madu-kaiden-fundo', variant: 'original' });
     expect((await inventory(a)).items).toHaveLength(1);
     expect(await points(a)).toBe(before);
     expect((await w.ok('GET', `/api/cosmetics?ids=${a.id}`, b.token)).cosmetics[a.id].fundo).toEqual(saved.equipped.fundo);
     expect(observer.of('profile.changed').some((event: any) => event.userId === a.id)).toBe(true);
-    expect((await w.api('PUT', '/api/me/equipped', a.token, { slot: 'fundo', itemId: 'rimuru-fundo', variant: 'nao-existe' })).status).toBe(400);
-    expect((await inventory(a)).equipped.fundo.variant).toBe('celestial');
-    expect((await equip(a, 'fundo', 'rimuru-fundo')).equipped.fundo.variant).toBe('original');
+    expect((await w.api('PUT', '/api/me/equipped', a.token, { slot: 'fundo', itemId: 'madu-kaiden-fundo', variant: 'nao-existe' })).status).toBe(400);
+    expect((await inventory(a)).equipped.fundo.variant).toBe('original');
+    expect((await equip(a, 'fundo', 'madu-kaiden-fundo')).equipped.fundo.variant).toBe('original');
     observer.close();
   });
 

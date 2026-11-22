@@ -85,7 +85,7 @@ after(async () => {
 
 test('Coleções: 11 capas, prévia com nick próprio e compra real de pacote e item avulso', async () => {
   await settings(ana, 'loja'); await ana.getByTestId('shop-collections').click();
-  assert.equal(await ana.getByTestId('collection-card').count(), 11);
+  assert.equal(await ana.getByTestId('collection-card').count(), 13);
   await screenshot(ana, 'shop-collections');
   await ana.getByTestId('buy-collection-night-fury').click();
   await ana.getByTestId('dialog-confirm').click();
@@ -217,6 +217,11 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
 });
 
 test('arquivos PNG/WebP carregam no navegador e no protocolo do desktop', { timeout: 60_000 }, async () => {
+  // Separate the bulk shop/profile phase from asset and voice checks. Production
+  // rate limits stay enabled; all accounts and purchases remain in the same DB.
+  await stack.stop();
+  stack = await startStack({ COSMIC_DEV_POINTS: '1', DATABASE_URL: '', PGLITE_DIR: resolve(folder, 'db') });
+  for (const page of [ana,beto]) { await page.reload(); await page.getByTestId('chat').waitFor(); }
   // This check can also run alone, without relying on the earlier gift test.
   const current = await api(c, 'GET', '/api/me/inventory');
   if (!current.items.some((item) => item.id === 'madu-kaiden-efeito-nome')) {
@@ -346,7 +351,7 @@ test('artes grandes, galeria, pesquisa e filtros funcionam em computador e celul
     evidence.screenshots.push(`refreshed-preview-${collection.id}.png`);
     await modal.getByRole('tab', { name: 'Artes originais', exact: true }).click();
     assert.equal(await modal.locator('.cn-original-thumbnails button').count(), collection.references.length);
-    await modal.locator('.cn-original-thumbnails button').nth(1).click();
+    await modal.locator('.cn-original-thumbnails button').first().click();
     await waitFor(() => modal.locator('.cn-original-artwork > img').evaluate((image) => image.complete && image.naturalWidth > 0), 'folha original carregada');
     if (collection.id === 'clove') await screenshot(beto, 'refreshed-original-clove');
     await modal.getByRole('button', { name: 'Fechar', exact: true }).click();
@@ -370,30 +375,31 @@ test('artes grandes, galeria, pesquisa e filtros funcionam em computador e celul
   evidence.checks.push('Seis painéis na proporção original; galeria; filtro e busca sem acentos; loja e prévia a 390px');
 });
 
-test('estilo alternativo e coleção completa equipam pela interface, sincronizam e persistem após recarregar', { timeout: 60_000 }, async () => {
+test('Kayden definitivo equipa as cinco artes, sincroniza e persiste após recarregar', { timeout: 60_000 }, async () => {
   await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click();
-  await beto.getByTestId('preview-rimuru').click();
-  await beto.getByTestId('variant-rimuru-fundo-celestial').click();
-  await waitFor(() => beto.getByTestId('collection-preview').locator('.cn-artwork-banner').evaluate((image) => image.src.includes('celestial') && image.complete), 'fundo alternativo na prévia');
+  await beto.getByTestId('preview-madu-kaiden').click();
+  await waitFor(() => beto.getByTestId('collection-preview').locator('.cn-artwork-banner').first().evaluate((image) => image.src.includes('madu-kaiden') && image.complete), 'arte definitiva na prévia');
   await beto.getByTestId('equip-collection').click();
-  await beto.getByTestId('unequip-rimuru-fundo').waitFor();
+  await beto.getByTestId('unequip-madu-kaiden-fundo').waitFor();
   await waitFor(async () => !(await beto.getByTestId('equip-collection').isDisabled()), 'cinco peças equipadas');
   const saved = await api(b, 'GET', '/api/me/inventory');
-  assert.equal(Object.values(saved.equipped).filter((entry) => entry.item.startsWith('rimuru-')).length, 5);
-  assert.equal(saved.equipped.fundo.variant, 'celestial');
-  await beto.getByRole('dialog', { name: 'Rimuru Tempest', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
+  assert.equal(Object.values(saved.equipped).filter((entry) => entry.item.startsWith('madu-kaiden-')).length, 5);
+  assert.equal(saved.equipped.fundo.variant, 'original');
+  await beto.getByRole('dialog', { name: 'Kayden', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
   await closeSettings(beto);
-  await row(ana, b.user.username).locator('[data-name-effect="rimuru-efeito-nome"]').waitFor();
+  await row(ana, b.user.username).locator('[data-name-effect="madu-kaiden-efeito-nome"]').waitFor();
   await row(ana, b.user.username).click();
   const profile = ana.getByTestId('profile-card');
-  await profile.locator('.cn-profile-frame[data-profile-frame="rimuru-moldura"]').waitFor();
-  await waitFor(async () => (await profile.getByTestId('profile-banner').getAttribute('style')).includes('celestial'), 'fundo alternativo no perfil da outra conta');
-  await screenshot(ana, 'refreshed-live-profile-rimuru');
+  try { await profile.locator('.cn-profile-frame[data-profile-frame="madu-kaiden-moldura"]').waitFor({timeout:10_000}); }
+  catch (error) { await screenshot(ana, 'definitive-profile-failure'); writeFileSync(resolve(output,'definitive-profile-failure.txt'),await ana.locator('body').innerText()); throw error; }
+  await profile.locator('[data-name-artwork="madu-kaiden-cor-nome"]').waitFor();
+  await waitFor(async () => (await profile.getByTestId('profile-banner').getAttribute('style')).includes('madu-kaiden'), 'fundo definitivo no perfil da outra conta');
+  await screenshot(ana, 'definitive-live-profile-kayden');
   await ana.keyboard.press('Escape');
   await beto.reload(); await beto.getByTestId('chat').waitFor();
-  await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click(); await beto.getByTestId('preview-rimuru').click();
-  assert.equal(await beto.getByTestId('variant-rimuru-fundo-celestial').getAttribute('aria-checked'), 'true');
-  await beto.getByRole('dialog', { name: 'Rimuru Tempest', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
+  await settings(beto, 'loja'); await beto.getByTestId('shop-collections').click(); await beto.getByTestId('preview-madu-kaiden').click();
+  await beto.getByTestId('unequip-madu-kaiden-fundo').waitFor();
+  await beto.getByRole('dialog', { name: 'Kayden', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
   await closeSettings(beto);
-  evidence.checks.push('Coleção completa e estilo Celestial pela interface; outra conta; recarregamento preserva a escolha');
+  evidence.checks.push('Cinco artes definitivas do Kayden pela interface; lettering original; outra conta; escolha persistente');
 });

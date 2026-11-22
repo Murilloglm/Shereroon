@@ -1,68 +1,40 @@
 {
   "id": "madu-kaiden",
-  "name": "Madu Kaiden",
+  "name": "Kayden",
   "franchise": "Eleceed",
   "colors": [
-    "#fff0a3",
-    "#ffc32e"
+    "#80caff",
+    "#ffd26f"
   ],
-  "avatarScale": 1.64,
-  "resolution": "sheet",
-  "tagline": "Raios dourados e um gato nada comum.",
-  "frameAspect": 0.980545,
+  "avatarScale": 1.5,
+  "resolution": "definitive-sheet",
+  "exactArtwork": true,
+  "nameArtwork": true,
+  "tagline": "Arte original do arquivo definitivo.",
+  "frameAspect": 1.1074380165289257,
+  "bannerAspect": 2.6363636363636362,
   "nameplateAsset": "assets/cosmetics/madu-kaiden/nameplate.webp",
   "references": [
     {
-      "asset": "assets/cosmetic-references/reference-07.webp",
-      "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-19.webp",
-      "name": "Pacote Neon do Gato Elétrico-5"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-12.webp",
-      "name": "Kit de Perfil Felino Elétrico Neon-6"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-20.webp",
-      "name": "Pacote Visual Gato Elétrico Neon-2"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-01.webp",
-      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+      "asset": "assets/cosmetic-references/definitive-03.png",
+      "name": "kayden definitivo"
     }
   ],
-  "banners": [
-    {
-      "id": "tempestade",
-      "name": "Tempestade elétrica",
-      "asset": "assets/cosmetics/madu-kaiden/profile-banner-tempestade.webp"
-    },
-    {
-      "id": "dourado",
-      "name": "Energia dourada",
-      "asset": "assets/cosmetics/madu-kaiden/profile-banner-dourado.webp"
-    }
-  ],
-  "notes": [
-    "Máscaras espaciais preservam áreas pretas decorativas.",
-    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
-    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
-  ],
+  "banners": [],
   "files": {
     "cover.webp": {
-      "source": "Pacote Neon do Gato Elétrico-5.png",
-      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
       "crop": [
-        24,
-        564,
-        1231,
-        924
+        0,
+        0,
+        1092,
+        272
       ],
       "size": [
-        1207,
-        360
+        1092,
+        272
       ],
       "alpha": [
         255,
@@ -72,156 +44,38 @@
       "processing": []
     },
     "avatar-decoration.png": {
-      "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png",
-      "sha256": "7f0655a205696384d4ad94290c8de816389cf5929f0bf1c2d587588415d7c02d",
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
       "crop": [
-        0,
-        0,
-        1254,
-        1254
+        80,
+        320,
+        500,
+        686
       ],
       "size": [
-        1254,
-        1254
+        420,
+        366
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
       "mask": "original alpha",
       "processing": []
     },
     "profile-frame.png": {
-      "source": "Pacote Neon do Gato Elétrico-5.png",
-      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
       "crop": [
-        694,
-        30,
-        1198,
-        544
+        616,
+        320,
+        1018,
+        683
       ],
       "size": [
-        504,
-        514
-      ],
-      "alpha": [
-        255,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "profile-banner.webp": {
-      "source": "Pacote Neon do Gato Elétrico-5.png",
-      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
-      "crop": [
-        24,
-        564,
-        1231,
-        924
-      ],
-      "size": [
-        1207,
-        360
-      ],
-      "alpha": [
-        255,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "username-effect.png": {
-      "source": "Grade de skins sci-fi neon em português-2.png",
-      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
-      "crop": [
-        644,
-        455,
-        747,
-        487
-      ],
-      "size": [
-        103,
-        32
-      ],
-      "alpha": [
-        255,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "member-name-effect.webp": {
-      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
-      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
-      "crop": [
-        783,
-        446,
-        1093,
-        505
-      ],
-      "size": [
-        310,
-        59
-      ],
-      "alpha": [
-        255,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "server-badge.png": {
-      "source": "Pacote Neon do Gato Elétrico-5.png",
-      "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
-      "crop": [
-        780,
-        996,
-        1203,
-        1160
-      ],
-      "size": [
-        423,
-        164
-      ],
-      "alpha": [
-        255,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "nameplate.webp": {
-      "source": "Pacote Visual Gato Elétrico Neon-2.png",
-      "sha256": "16eb9f6ac562ec293e5c492d321becf54b1f78916c9376d023f43e39aab02f0d",
-      "crop": [
-        532,
-        451,
-        1325,
-        648
-      ],
-      "size": [
-        793,
-        197
-      ],
-      "alpha": [
-        0,
-        255
-      ],
-      "mask": "original alpha",
-      "processing": []
-    },
-    "profile-banner-tempestade.webp": {
-      "source": "Kit de Perfil Felino Elétrico Neon-6.png",
-      "sha256": "7d09c8c9da67fdb53be3feb271f2392699fe90f3148d9f171bed27dc99c8d6bf",
-      "crop": [
-        35,
-        583,
-        1216,
-        946
-      ],
-      "size": [
-        1181,
+        402,
         363
       ],
       "alpha": [
@@ -231,22 +85,107 @@
       "mask": "original alpha",
       "processing": []
     },
-    "profile-banner-dourado.webp": {
-      "source": "Pacote Visual Gato Elétrico Neon-2.png",
-      "sha256": "16eb9f6ac562ec293e5c492d321becf54b1f78916c9376d023f43e39aab02f0d",
+    "profile-banner.webp": {
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
       "crop": [
-        958,
-        37,
-        1671,
-        478
+        25,
+        704,
+        1069,
+        1100
       ],
       "size": [
-        713,
-        441
+        1044,
+        396
       ],
       "alpha": [
-        0,
-        254
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "username-effect.png": {
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
+      "crop": [
+        44,
+        1178,
+        472,
+        1348
+      ],
+      "size": [
+        428,
+        170
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "member-name-effect.webp": {
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
+      "crop": [
+        518,
+        1174,
+        1051,
+        1352
+      ],
+      "size": [
+        533,
+        178
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "server-badge.png": {
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
+      "crop": [
+        518,
+        1174,
+        1051,
+        1352
+      ],
+      "size": [
+        533,
+        178
+      ],
+      "alpha": [
+        255,
+        255
+      ],
+      "mask": "original alpha",
+      "processing": []
+    },
+    "nameplate.webp": {
+      "source": "kayden definitivo.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
+      "crop": [
+        518,
+        1174,
+        1051,
+        1352
+      ],
+      "size": [
+        533,
+        178
+      ],
+      "alpha": [
+        255,
+        255
       ],
       "mask": "original alpha",
       "processing": []

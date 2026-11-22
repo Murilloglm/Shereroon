@@ -1,6 +1,6 @@
 import type { UserCosmetics } from '../../lib/cosmetics.ts';
 import { itemById } from '../../../../shared/cosmetics.ts';
-import { Adornment, ArtworkProfileFrame, BackgroundArt, backgroundStyle, DecoratedAvatar, nameStyle, ProfileFrame, ProfileNameplate } from './Decoration.tsx';
+import { Adornment, ArtworkProfileFrame, BackgroundArt, backgroundStyle, DecoratedAvatar, NameArtwork, nameStyle, ProfileFrame, ProfileNameplate } from './Decoration.tsx';
 
 /**
  * Prévia de como o perfil fica com um conjunto de cosméticos (`look`), antes de comprar ou equipar: fundo, moldura
@@ -18,7 +18,7 @@ export function ProfilePreview({ userId, name, avatar, look, animate = true, tes
         <BackgroundArt equipped={look} />
       </div>
       {framed ? <div className="mx-auto w-full max-w-80 p-3"><ArtworkProfileFrame preview={look}>
-        <div className="flex justify-center py-3"><DecoratedAvatar userId={userId} name={name} size={48} image={avatar} animate={animate} preview={look} /></div>
+        <div className="flex justify-center py-3"><DecoratedAvatar userId={userId} name={name} size={80} image={avatar} animate={animate} preview={look} /></div>
         <p className="flex w-full min-w-0 items-center justify-center text-base font-extrabold">{displayedName}</p>
       </ArtworkProfileFrame></div> : <div className="-mt-10 flex items-end gap-5 px-9 pb-4">
         <div className="shrink-0 rounded-full border-4 border-ink-900 bg-ink-900">
@@ -26,6 +26,7 @@ export function ProfilePreview({ userId, name, avatar, look, animate = true, tes
         </div>
         <div className="mb-1 min-w-0 flex-1"><ProfileNameplate preview={look}><p className="flex min-w-0 items-center text-base font-extrabold">{displayedName}</p></ProfileNameplate></div>
       </div>}
+      <NameArtwork equipped={look} />
     </div>
   );
 }

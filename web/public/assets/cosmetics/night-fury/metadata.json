@@ -6,44 +6,35 @@
     "#dcafff",
     "#9465ff"
   ],
-  "avatarScale": 1.52,
-  "resolution": "sheet",
-  "tagline": "Asas violetas, escamas e luar.",
-  "frameAspect": 1.181193,
+  "avatarScale": 1.85,
+  "resolution": "definitive-grid",
+  "exactArtwork": true,
+  "nameArtwork": false,
+  "tagline": "Arte original do arquivo definitivo.",
+  "frameAspect": null,
+  "bannerAspect": 3.421875,
   "nameplateAsset": "assets/cosmetics/night-fury/nameplate.webp",
   "references": [
     {
-      "asset": "assets/cosmetic-references/reference-05.webp",
-      "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-18.webp",
-      "name": "Pacote Fúria da Noite em Neon-1"
-    },
-    {
-      "asset": "assets/cosmetic-references/reference-01.webp",
-      "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário"
+      "asset": "assets/cosmetic-references/definitive-02.png",
+      "name": "Grade de skins sci-fi neon em português-2"
     }
   ],
   "banners": [],
-  "notes": [
-    "Máscaras espaciais preservam áreas pretas decorativas.",
-    "Painéis, fundos e faixas são recortes exatos, sem redesenho ou ampliação.",
-    "Cor do nome usa o gradiente da referência; a amostra Aa não é sobreposta ao nick."
-  ],
   "files": {
     "cover.webp": {
-      "source": "Pacote Fúria da Noite em Neon-1.png",
-      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        44,
-        632,
-        1208,
-        911
+        8,
+        8,
+        253,
+        177
       ],
       "size": [
-        1164,
-        279
+        245,
+        169
       ],
       "alpha": [
         255,
@@ -53,37 +44,39 @@
       "processing": []
     },
     "avatar-decoration.png": {
-      "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png",
-      "sha256": "d1612b1660609c296fa688f46a3af613a259ec3cdc1f0d72e6967402887a0e98",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        0,
-        0,
-        1254,
-        1254
+        19,
+        179,
+        132,
+        264
       ],
       "size": [
-        1254,
-        1254
+        113,
+        85
       ],
       "alpha": [
-        0,
+        255,
         255
       ],
       "mask": "original alpha",
       "processing": []
     },
     "profile-frame.png": {
-      "source": "Pacote Fúria da Noite em Neon-1.png",
-      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        645,
-        174,
-        1160,
-        610
+        16,
+        289,
+        245,
+        342
       ],
       "size": [
-        515,
-        436
+        229,
+        53
       ],
       "alpha": [
         255,
@@ -93,17 +86,18 @@
       "processing": []
     },
     "profile-banner.webp": {
-      "source": "Pacote Fúria da Noite em Neon-1.png",
-      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        44,
-        632,
-        1208,
-        911
+        21,
+        364,
+        240,
+        428
       ],
       "size": [
-        1164,
-        279
+        219,
+        64
       ],
       "alpha": [
         255,
@@ -114,16 +108,17 @@
     },
     "username-effect.png": {
       "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
       "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        131,
-        455,
-        236,
-        487
+        122,
+        451,
+        239,
+        490
       ],
       "size": [
-        105,
-        32
+        117,
+        39
       ],
       "alpha": [
         255,
@@ -133,17 +128,18 @@
       "processing": []
     },
     "member-name-effect.webp": {
-      "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
-      "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        783,
-        284,
-        1093,
-        343
+        16,
+        289,
+        245,
+        342
       ],
       "size": [
-        310,
-        59
+        229,
+        53
       ],
       "alpha": [
         255,
@@ -153,17 +149,18 @@
       "processing": []
     },
     "server-badge.png": {
-      "source": "Pacote Fúria da Noite em Neon-1.png",
-      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        789,
-        970,
-        1198,
-        1114
+        161,
+        183,
+        238,
+        259
       ],
       "size": [
-        409,
-        144
+        77,
+        76
       ],
       "alpha": [
         255,
@@ -173,17 +170,18 @@
       "processing": []
     },
     "nameplate.webp": {
-      "source": "Pacote Fúria da Noite em Neon-1.png",
-      "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
+      "source": "Grade de skins sci-fi neon em português-2.png",
+      "sourceDirectory": "enfeites definitivos",
+      "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
       "crop": [
-        73,
-        977,
-        758,
-        1109
+        16,
+        289,
+        245,
+        342
       ],
       "size": [
-        685,
-        132
+        229,
+        53
       ],
       "alpha": [
         255,

@@ -1,222 +1,50 @@
 {
-  "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png": {
-    "asset": "assets/cosmetic-references/reference-01.webp",
-    "name": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário",
-    "source": "Conceito Cosmic Night_ Efeitos Cósmicos de Usuário.png",
-    "sha256": "787ac16a5bdd9b013a57d5213359ce7ffba261672837a12768f5064d0f0c8820",
+  "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png": {
+    "asset": "assets/cosmetic-references/definitive-01.png",
+    "name": "Barou_ Pacote Cosmetico do Rei dos Artilheiros",
+    "source": "Barou_ Pacote Cosmetico do Rei dos Artilheiros.png",
+    "sourceDirectory": "enfeites definitivos",
+    "sha256": "f0bd6759f8cd98bb7aad93622040ed1545440e21ca91b1ba8907eec8572138cd",
     "size": [
-      1122,
-      1402
-    ]
-  },
-  "Conjunto de Cosméticos do Slime Azul-3.png": {
-    "asset": "assets/cosmetic-references/reference-02.webp",
-    "name": "Conjunto de Cosméticos do Slime Azul-3",
-    "source": "Conjunto de Cosméticos do Slime Azul-3.png",
-    "sha256": "6292902071c35c92cc1ef8f0213d991efe07c845784d83cc43d9349d52c668ee",
-    "size": [
-      1672,
-      941
-    ]
-  },
-  "Cosméticos de Rimuru em Néon Celestial-8.png": {
-    "asset": "assets/cosmetic-references/reference-03.webp",
-    "name": "Cosméticos de Rimuru em Néon Celestial-8",
-    "source": "Cosméticos de Rimuru em Néon Celestial-8.png",
-    "sha256": "2d80bb150149440c044cba63a99c8949cba6089f616dd0c41342f129bd2a0ef5",
-    "size": [
-      1254,
-      1254
-    ]
+      1092,
+      1440
+    ],
+    "byteIdentical": true
   },
   "Grade de skins sci-fi neon em português-2.png": {
-    "asset": "assets/cosmetic-references/reference-04.webp",
+    "asset": "assets/cosmetic-references/definitive-02.png",
     "name": "Grade de skins sci-fi neon em português-2",
     "source": "Grade de skins sci-fi neon em português-2.png",
+    "sourceDirectory": "enfeites definitivos",
     "sha256": "dd6ff5fe7de483f54975e71c1178220ad013316f18b58b2ac752ab225e8597ae",
     "size": [
       1536,
       1024
-    ]
+    ],
+    "byteIdentical": true
   },
-  "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png": {
-    "asset": "assets/cosmetic-references/reference-05.webp",
-    "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58",
-    "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_41_58.png",
-    "sha256": "d1612b1660609c296fa688f46a3af613a259ec3cdc1f0d72e6967402887a0e98",
+  "kayden definitivo.png": {
+    "asset": "assets/cosmetic-references/definitive-03.png",
+    "name": "kayden definitivo",
+    "source": "kayden definitivo.png",
+    "sourceDirectory": "enfeites definitivos",
+    "sha256": "3fae2a687e19776f9a4da7c27243947b272473052bab95c9f2db37ae69b87a45",
     "size": [
-      1254,
-      1254
-    ]
+      1092,
+      1440
+    ],
+    "byteIdentical": true
   },
-  "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png": {
-    "asset": "assets/cosmetic-references/reference-06.webp",
-    "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03",
-    "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_03.png",
-    "sha256": "06091ca7dd704ba6cd85e3ecd22570096e1cefadfcbf183c3e54d852086cc452",
+  "Pacote Cósmico do Garou.png": {
+    "asset": "assets/cosmetic-references/definitive-04.png",
+    "name": "Pacote Cósmico do Garou",
+    "source": "Pacote Cósmico do Garou.png",
+    "sourceDirectory": "enfeites definitivos",
+    "sha256": "e2dbbe7b77646d716b50443e3d7c677574d1b3ceec9865e4c6c626ceafbcb865",
     "size": [
-      1254,
-      1254
-    ]
-  },
-  "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png": {
-    "asset": "assets/cosmetic-references/reference-07.webp",
-    "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08",
-    "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_08.png",
-    "sha256": "7f0655a205696384d4ad94290c8de816389cf5929f0bf1c2d587588415d7c02d",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png": {
-    "asset": "assets/cosmetic-references/reference-08.webp",
-    "name": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13",
-    "source": "Imagem do ChatGPT 18 de nov. de 2026, 22_42_13.png",
-    "sha256": "89e1e4ed94c9facd322ee35a2bc54242b431e970a03118efe0376db220f31d24",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Kit Cosmético Neon de Clove-4.png": {
-    "asset": "assets/cosmetic-references/reference-09.webp",
-    "name": "Kit Cosmético Neon de Clove-4",
-    "source": "Kit Cosmético Neon de Clove-4.png",
-    "sha256": "a5fc62b1082c2ef53a6adfeadc8862233d77309f398a6ec498ef1ed87d0b202e",
-    "size": [
-      1536,
-      1024
-    ]
-  },
-  "Kit cosmético neon de Valorant-12.png": {
-    "asset": "assets/cosmetic-references/reference-10.webp",
-    "name": "Kit cosmético neon de Valorant-12",
-    "source": "Kit cosmético neon de Valorant-12.png",
-    "sha256": "0dc1a61947ac94fc3b48c428db9ffc21a2019c6b4f82fcff21659393e63bd251",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Kit de Interface Neon da Clove-10.png": {
-    "asset": "assets/cosmetic-references/reference-11.webp",
-    "name": "Kit de Interface Neon da Clove-10",
-    "source": "Kit de Interface Neon da Clove-10.png",
-    "sha256": "832a3d66daef7b496d46ad2c6e672e0559db0b0642fc64a8fad7dcaa63864d56",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Kit de Perfil Felino Elétrico Neon-6.png": {
-    "asset": "assets/cosmetic-references/reference-12.webp",
-    "name": "Kit de Perfil Felino Elétrico Neon-6",
-    "source": "Kit de Perfil Felino Elétrico Neon-6.png",
-    "sha256": "7d09c8c9da67fdb53be3feb271f2392699fe90f3148d9f171bed27dc99c8d6bf",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Kit de UI Neon com Energia Elétrica-5.png": {
-    "asset": "assets/cosmetic-references/reference-13.webp",
-    "name": "Kit de UI Neon com Energia Elétrica-5",
-    "source": "Kit de UI Neon com Energia Elétrica-5.png",
-    "sha256": "7da2d8bf3e7523a6f12badfa9760a80121737a98fa7758d83cc8a2ee78243d70",
-    "size": [
-      1672,
-      941
-    ]
-  },
-  "Pacote Cósmico de Slime Azul-7.png": {
-    "asset": "assets/cosmetic-references/reference-14.webp",
-    "name": "Pacote Cósmico de Slime Azul-7",
-    "source": "Pacote Cósmico de Slime Azul-7.png",
-    "sha256": "a8ffd88eb6dded188b96b3d7744f4430d5e9d8857202cc838e363dc1c77531be",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Pacote de Avatar Dragão Luminoso-3.png": {
-    "asset": "assets/cosmetic-references/reference-15.webp",
-    "name": "Pacote de Avatar Dragão Luminoso-3",
-    "source": "Pacote de Avatar Dragão Luminoso-3.png",
-    "sha256": "f7c2dbce7ad8e40be556ea1eb4f7f2b5a29f60099056b70a93e3cdfcaff4883b",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Pacote de Cosméticos Neon Roxo da Clove-9.png": {
-    "asset": "assets/cosmetic-references/reference-16.webp",
-    "name": "Pacote de Cosméticos Neon Roxo da Clove-9",
-    "source": "Pacote de Cosméticos Neon Roxo da Clove-9.png",
-    "sha256": "a9592e5614efecd86fe20a9b06ebb8f63e9185bf8109e89bd099e45f49c76af8",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Pacote de UI Light Fury com Aurora-1.png": {
-    "asset": "assets/cosmetic-references/reference-17.webp",
-    "name": "Pacote de UI Light Fury com Aurora-1",
-    "source": "Pacote de UI Light Fury com Aurora-1.png",
-    "sha256": "baf6a9ea551048fd09933b7b3e6729ea8e206567ab549f06198261d07bf760c1",
-    "size": [
-      1672,
-      941
-    ]
-  },
-  "Pacote Fúria da Noite em Neon-1.png": {
-    "asset": "assets/cosmetic-references/reference-18.webp",
-    "name": "Pacote Fúria da Noite em Neon-1",
-    "source": "Pacote Fúria da Noite em Neon-1.png",
-    "sha256": "71bf7dbeec588dbac06108ce18ec7ed6e8557e807228345f2b775bbe6354d60e",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Pacote Neon do Gato Elétrico-5.png": {
-    "asset": "assets/cosmetic-references/reference-19.webp",
-    "name": "Pacote Neon do Gato Elétrico-5",
-    "source": "Pacote Neon do Gato Elétrico-5.png",
-    "sha256": "222d2cd01a23b786f5474147f49ae47df9738b6a26f3aacd22d49f22146ea9a8",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Pacote Visual Gato Elétrico Neon-2.png": {
-    "asset": "assets/cosmetic-references/reference-20.webp",
-    "name": "Pacote Visual Gato Elétrico Neon-2",
-    "source": "Pacote Visual Gato Elétrico Neon-2.png",
-    "sha256": "16eb9f6ac562ec293e5c492d321becf54b1f78916c9376d023f43e39aab02f0d",
-    "size": [
-      1672,
-      941
-    ]
-  },
-  "Painel Neon da Fúria da Luz-4.png": {
-    "asset": "assets/cosmetic-references/reference-21.webp",
-    "name": "Painel Neon da Fúria da Luz-4",
-    "source": "Painel Neon da Fúria da Luz-4.png",
-    "sha256": "3bb1be3438b670d634bdaf0f623fd7ea3a16977ed9ee6916ef54b18f55d5b3c0",
-    "size": [
-      1254,
-      1254
-    ]
-  },
-  "Painel Neon_ Arsenal Elétrico Futurista-11.png": {
-    "asset": "assets/cosmetic-references/reference-22.webp",
-    "name": "Painel Neon_ Arsenal Elétrico Futurista-11",
-    "source": "Painel Neon_ Arsenal Elétrico Futurista-11.png",
-    "sha256": "328afc4d962cbf86f049fa463117a8ced144bdac526d61ac1ea787ec72cf8b82",
-    "size": [
-      1254,
-      1254
-    ]
+      1092,
+      1440
+    ],
+    "byteIdentical": true
   }
 }
