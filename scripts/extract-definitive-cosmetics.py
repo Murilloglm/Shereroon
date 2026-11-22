@@ -1,5 +1,6 @@
 """Lossless artwork crops and separate display masks. Source images are never rewritten."""
 from pathlib import Path
+from avatar_centers import write_centers
 from hashlib import sha256
 from shutil import copy2
 from PIL import Image, ImageChops, ImageDraw, ImageOps
@@ -140,4 +141,5 @@ export interface CosmeticCollection {
 }
 export const COLLECTIONS: CosmeticCollection[] = '''
 (ROOT/'shared/cosmetic-collections.ts').write_text(types+json.dumps(collections,ensure_ascii=False,indent=2)+';\nexport const collectionById = (id: string) => COLLECTIONS.find((collection) => collection.id === id);\n',encoding='utf-8')
+write_centers(ROOT)
 print(f'Extracted {len(collections)} definitive collections. No artwork pixels changed.')

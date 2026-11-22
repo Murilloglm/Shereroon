@@ -492,10 +492,9 @@
     transform-origin: 0 0;
   }
   .cn-deco-speaking {
-    filter: drop-shadow(0 0 4px var(--color-ok-400));
-    transform: scale(1.05);
+    filter: brightness(1.2);
   }
-  .cn-deco-speaking .cn-wings {
+  :root:not([data-frame-intensity=desativado]) .cn-deco-live.cn-deco-speaking .cn-wings {
     transform: scale(1.08);
   }
   .cn-wings {

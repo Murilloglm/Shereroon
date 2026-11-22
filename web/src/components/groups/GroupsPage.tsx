@@ -449,8 +449,9 @@ function VoicePeopleList({ people, live, session, channel }: { people: MemberVie
             onDragEnd={() => {
               draggingMember = null;
             }}
-            data-testid="voice-member"
+            data-testid="voice-member" data-server-member
           >
+            <MemberNameEffect userId={member.userId} animate={false} />
             {session ? (
               <StreamHover session={session} identity={member.userId} name={memberName(member)} enabled={state?.sharing === true} className="flex min-w-0 flex-1 items-center gap-2">
                 <UserTrigger userId={member.userId} className="flex min-w-0 flex-1 items-center gap-2">

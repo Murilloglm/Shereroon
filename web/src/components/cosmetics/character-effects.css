@@ -20,6 +20,10 @@
 .cn-character-fx[data-fx-speaking] .cn-fx-aura {
   box-shadow: 0 0 9px 2px color-mix(in srgb, var(--fx-primary) 75%, transparent), inset 0 0 4px var(--fx-secondary);
 }
+[data-voice-theme][data-speaking] > .cn-avatar-artwork { filter: brightness(1.18); }
+[data-voice-theme] > .cn-avatar-artwork { transition: filter 140ms ease-out; }
+@media (prefers-reduced-motion: reduce) { [data-voice-theme] > .cn-avatar-artwork { transition: none; } }
+:root:is([data-motion=reduzida], [data-frame-intensity=desativado]) [data-voice-theme] > .cn-avatar-artwork { transition: none; }
 .cn-fx-track {
   stroke: var(--fx-secondary);
   stroke-width: 1.15;

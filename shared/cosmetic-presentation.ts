@@ -1,8 +1,9 @@
+import { avatarCenters } from './avatar-centers.ts';
 import { characterEffect } from './character-effects.ts';
 
 export interface AvatarArtwork {
-  width: number;
-  aspect: number;
+  width?: number;
+  aspect?: number;
   center?: [x: number, y: number];
   mask?: string;
 }
@@ -56,6 +57,12 @@ const presentation: Record<string, CosmeticPresentation> = {
 export function cosmeticPresentation(collectionId: string): CosmeticPresentation | undefined {
   const settings = presentation[collectionId];
   const motionTheme = characterEffect(collectionId) ? collectionId : undefined;
-  if (!settings) return motionTheme ? { motionTheme } : undefined;
-  return { ...settings, motionTheme, backdropMask: `assets/cosmetic-masks/${collectionId}-avatar.png` };
+  const center = avatarCenters[collectionId];
+  if (!settings && !center) return motionTheme ? { motionTheme } : undefined;
+  return {
+    ...settings,
+    motionTheme,
+    avatar: center ? { ...settings?.avatar, center } : settings?.avatar,
+    backdropMask: `assets/cosmetic-masks/${collectionId}-avatar.png`,
+  };
 }

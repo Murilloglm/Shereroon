@@ -370,6 +370,7 @@ export function DecoratedAvatar({
   entrance = false,
   preview,
   separateFrame = false,
+  voiceCaption = false,
   previewPhoto = false,
   previewPhotoUrl,
 }: {
@@ -384,18 +385,20 @@ export function DecoratedAvatar({
   /** Mostrar estes itens no lugar dos equipados (prévia na loja). */
   preview?: UserCosmetics;
   separateFrame?: boolean;
+  voiceCaption?: boolean;
   /** Na edição de perfil, respeita a escolha ainda não salva. */
   previewPhoto?: boolean;
   previewPhotoUrl?: string | null;
 }) {
   const equipped = useUserCosmetics(preview ? null : userId);
   const shown = preview ?? equipped;
-  const theme = itemById(shown.decoracao?.item ?? '')?.presentation?.motionTheme
+  const decoration = shown.decoracao && itemById(shown.decoracao.item);
+  const theme = decoration?.presentation?.motionTheme
     ?? (separateFrame ? undefined : itemById(shown.moldura?.item ?? '')?.presentation?.motionTheme);
   return (
-    <span className="relative inline-flex shrink-0" style={{ width: size, height: size }} data-decorated={shown.decoracao?.item ?? ''}>
+    <span className="relative inline-grid shrink-0 place-items-center align-middle" style={{ width: size, height: size }} data-speaking={speaking || undefined} data-voice-theme={theme} data-decorated={shown.decoracao?.item ?? ''}>
       {shown.moldura && <Frame equipped={shown.moldura} size={size} />}
-      <Avatar id={userId} name={name} size={size} online={online} speaking={speaking} image={image} preview={previewPhoto} previewUrl={previewPhotoUrl} />
+      <Avatar id={userId} name={name} size={size} online={online} speaking={speaking && !voiceCaption && !decoration?.reactsToVoice && !theme} image={image} preview={previewPhoto} previewUrl={previewPhotoUrl} />
       {shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
       {animate && theme && <CharacterEffects key={theme} theme={theme} speaking={speaking} />}
     </span>
@@ -407,10 +410,12 @@ export function MemberNameEffect({ userId, preview, animate = true }: { userId?:
   const equipped = useUserCosmetics(preview ? null : userId);
   const choice = (preview ?? equipped)['efeito-nome'];
   const item = choice ? itemById(choice.item) : undefined;
-  if (!item?.asset || item.kind !== 'efeito-nome') return null;
+  if (!item || item.kind !== 'efeito-nome') return null;
+  const asset = cosmeticAsset(item, choice?.variant);
+  if (!asset) return null;
   const sample = item.presentation?.sampleText;
   return <span className={cx('cn-member-effect', animate && item.animated && !item.exactArtwork && 'cn-member-effect-live')} aria-hidden="true" data-name-effect={item.id}>
-    <img src={cosmeticAssetUrl(item.asset)} alt="" decoding="async" loading="lazy" style={{ clipPath: sample ? openingClip(sample) : undefined, maskImage: item.presentation?.effectMask ? `url("${cosmeticAssetUrl(item.presentation.effectMask)}")` : undefined, maskSize: '100% 100%' }} />
+    <img src={cosmeticAssetUrl(asset)} alt="" decoding="async" loading="lazy" style={{ clipPath: sample ? openingClip(sample) : undefined, maskImage: item.presentation?.effectMask ? `url("${cosmeticAssetUrl(item.presentation.effectMask)}")` : undefined, maskSize: '100% 100%' }} />
     <span className="cn-member-effect-veil" />
   </span>;
 }

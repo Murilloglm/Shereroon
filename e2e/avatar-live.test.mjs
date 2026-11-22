@@ -23,8 +23,9 @@ async function photoShows(page, reference, scope) {
   await img.waitFor(); await waitFor(() => imageShows(img), 'photo has decoded pixels');
 }
 before(async () => {
-  stack = await startStack({ DATABASE_URL: '', COSMIC_DEV_POINTS: '1' }); browser = await launchChrome({ headless: true });
+  stack = await startStack({ DATABASE_URL: '', COSMIC_DEV_POINTS: '1' }); browser = await launchChrome({ headless: true, fakeMic: true });
   owner = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
+  await owner.addInitScript(() => localStorage.setItem('shareroom:microfone', JSON.stringify({echoCancellation:false, noiseSuppression:false, autoGainControl:false, gain:1})));
   viewer = await (await browser.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
   for (const [page, name] of [[owner,'photoowner'],[viewer,'photoviewer']]) { page.setDefaultTimeout(20000); await page.goto(BASE_URL); await signup(page,name); }
   await owner.getByTestId('rail-create').click(); await owner.getByTestId('group-name').fill('Photos'); await owner.getByTestId('group-create').click(); await owner.getByTestId('chat').waitFor();
@@ -74,6 +75,10 @@ test('voice header shows the photo and a logged-in private caller shares it with
   const cardName = ownerCard.getByTestId('call-card-name');
   await ownerCard.locator('[data-decoration="hinata-decoracao"]').evaluate(img => img.decode());
   await ownerCard.locator('[data-theme-id=hinata] [data-motif=lily]').first().waitFor();
+  await owner.getByTestId('dock-mic').click();
+  await ownerCard.getByRole('img', {name: 'Photoowner está falando'}).waitFor();
+  await owner.getByTestId('dock-mic').click();
+  await ownerCard.getByTestId('call-card-mic-off').waitFor();
   await photoShows(guest,photo,ownerCard);
   await cardName.locator('[data-name-style="neon-cor-nome"]').waitFor();
   await changeLook('PUT','/api/me/equipped',{slot:'cor-nome',itemId:'hinata-cor-nome',variant:'original'});

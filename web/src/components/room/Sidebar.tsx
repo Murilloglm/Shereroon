@@ -172,7 +172,7 @@ export function ParticipantsCard({
             data-server-member={serverNameEffects || undefined}
             className="group flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink-800"
           >
-            {serverNameEffects && <MemberNameEffect userId={person.accountId ?? person.identity} />}
+            {serverNameEffects && <MemberNameEffect preview={person.guestLook} userId={person.accountId ?? person.identity} />}
             <StreamHover session={session} identity={person.identity} name={person.name} enabled={person.sharing} className="flex min-w-0 flex-1 items-center gap-3">
             <UserTrigger userId={person.isLocal ? null : person.accountId ?? person.identity} className="flex min-w-0 flex-1 items-center gap-3">
             {person.accountId

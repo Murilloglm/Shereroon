@@ -190,6 +190,11 @@ test('apelido, cargo, status, offline e outro servidor preservam o efeito', asyn
 });
 
 test('redimensionamento e animações desativadas não alteram limites da linha', async () => {
+  // Separate the bulk shop/profile phase from asset and voice checks. Production
+  // rate limits stay enabled; all accounts and purchases remain in the same DB.
+  await stack.stop();
+  stack = await startStack({ COSMIC_DEV_POINTS: '1', DATABASE_URL: '', PGLITE_DIR: resolve(folder, 'db') });
+  for (const page of [ana,beto]) { await page.reload(); await page.getByTestId('chat').waitFor(); }
   for (const width of [1440, 1100, 900, 390]) {
     await ana.setViewportSize({ width, height: 1000 });
     const narrow = width < 1024;
@@ -211,8 +216,17 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
   await settings(ana, 'efeitos-nome'); await ana.getByRole('switch', { name: 'Animar efeitos de nome', exact: true }).click();
   const image = ana.getByTestId('member-effect-preview').first().locator('[data-name-effect] img');
   assert.equal(await image.evaluate((el) => getComputedStyle(el).animationName), 'none');
+  let transientFailure = false;
+  const failOnce = async route => {
+    if (transientFailure || !route.request().url().includes(b.user.id)) return route.continue();
+    transientFailure = true;
+    await route.fulfill({status:503, contentType:'application/json', body:'{}'});
+  };
+  await ana.route('**/api/cosmetics?*', failOnce);
   await ana.reload(); await ana.getByTestId('chat').waitFor();
   assert.equal(await row(ana, b.user.username).locator('[data-name-effect] img').evaluate((el) => getComputedStyle(el).animationName), 'none');
+  assert(transientFailure, 'a consulta de equipamentos foi repetida após uma falha transitória');
+  await ana.unroute('**/api/cosmetics?*', failOnce);
   await settings(ana, 'efeitos-nome'); await ana.getByRole('switch', { name: 'Animar efeitos de nome', exact: true }).click(); await closeSettings(ana);
   await ana.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal(await row(ana, b.user.username).locator('[data-name-effect] img').evaluate((el) => getComputedStyle(el).animationName), 'none');
@@ -221,11 +235,6 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
 });
 
 test('artes e máscara do Kayden carregam no navegador e no protocolo do desktop', { timeout: 60_000 }, async () => {
-  // Separate the bulk shop/profile phase from asset and voice checks. Production
-  // rate limits stay enabled; all accounts and purchases remain in the same DB.
-  await stack.stop();
-  stack = await startStack({ COSMIC_DEV_POINTS: '1', DATABASE_URL: '', PGLITE_DIR: resolve(folder, 'db') });
-  for (const page of [ana,beto]) { await page.reload(); await page.getByTestId('chat').waitFor(); }
   // This check can also run alone, without relying on the earlier gift test.
   const current = await api(c, 'GET', '/api/me/inventory');
   if (!current.items.some((item) => item.id === 'madu-kaiden-efeito-nome')) {
@@ -356,6 +365,13 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
   await ribbon.waitFor();
   const remoteCard = ana.getByTestId('call-card').and(ana.locator(`[data-identity="${b.user.id}"]`));
   await remoteCard.waitFor();
+  await ana.getByTestId('voice-member').and(ana.locator('[data-user="' + b.user.username + '"]')).locator('[data-name-effect="madu-kaiden-efeito-nome"]').waitFor();
+  const neutralShadow = await remoteCard.evaluate(card => getComputedStyle(card).boxShadow);
+  await beto.getByTestId('dock-mic').click();
+  await remoteCard.getByRole('img', {name: 'Beto Estelar está falando'}).waitFor();
+  assert.equal(await remoteCard.evaluate(card => getComputedStyle(card).boxShadow), neutralShadow);
+  await beto.getByTestId('dock-mic').click();
+  await remoteCard.getByTestId('call-card-mic-off').waitFor();
   assert.equal(await remoteCard.locator('[data-decoration]').count(), 0);
   await equip(b, 'decoracao', 'hinata-decoracao');
   const flower = remoteCard.locator('[data-decoration="hinata-decoracao"]');
@@ -365,6 +381,11 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
   for (const page of [ana, beto]) await page.getByTestId('dock-mic').click();
   try {
     await waitFor(async () => await ana.locator('[data-testid=call-card][data-speaking=true] [data-fx-speaking=true] .cn-fx-aura').count() === 2, 'duas molduras reagem simultaneamente à voz do LiveKit', 20_000);
+    await ana.emulateMedia({reducedMotion: 'reduce'});
+    await remoteCard.getByRole('img', {name: 'Beto Estelar está falando'}).waitFor();
+    assert.equal(await remoteCard.evaluate(card => getComputedStyle(card).boxShadow), neutralShadow);
+    await waitFor(() => flower.evaluate(img => getComputedStyle(img).filter === 'brightness(1.18)'), 'brilho estático da arte');
+    await ana.emulateMedia({reducedMotion: 'no-preference'});
   } finally { for (const page of [ana, beto]) await page.getByTestId('dock-mic').click(); }
   await waitFor(async () => await ana.locator('[data-testid=call-card] [data-fx-speaking]').count() === 0, 'reação encerra ao silenciar');
   assert.match(await flower.evaluate(img => getComputedStyle(img).maskImage), /hinata-avatar/);
@@ -379,11 +400,23 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
     const art = card.querySelector('[data-decoration]').getBoundingClientRect();
     const name = card.querySelector('[data-testid="call-card-name"]').getBoundingClientRect();
     const box = card.getBoundingClientRect();
-    return art.y >= box.y && art.bottom <= name.top && art.x >= box.x && art.right <= box.right;
+    const avatar = card.querySelector('[data-avatar]').getBoundingClientRect();
+    const centered = Math.abs(avatar.x + avatar.width/2 - box.x - box.width/2) < 1
+      && Math.abs(avatar.y + avatar.height/2 - box.y - box.height/2) < 1;
+    return centered && art.y >= box.y && art.bottom <= name.top && art.x >= box.x && art.right <= box.right;
   }), 'decoração cabe no cartão e acima do nome');
   await remoteCard.screenshot({path:resolve(output,'hinata-call.png'),animations:'disabled'});
   await ana.setViewportSize({width:1440,height:1000});
   await equip(b,'decoracao',null); await equip(b,'cor-nome',null);
+  const basicFrame = CATALOG.find(item => item.id === 'moldura-neon');
+  await api(b, 'POST', '/api/shop/buy', {itemId: basicFrame.id, expectedPrice: basicFrame.price});
+  await api(b, 'PUT', '/api/me/equipped', {slot:'moldura', itemId:basicFrame.id, variant:basicFrame.variants[0].id});
+  await remoteCard.locator('[data-frame="moldura-neon"]').waitFor();
+  await beto.getByTestId('dock-mic').click();
+  await remoteCard.getByRole('img', {name:'Beto Estelar está falando'}).waitFor();
+  assert.equal(await remoteCard.evaluate(card => getComputedStyle(card).boxShadow), neutralShadow);
+  await beto.getByTestId('dock-mic').click();
+  await equip(b,'moldura',null);
   const ribbonBox = await ribbon.boundingBox();
   const buttonBox = await memberAction.boundingBox();
   const participantBox = await participant.boundingBox();

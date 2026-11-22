@@ -4,6 +4,7 @@
 //  - "Usando o aplicativo": a cada minuto, se houve teclado, mouse ou toque, o servidor fica sabendo. É o que separa a
 //    chamada de verdade de um aplicativo esquecido aberto (as recompensas de chamada só contam assim).
 import { itemById, type CosmeticItem, type Equipped, type ItemKind } from '../../../shared/cosmetics.ts';
+import { ApiError } from './api.ts';
 import { groups } from './groups/client.ts';
 import { Store } from './store.ts';
 
@@ -157,13 +158,25 @@ class CosmeticsClient {
     if (ids.length === 0 || !groups.store.get().account) return;
     const generation = this.#generation;
     const versions = new Map(ids.map((id) => [id, this.#versions.get(id) ?? 0]));
+    await this.#fetchEquipment(ids, generation, versions, 0);
+  }
+
+  async #fetchEquipment(ids: string[], generation: number, versions: Map<string, number>, attempt: number): Promise<void> {
+    if (generation !== this.#generation) return;
     try {
       const { cosmetics } = await groups.call<{ cosmetics: Record<string, UserCosmetics> }>('GET', `/api/cosmetics?ids=${ids.join(',')}`);
       if (generation !== this.#generation) return;
       const fresh = Object.fromEntries(Object.entries(cosmetics).filter(([id]) => versions.get(id) === (this.#versions.get(id) ?? 0)));
       this.store.set((state) => ({ byUser: { ...state.byUser, ...fresh } }));
-    } catch {
-      // sem conexão: tenta de novo quando pedirem de novo
+    } catch (error) {
+      if (generation !== this.#generation || attempt >= 3) return;
+      const status = error instanceof ApiError ? error.status : 0;
+      if (status > 0 && status < 500 && status !== 429 && status !== 408) return;
+      const delay = status === 429 ? 60_500 : 1000 * 2 ** attempt;
+      setTimeout(() => {
+        const current = ids.filter(id => versions.get(id) === (this.#versions.get(id) ?? 0));
+        if (current.length) void this.#fetchEquipment(current, generation, versions, attempt + 1);
+      }, delay);
     }
   }
 
