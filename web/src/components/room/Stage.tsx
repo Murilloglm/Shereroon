@@ -80,8 +80,8 @@ function StreamTile({
   const track = stream.track;
   useAttachedTrack(videoRef, track, !paused);
   const report = useCallback((fps: number | null) => session.reportPresentedFps(fps), [session]);
-  const measured = useMeasuredVideo(videoRef, track !== null && !paused && !stream.isLocal, primary ? report : undefined);
-  const shown = primary && real ? real : measured;
+  const measured = useMeasuredVideo(videoRef, !paused && !stream.isLocal ? track : null, primary ? report : undefined);
+  const shown = stream.isLocal && primary && real ? real : measured;
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === tileRef.current);

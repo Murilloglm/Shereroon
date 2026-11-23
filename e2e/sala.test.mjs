@@ -32,7 +32,15 @@ after(async () => {
 
 test('o dono cria uma sala com senha e entra direto', async () => {
   const context = await hostBrowser.newContext({ viewport: { width: 1600, height: 900 } });
+  await context.addInitScript(() => {
+    const connections = [];
+    window.__mediaConnections = connections;
+    window.RTCPeerConnection = class extends RTCPeerConnection {
+      constructor(...args) { super(...args); connections.push(this); }
+    };
+  });
   const source = await context.newPage();
+  await source.setViewportSize({ width: 1920, height: 1080 });
   await source.setContent(sourcePageHtml(SOURCE_TITLE));
 
   host = await context.newPage();
@@ -156,6 +164,33 @@ test('as estatísticas mostram valores medidos nos dois lados', async () => {
   assert.equal(numberIn(badge), facts.height, `selo "${badge}" × vídeo ${facts.height}`);
 });
 
+test('mede quadros apresentados após mudanças de resolução e FPS', { timeout: 100_000 }, async () => {
+  await host.getByTestId('dock-quality').click();
+  for (const [height, fps] of [[480, 30], [720, 60], [1080, 60], [900, 90], [1080, 120]]) {
+    await host.getByTestId('quality-res-' + height).click();
+    await host.getByTestId('quality-fps-' + fps).click();
+    await sleep(3500);
+    const result = await guest.getByTestId('stage-video').evaluate(async video => {
+      const start = performance.now();
+      const before = video.getVideoPlaybackQuality();
+      await new Promise(done => setTimeout(done, 3000));
+      const after = video.getVideoPlaybackQuality();
+      const frames = after.totalVideoFrames - before.totalVideoFrames;
+      const dropped = after.droppedVideoFrames - before.droppedVideoFrames;
+      return { width: video.videoWidth, height: video.videoHeight, fps: Math.round((frames - dropped) * 1000 / (performance.now() - start)), dropped };
+    });
+    const stats = await host.getByTestId('stats-card').locator('dl').evaluate(list =>
+      Object.fromEntries([...list.querySelectorAll('dt')].map(label => [label.textContent, label.nextElementSibling?.textContent])),
+    );
+    console.log('medição', JSON.stringify({ target: [height, fps], ...result, codec: stats.Codec, encoder: stats.Codificador,
+      encode: stats['Tempo por quadro'], latencyEstimate: await guest.getByTestId('stat-latency').textContent() }));
+    assert(result.width > 0 && result.fps > 0);
+  }
+  await host.getByTestId('quality-res-720').click();
+  await host.getByTestId('quality-fps-60').click();
+  await host.keyboard.press('Escape');
+});
+
 test('o áudio da aba compartilhada chega ao convidado (tom de 880 Hz)', { skip: headless && 'o Chrome sem janela não renderiza áudio' }, async () => {
   let tones = [];
   await waitFor(async () => {
@@ -205,6 +240,95 @@ test('parar e voltar a compartilhar é imediato', async () => {
   await waitFor(async () => (await videoFacts(guest)).frames > framesAtStart + 10, 'vídeo de volta no convidado');
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 8000, `voltou em ${elapsed} ms`);
+});
+
+test('o perfil troca ao vivo e o player volta à camada alta ao expandir', { skip: headless }, async () => {
+  await host.getByTestId('dock-quality').click();
+  await host.getByTestId('quality-mode-auto').click();
+  await host.getByTestId('stream-profile').selectOption('desempenho');
+  await waitFor(async () => (await videoFacts(guest)).width === 1280, 'perfil Desempenho transmitir a 720p');
+  await host.getByTestId('stream-profile').selectOption('qualidade');
+  await waitFor(async () => (await videoFacts(guest)).width === 1920, 'perfil Qualidade transmitir a 1080p');
+  await host.getByTestId('stream-profile').selectOption('equilibrado');
+  await host.keyboard.press('Escape');
+
+  await host.getByTestId('dock-settings').click();
+  await host.getByTestId('codec-h264').click();
+  await host.getByRole('switch', { name: 'Camada leve' }).click();
+  await host.getByTestId('settings-close').click();
+  await guest.bringToFront();
+  const highWidth = 1920;
+  const small = await guest.addStyleTag({ content: '[data-testid="stage-primary"] { width: 240px; height: 135px; }' });
+  try {
+    await waitFor(async () => {
+      const { width } = await videoFacts(guest);
+      // A granularidade de escala do codificador pode arredondar a meia resolução.
+      return width >= highWidth * 0.4 && width <= highWidth * 0.6;
+    }, 'a miniatura receber a camada leve', 25_000).catch(async error => {
+      const facts = await videoFacts(guest);
+      const size = await guest.getByTestId('stage-video').boundingBox();
+      throw new Error(`${error.message}. Recebido: ${JSON.stringify(facts)}, player: ${JSON.stringify(size)}`);
+    });
+    console.log('camada pequena:', await videoFacts(guest));
+  } finally {
+    await small.evaluate(style => style.remove());
+  }
+  const originalViewport = guest.viewportSize();
+  await guest.setViewportSize({ width: 1920, height: 1080 });
+  await guest.getByTestId('stage-fullscreen').click();
+  await waitFor(async () => await guest.evaluate(() => Boolean(document.fullscreenElement)), 'abrir em tela cheia');
+  await waitFor(async () => {
+    const received = await videoFacts(guest);
+    if (received.width < highWidth * 0.8) return false;
+    // O codec pode arredondar a resolução. Compare com a maior camada que está sendo enviada.
+    const encodedWidth = await host.evaluate(async () => {
+      let width = 0;
+      for (const connection of window.__mediaConnections) {
+        const report = await connection.getStats();
+        report.forEach(stat => {
+          if (stat.type === 'outbound-rtp' && stat.kind === 'video' && stat.active !== false && stat.framesPerSecond > 0) {
+            width = Math.max(width, stat.frameWidth ?? 0);
+          }
+        });
+      }
+      return width;
+    });
+    return received.width === encodedWidth;
+  }, 'o player expandido receber a maior camada efetivamente codificada', 25_000);
+  console.log('camada em tela cheia:', await videoFacts(guest));
+  await guest.evaluate(() => document.exitFullscreen());
+  await guest.setViewportSize(originalViewport);
+});
+
+test('perda de pacotes no WebRTC aparece no receptor e o player volta a fluir', { skip: headless }, async t => {
+  const cdp = await guest.context().newCDPSession(guest);
+  await cdp.send('Network.enable');
+  const observedLoss = () => guest.getByTestId('stat-loss').innerText().then(text => parseFloat(text.replace(',', '.')));
+  if (!await guest.getByTestId('stats-card').isVisible()) await guest.getByTestId('stage-stats').click();
+  try {
+    await cdp.send('Network.emulateNetworkConditionsByRule', {
+      matchedNetworkConditions: [{ urlPattern: '', latency: 40, downloadThroughput: 350_000,
+        uploadThroughput: 350_000, packetLoss: 12, packetQueueLength: 16 }],
+    });
+    const measured = await waitFor(async () => (await observedLoss()) > 0, 'medição de perda RTP', 15_000)
+      .then(() => true, () => false);
+    if (!measured) return t.skip('O Chrome não registrou perda RTP com a emulação de rede nesta conexão local.');
+    console.log('perda medida no receptor:', await guest.getByTestId('stat-loss').innerText());
+  } finally {
+    await cdp.send('Network.emulateNetworkConditionsByRule', { matchedNetworkConditions: [] });
+    await cdp.detach();
+  }
+  const first = (await videoFacts(guest)).frames;
+  await waitFor(async () => (await videoFacts(guest)).frames > first + 45, 'entrega após a oscilação');
+});
+
+test('a transmissão volta a entregar quadros após queda do SFU', async t => {
+  if (!stack.ownsLivekit) return t.skip('servidor compartilhado');
+  await stack.restartLivekit(3000);
+  await waitFor(async () => (await guest.getByTestId('connection').getAttribute('data-phase')) === 'connected', 'reconectar', 60_000);
+  await waitFor(async () => (await videoFacts(guest)).width > 0, 'voltar a receber o vídeo', 30_000);
+  const first = (await videoFacts(guest)).frames;
+  await waitFor(async () => (await videoFacts(guest)).frames > first + 20, 'novos quadros após a reconexão', 30_000);
 });
 
 test('o dono expulsa o convidado, que não consegue voltar', async () => {

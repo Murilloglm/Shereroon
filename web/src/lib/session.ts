@@ -32,6 +32,7 @@ import { inputSettings, effectiveMic } from './input-settings.ts';
 import { playCallSound } from './call-sounds.ts';
 import { audioContext, listAudioDevices, loadBoostWorklet, micPermission, PeakMeter, resumeAudio, type AudioDevices } from './audio.ts';
 import {
+  automaticCodec,
   CaptureError,
   captureFacts,
   retarget,
@@ -48,7 +49,8 @@ import { DEFAULT_MIC, GATE_FADE_MS, MicError, MicPipeline, OPEN_FADE_MS, type Mi
 import {
   buildLadder,
   contentHintFor,
-  DEGRADATION,
+  degradationFor,
+  mainEncodingPaused,
   diagnose,
   effectiveBitrateKbps,
   initialAutoState,
@@ -57,7 +59,7 @@ import {
   shortfallCause,
   sanitizeQuality,
   stepAuto,
-  TOP_TARGET,
+  PROFILE_TARGETS,
   widthFor,
   type AutoState,
   type Codec,
@@ -177,6 +179,7 @@ export interface ShareView {
 }
 
 export interface PublisherView {
+  mainPaused: boolean;
   stats: PublisherStats;
   captureFpsPeak: number | null;
   diagnosis: Diagnosis[];
@@ -363,7 +366,9 @@ export class RoomSession {
   #availableHistory: (number | null)[] = [];
   #settleUntil = 0;
   #auto: AutoState = initialAutoState();
-  #ladder: Target[] = buildLadder({ maxHeight: 1080, maxFps: 120 });
+  #autoCodec: Codec | null = null;
+  #sourceLimits = { maxHeight: 1080, maxFps: 120 };
+  #ladder: Target[] = [];
   #uplinks = new Map<string, UplinkInfo>();
   #presentedFps: number | null = null;
   #audioElements = new Map<string, HTMLMediaElement>();
@@ -428,7 +433,7 @@ export class RoomSession {
       // mudanças de volume com rampa, sem estalo.
       webAudioMix: { audioContext: audioContext() },
       adaptiveStream: { pixelDensity: 'screen' },
-      dynacast: false,
+      dynacast: true,
       // A captura de tela é nossa: uma queda de conexão não pode encerrá-la.
       stopLocalTrackOnUnpublish: false,
       disconnectOnPageLeave: true,
@@ -1161,14 +1166,14 @@ export class RoomSession {
   #currentTarget(): Target {
     const { quality } = this.store.get();
     if (quality.mode === 'manual') return this.#allowed({ height: quality.resolution, fps: quality.fps });
-    return this.#allowed(this.#ladder[Math.min(this.#auto.level, this.#ladder.length - 1)] ?? TOP_TARGET);
+    return this.#allowed(this.#ladder[Math.min(this.#auto.level, this.#ladder.length - 1)] ?? PROFILE_TARGETS[quality.profile]);
   }
 
   #resolveCodec(): Codec {
     const { quality, codecs } = this.store.get();
     if (quality.codec !== 'auto' && codecs.includes(quality.codec)) return quality.codec;
-    // Automático: H.264 tem codificação e decodificação por hardware em praticamente tudo, inclusive celulares.
-    return codecs.includes('h264') ? 'h264' : (codecs[0] ?? 'vp8');
+    // Sem uma indicação de aceleração na fonte, prioriza a compatibilidade do H.264.
+    return this.#autoCodec ?? (codecs.includes('h264') ? 'h264' : (codecs[0] ?? 'vp8'));
   }
 
   async startShare(): Promise<void> {
@@ -1184,7 +1189,7 @@ export class RoomSession {
     try {
       // A autorização é do navegador: nada é capturado antes de a pessoa escolher a fonte.
       this.#capture = await startCapture({
-        target: this.#allowed(manual ? { height: state.quality.resolution, fps: state.quality.fps } : TOP_TARGET),
+        target: this.#allowed(manual ? { height: state.quality.resolution, fps: state.quality.fps } : PROFILE_TARGETS[state.quality.profile]),
         audio: state.audioSource === 'navegador' && state.rights.streamAudio,
         surface: this.#preferredSurface,
       });
@@ -1200,13 +1205,20 @@ export class RoomSession {
     // "Parar compartilhamento" na barra do próprio navegador.
     capture.video.addEventListener('ended', () => void this.stopShare());
 
+    this.#autoCodec = null;
     const facts = captureFacts(capture.video);
-    this.#ladder = buildLadder({ maxHeight: facts.height ?? 1080, maxFps: facts.maxFrameRate ?? 120 });
+    this.#sourceLimits = { maxHeight: facts.maxHeight ?? facts.height ?? 1080, maxFps: facts.maxFrameRate ?? 120 };
+    this.#ladder = buildLadder(this.#sourceLimits, this.store.get().quality.profile);
     this.#auto = initialAutoState();
     this.#capturePeak.reset();
     this.#availableHistory = [];
 
     try {
+      if (state.quality.codec === 'auto') {
+        const codec = await automaticCodec(state.codecs, this.#currentTarget());
+        if (this.#capture !== capture) return;
+        this.#autoCodec = codec;
+      }
       await this.#publishShare();
     } catch (error) {
       capture.stop();
@@ -1272,14 +1284,14 @@ export class RoomSession {
       name: sourceName(capture),
       stream: SCREEN_STREAM,
       videoCodec: codec,
-      // VP9/AV1: publica H.264 de reserva só se algum espectador não decodificar o codec escolhido.
+      // O LiveKit negocia um codec de reserva para espectadores sem VP9/AV1.
       backupCodec: layered,
       // VP9/AV1 usam camadas temporais (o SFU pode entregar menos FPS a quem tem internet fraca).
       scalabilityMode: layered ? 'L1T3' : undefined,
       simulcast: quality.lightLayer && !layered,
       screenShareEncoding: { maxBitrate: bitrateKbps * 1000, maxFramerate: target.fps, priority: 'high' },
-      screenShareSimulcastLayers: quality.lightLayer && !layered ? [lightLayerFor(target, codec)] : undefined,
-      degradationPreference: DEGRADATION,
+      screenShareSimulcastLayers: quality.lightLayer && !layered ? [lightLayerFor(target, codec, capture.video.getSettings())] : undefined,
+      degradationPreference: degradationFor(quality),
     };
     this.#screenPub = await this.#room.localParticipant.publishTrack(capture.video, options);
     await this.#publishScreenAudio();
@@ -1367,14 +1379,23 @@ export class RoomSession {
 
   // --- Qualidade --------------------------------------------------------------------
 
-  async updateQuality(patch: Partial<QualitySettings>): Promise<void> {
+  #qualityChanges: Promise<void> = Promise.resolve();
+
+  updateQuality(patch: Partial<QualitySettings>): Promise<void> {
+    const change = this.#qualityChanges.then(() => this.#updateQuality(patch));
+    this.#qualityChanges = change.catch(() => undefined);
+    return change;
+  }
+
+  async #updateQuality(patch: Partial<QualitySettings>): Promise<void> {
     const before = this.store.get().quality;
     const quality = sanitizeQuality({ ...before, ...patch });
     storage.set('shareroom:qualidade', quality);
     this.store.set({ quality });
     if (!this.#capture || !this.#screenPub) return;
 
-    if (quality.mode === 'auto' && before.mode !== 'auto') {
+    if (quality.mode === 'auto' && (before.mode !== 'auto' || before.profile !== quality.profile)) {
+      this.#ladder = buildLadder(this.#sourceLimits, quality.profile);
       this.#auto = initialAutoState();
       this.store.set((state) => ({ share: { ...state.share, autoNote: null } }));
     }
@@ -1405,6 +1426,7 @@ export class RoomSession {
     const bitrateKbps = effectiveBitrateKbps(quality, target, codec);
 
     await retarget(capture.video, target);
+    if (capture !== this.#capture || track !== this.#screenPub?.videoTrack) return;
     capture.video.contentHint = contentHintFor(quality.content);
 
     try {
@@ -1418,11 +1440,12 @@ export class RoomSession {
         main.maxFramerate = target.fps;
         await sender.setParameters(parameters);
       }
-      await track.setDegradationPreference(DEGRADATION);
+      await track.setDegradationPreference(degradationFor(quality));
     } catch (error) {
       console.warn('Não foi possível ajustar o codificador', error);
     }
 
+    if (capture !== this.#capture || track !== this.#screenPub?.videoTrack) return;
     this.#settleUntil = Date.now() + SETTLE_MS;
     this.#capturePeak.reset();
     this.#availableHistory = [];
@@ -1647,12 +1670,18 @@ export class RoomSession {
     }));
   }
 
+  #sampling = false;
+
   async #tick(): Promise<void> {
+    if (this.#sampling) return;
+    this.#sampling = true;
     this.#tickCount += 1;
     try {
       await Promise.all([this.#readPublisher(), this.#readViewer()]);
     } catch {
       // uma leitura perdida não é problema: a próxima vem em 1 s
+    } finally {
+      this.#sampling = false;
     }
   }
 
@@ -1664,6 +1693,7 @@ export class RoomSession {
       return;
     }
     const { stats, counters } = readPublisher(collect(await track.getRTCStatsReport()), this.#pubCounters);
+    if (track !== this.#screenPub?.videoTrack) return;
     this.#pubCounters = counters;
 
     const now = Date.now();
@@ -1693,13 +1723,14 @@ export class RoomSession {
       ramping,
       surface: state.share.surface,
     };
-    const diagnosis = diagnose(target, real).filter((item) => !warmingUp || item.code === 'fonte_menor');
+    const mainPaused = state.quality.lightLayer && mainEncodingPaused(track.sender?.getParameters().encodings);
+    const diagnosis = mainPaused ? [] : diagnose(target, real).filter((item) => !warmingUp || item.code === 'fonte_menor');
 
-    this.store.set({ publisher: { stats, captureFpsPeak: peak, diagnosis, settling: warmingUp || ramping } });
+    this.store.set({ publisher: { stats, mainPaused, captureFpsPeak: peak, diagnosis, settling: warmingUp || ramping } });
 
     if (this.#tickCount % 2 !== 0) return;
     this.#broadcastUplink(stats, target, state.quality.mode);
-    if (state.quality.mode === 'auto' && !warmingUp) await this.#autoStep(stats, real);
+    if (state.quality.mode === 'auto' && !warmingUp && !mainPaused) await this.#autoStep(stats, real);
   }
 
   async #autoStep(stats: PublisherStats, real: RealQuality): Promise<void> {
@@ -1810,6 +1841,7 @@ export class RoomSession {
       this.#viewCounters = null;
     }
     const { stats, counters } = readViewer(collect(await track.getRTCStatsReport()), this.#viewCounters);
+    if (selected !== this.store.get().selected || track !== participant.getTrackPublication(Track.Source.ScreenShare)?.track) return;
     this.#viewCounters = counters;
     const uplink = this.#uplinks.get(participant.identity) ?? null;
     const sync = this.#syncScreen(publication.trackSid, track as RemoteVideoTrack, stats.bufferMs, uplink, participant);
@@ -1834,9 +1866,9 @@ export class RoomSession {
 }
 
 /** Camada extra de simulcast: metade da resolução, 30 fps, um quarto do bitrate. */
-function lightLayerFor(target: Target, codec: Codec): VideoPreset {
-  const height = Math.round(target.height / 2);
-  const width = Math.round(widthFor(target.height) / 2);
+function lightLayerFor(target: Target, codec: Codec, source: MediaTrackSettings): VideoPreset {
+  const height = Math.max(1, Math.floor((source.height ?? target.height) / 2));
+  const width = Math.max(1, Math.floor((source.width ?? widthFor(target.height)) / 2));
   const kbps = Math.max(350, Math.round(presetBitrateKbps({ height: 480, fps: 30 }, codec) * (target.height >= 900 ? 0.8 : 0.4)));
   return new VideoPreset(width, height, kbps * 1000, 30);
 }

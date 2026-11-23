@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, Gauge, Info, Monitor } from 'lucide-react';
 import { useState } from 'react';
 import { formatBitrate, formatFps, formatHeight } from '../../lib/format.ts';
-import { FRAME_RATES, RESOLUTIONS } from '../../lib/quality.ts';
+import { FRAME_RATES, RESOLUTIONS, PROFILE_TARGETS, type StreamProfile } from '../../lib/quality.ts';
 import type { RoomSession } from '../../lib/session.ts';
 import { useStore } from '../../lib/store.ts';
 import { Card, Chip, cx, Notice } from '../ui.tsx';
@@ -35,7 +35,7 @@ export function QualityCard({ session, className }: { session: RoomSession; clas
           <div>
             <p className="mb-2 flex items-center gap-1.5 text-sm font-bold">
               Modo de qualidade
-              <span title="Automático começa no melhor que a captura oferece e ajusta sozinho. Manual mantém o que você escolher e avisa quando o real ficar abaixo.">
+              <span title="Automático ajusta resolução e FPS conforme o perfil, a captura e a conexão. Manual mantém o que você escolher e avisa quando o real ficar abaixo.">
                 <Info className="size-4 text-fog-500" aria-hidden="true" />
               </span>
             </p>
@@ -61,6 +61,15 @@ export function QualityCard({ session, className }: { session: RoomSession; clas
             </div>
           </div>
 
+          {!manual && <label className="grid gap-1 text-sm">
+            Perfil automático
+            <select className="rounded-lg bg-ink-800 p-2" value={quality.profile}
+              onChange={event => void session.updateQuality({profile: event.target.value as StreamProfile})} data-testid="stream-profile">
+              <option value="desempenho">Desempenho · prioriza FPS</option>
+              <option value="equilibrado">Equilibrado · recomendado</option>
+              <option value="qualidade">Qualidade · prioriza resolução</option>
+            </select>
+          </label>}
           <div>
             <p className="mb-2 flex items-center gap-2 text-sm font-bold">
               <Monitor className="size-4 text-brand-300" aria-hidden="true" />
@@ -105,7 +114,7 @@ export function QualityCard({ session, className }: { session: RoomSession; clas
             <p className="text-[13px] leading-snug text-fog-500">
               {manual
                 ? 'Vale para a sua próxima transmissão. Dá para mudar com ela no ar.'
-                : 'No automático, o site pede 1080p a 120 FPS e fica com o que a fonte, a sua CPU e a sua conexão entregarem. Os valores reais aparecem aqui.'}
+                : `Meta inicial de ${PROFILE_TARGETS[quality.profile].height}p a 60 FPS, sujeita aos limites do canal, da fonte e da conexão.`}
             </p>
           )}
 
@@ -129,7 +138,8 @@ export function QualityCard({ session, className }: { session: RoomSession; clas
                   {item.message}
                 </Notice>
               ))}
-              {publisher && !publisher.settling && publisher.diagnosis.length === 0 && (
+              {publisher?.mainPaused && <Notice>A camada principal está em pausa pelo LiveKit. A meta da captura foi preservada.</Notice>}
+              {publisher && !publisher.mainPaused && !publisher.settling && publisher.diagnosis.length === 0 && (
                 <Notice tone="ok">A transmissão real está no nível {manual ? 'pedido' : 'do alvo atual'}.</Notice>
               )}
             </div>

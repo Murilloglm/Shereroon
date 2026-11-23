@@ -50,7 +50,7 @@ function codecName(stats: RawStat[], codecId: unknown): string | null {
 }
 
 function limitation(value: unknown): Limitation {
-  return value === 'cpu' || value === 'bandwidth' || value === 'other' ? value : 'none';
+  return value === 'cpu' || value === 'bandwidth' || value === 'other' || value === 'none' ? value : 'unknown';
 }
 
 // --- Quem transmite ----------------------------------------------------------
@@ -59,6 +59,7 @@ export interface PublisherCounters {
   timestamp: number;
   bytes: number | null;
   topId: string | null;
+  framesSent: number | null;
   framesEncoded: number | null;
   encodeTime: number | null;
   packetsSent: number | null;
@@ -66,6 +67,8 @@ export interface PublisherCounters {
 }
 
 export interface PublisherStats {
+  sentFps: number | null;
+  dropped: number | null;
   captureWidth: number | null;
   captureHeight: number | null;
   captureFps: number | null;
@@ -96,7 +99,7 @@ export function readPublisher(
   const active = outbound.filter((item) => item.active !== false);
   const pixels = (item: RawStat) => (num(item.frameWidth) ?? 0) * (num(item.frameHeight) ?? 0);
   // Com simulcast há uma entrada por camada; a principal é a de maior resolução.
-  const top = [...(active.length > 0 ? active : outbound)].sort((a, b) => pixels(b) - pixels(a))[0];
+  const top = [...active].sort((a, b) => pixels(b) - pixels(a))[0];
   const source = stats.find((item) => item.type === 'media-source' && item.kind === 'video');
   const remote =
     stats.find((item) => item.type === 'remote-inbound-rtp' && top !== undefined && item.localId === top.id) ??
@@ -109,6 +112,7 @@ export function readPublisher(
     timestamp,
     bytes,
     topId: top?.id ?? null,
+    framesSent: num(top?.framesSent),
     framesEncoded: num(top?.framesEncoded),
     encodeTime: num(top?.totalEncodeTime),
     packetsSent: num(top?.packetsSent),
@@ -137,7 +141,9 @@ export function readPublisher(
       captureFps: num(source?.framesPerSecond),
       width: num(top?.frameWidth),
       height: num(top?.frameHeight),
-      fps: num(top?.framesPerSecond),
+      fps: num(top?.framesPerSecond) ?? (sameTop ? rate(counters.framesEncoded, previous?.framesEncoded, seconds) : null),
+      sentFps: sameTop ? rate(counters.framesSent, previous?.framesSent, seconds) : null,
+      dropped: num(top?.framesDropped),
       bitrateKbps: bytesPerSecond === null ? null : (bytesPerSecond * 8) / 1000,
       targetKbps: targetBps === null ? null : targetBps / 1000,
       availableKbps: available === null ? null : available / 1000,
@@ -160,6 +166,7 @@ export function readPublisher(
 // --- Quem assiste ------------------------------------------------------------
 
 export interface ViewerCounters {
+  framesReceived: number | null;
   timestamp: number;
   id: string | null;
   bytes: number | null;
@@ -173,6 +180,7 @@ export interface ViewerCounters {
 }
 
 export interface ViewerStats {
+  receivedFps: number | null;
   width: number | null;
   height: number | null;
   fps: number | null;
@@ -200,6 +208,7 @@ export function readViewer(stats: RawStat[], previous: ViewerCounters | null): {
     bytes: num(inbound?.bytesReceived),
     packetsReceived: num(inbound?.packetsReceived),
     packetsLost: num(inbound?.packetsLost),
+    framesReceived: num(inbound?.framesReceived),
     framesDecoded: num(inbound?.framesDecoded),
     decodeTime: num(inbound?.totalDecodeTime),
     bufferDelay: num(inbound?.jitterBufferDelay),
@@ -227,7 +236,8 @@ export function readViewer(stats: RawStat[], previous: ViewerCounters | null): {
     stats: {
       width: num(inbound?.frameWidth),
       height: num(inbound?.frameHeight),
-      fps: num(inbound?.framesPerSecond),
+      fps: num(inbound?.framesPerSecond) ?? rate(counters.framesDecoded, before?.framesDecoded, seconds),
+      receivedFps: rate(counters.framesReceived, before?.framesReceived, seconds),
       bitrateKbps: bytesPerSecond === null ? null : (bytesPerSecond * 8) / 1000,
       lossPct,
       jitterMs: jitter === null ? null : jitter * 1000,
@@ -264,10 +274,9 @@ export interface UplinkInfo {
  * a interface sempre mostra como "estimado".
  */
 export function estimateDelayMs(viewer: ViewerStats, uplink: UplinkInfo | null): number | null {
-  if (viewer.bufferMs === null) return null;
-  const downlink = viewer.rttMs === null ? 0 : viewer.rttMs / 2;
-  const up = uplink ? (uplink.encodeMs ?? 0) + (uplink.rttMs === null ? 0 : uplink.rttMs / 2) : 0;
-  return viewer.bufferMs + (viewer.decodeMs ?? 0) + downlink + up;
+  if (viewer.bufferMs === null || viewer.decodeMs === null || viewer.rttMs === null ||
+      !uplink || uplink.encodeMs === null || uplink.rttMs === null) return null;
+  return viewer.bufferMs + viewer.decodeMs + uplink.encodeMs + (viewer.rttMs + uplink.rttMs) / 2;
 }
 
 /** Guarda o maior valor visto em uma janela de tempo (para o pico de FPS de captura). */

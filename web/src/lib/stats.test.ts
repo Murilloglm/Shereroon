@@ -18,6 +18,7 @@ function publisherReport(timestamp: number, bytesSent: number, framesEncoded: nu
       framesPerSecond: 117,
       bytesSent,
       framesEncoded,
+      framesSent: framesEncoded,
       totalEncodeTime: framesEncoded * 0.004,
       packetsSent: framesEncoded * 10,
       retransmittedPacketsSent: framesEncoded * 0.1,
@@ -48,6 +49,7 @@ describe('estatísticas de quem transmite', () => {
     const { stats } = readPublisher(publisherReport(2000, 2_850_000, 217), first.counters);
     expect(stats.bitrateKbps).toBeCloseTo(14_800, 0);
     expect(stats.encodeMs).toBeCloseTo(4, 3);
+    expect(stats.sentFps).toBe(117);
     expect(stats.retransmitPct).toBeCloseTo(1, 3);
     expect(stats.targetKbps).toBe(16_000);
     expect(stats.availableKbps).toBe(22_000);
@@ -118,7 +120,7 @@ function viewerReport(timestamp: number, counters: Record<string, number>): RawS
 }
 
 describe('estatísticas de quem assiste', () => {
-  const before = { bytesReceived: 0, packetsReceived: 0, packetsLost: 0, framesDecoded: 0, totalDecodeTime: 0, jitterBufferDelay: 0, jitterBufferEmittedCount: 0, framesDropped: 0 };
+  const before = { bytesReceived: 0, packetsReceived: 0, packetsLost: 0, framesReceived: 0, framesDecoded: 0, totalDecodeTime: 0, jitterBufferDelay: 0, jitterBufferEmittedCount: 0, framesDropped: 0 };
 
   it('calcula bitrate, perda, buffer e decodificação no intervalo', () => {
     const first = readViewer(viewerReport(0, before), null);
@@ -128,6 +130,7 @@ describe('estatísticas de quem assiste', () => {
         packetsReceived: 1980,
         packetsLost: 20,
         framesDecoded: 118,
+        framesReceived: 120,
         totalDecodeTime: 0.354,
         jitterBufferDelay: 4.72,
         jitterBufferEmittedCount: 118,
@@ -142,6 +145,7 @@ describe('estatísticas de quem assiste', () => {
     expect(stats.droppedPerSecond).toBeCloseTo(2, 5);
     expect(stats.jitterMs).toBeCloseTo(4, 5);
     expect(stats.rttMs).toBeCloseTo(40, 5);
+    expect(stats.receivedFps).toBe(60);
     expect(stats.codec).toBe('VP9');
     expect(stats.freezes).toBe(1);
   });
@@ -167,8 +171,8 @@ describe('atraso estimado', () => {
     expect(estimateDelayMs({ ...viewer, bufferMs: 40, decodeMs: 3, rttMs: 30 }, uplink)).toBeCloseTo(40 + 3 + 15 + 5 + 10, 5);
   });
 
-  it('sem os dados de quem transmite, usa só o lado de quem assiste', () => {
-    expect(estimateDelayMs({ ...viewer, bufferMs: 40, decodeMs: 3, rttMs: 30 }, null)).toBeCloseTo(58, 5);
+  it('sem os dados de quem transmite, aguarda a medição', () => {
+    expect(estimateDelayMs({ ...viewer, bufferMs: 40, decodeMs: 3, rttMs: 30 }, null)).toBeNull();
   });
 
   it('sem a medida do buffer, não estima nada', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  mainEncodingPaused,
   AUTO_LADDER,
   BAD_TO_DROP,
   BASE_GOOD_TO_RISE,
@@ -39,6 +40,15 @@ function run(state: AutoState, sample: AutoSample, times: number, length = AUTO_
 }
 
 describe('presets', () => {
+  it('distingue a pausa da camada alta de uma limitação no codificador', () => {
+    const low = { active: true, scaleResolutionDownBy: 2 };
+    const high = { active: false, scaleResolutionDownBy: 1 };
+    expect(mainEncodingPaused([low, high])).toBe(true);
+    expect(mainEncodingPaused([high, low])).toBe(true);
+    expect(mainEncodingPaused([{ ...high, active: true }, low])).toBe(false);
+    expect(mainEncodingPaused(undefined)).toBe(false);
+  });
+
   it('toda combinação de resolução e FPS tem bitrate, e ele cresce com ambos', () => {
     for (const height of RESOLUTIONS) {
       let previous = 0;
@@ -86,11 +96,19 @@ describe('sanitizeQuality', () => {
 
   it('mantém escolhas válidas e limita o bitrate', () => {
     const value = sanitizeQuality({ mode: 'manual', resolution: 900, fps: 90, codec: 'av1', content: 'texto', bitrateKbps: 999_999, lightLayer: true });
-    expect(value).toEqual({ mode: 'manual', resolution: 900, fps: 90, codec: 'av1', content: 'texto', bitrateKbps: 50_000, lightLayer: true });
+    expect(value).toEqual({ profile:'equilibrado', mode: 'manual', resolution: 900, fps: 90, codec: 'av1', content: 'texto', bitrateKbps: 50_000, lightLayer: true });
   });
 });
 
 describe('degraus do modo automático', () => {
+  it('aplica metas distintas e evita baixar a resolução no perfil de detalhes antes de reduzir o FPS', () => {
+    const limits = {maxHeight:1080, maxFps:120};
+    expect(buildLadder(limits,'desempenho')[0]).toEqual({height:720,fps:60});
+    expect(buildLadder(limits,'equilibrado').slice(0,2)).toEqual([{height:1080,fps:60},{height:900,fps:60}]);
+    expect(buildLadder(limits,'qualidade')[1]).toEqual({height:1080,fps:30});
+    expect(isStruggling({...healthy, limitation:'bandwidth', ramping:true})).toBe(false);
+  });
+
   it('começa em 1080p120 e desce em pixels por segundo', () => {
     expect(AUTO_LADDER[0]).toEqual({ height: 1080, fps: 120 });
     const load = AUTO_LADDER.map((step) => step.height * step.height * (16 / 9) * step.fps);

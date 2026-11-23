@@ -222,6 +222,40 @@ test('bandeja: mostra o estado da sala e para a transmissão; a tela não dorme 
   assert.equal(await hook('sleepBlocked'), false);
 });
 
+test('monitor inteiro chega ao mesmo tempo ao Electron e ao navegador', { skip, timeout: 75_000 }, async () => {
+  const viewerData = mkdtempSync(join(tmpdir(), 'cosmic-viewer-'));
+  const { ELECTRON_RUN_AS_NODE: _ignored, ...env } = process.env;
+  let viewerApp;
+  try {
+    viewerApp = await electron.launch({
+      executablePath: APP_EXE ?? DEV_EXE,
+      args: APP_EXE ? [] : [resolve(root, 'desktop')],
+      env: { ...env, SHAREROOM_E2E: '1', SHAREROOM_USER_DATA: viewerData, SHAREROOM_API_URL: BASE_URL },
+    });
+    const viewer = await viewerApp.firstWindow();
+    const hash = new URL(await page.getByTestId('room-link').inputValue()).hash;
+    await viewer.evaluate(hash => { location.hash = hash; }, hash);
+    await viewer.getByTestId('gate-name').fill('Espectador desktop');
+    await viewer.getByTestId('gate-join').click();
+    await viewer.getByTestId('room').waitFor();
+    await page.getByTestId('dock-share').click();
+    await page.getByTestId('picker-tab-screen').click();
+    await page.getByTestId('picker-source').first().click();
+    await page.getByTestId('picker-confirm').click();
+    await Promise.all([guest, viewer].map(client =>
+      waitFor(async () => (await videoFacts(client)).frames > 20, 'quadros do monitor no espectador', 20_000),
+    ));
+    const [web, desktop] = await Promise.all([videoFacts(guest), videoFacts(viewer)]);
+    console.log('monitor: navegador', web.width, 'x', web.height, 'e Electron', desktop.width, 'x', desktop.height);
+    assert.ok(web.width > 0 && desktop.width > 0);
+  } finally {
+    await hook('clickTray', 'Parar de transmitir a tela');
+    await viewerApp?.close();
+    rmSync(viewerData, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+  }
+  await waitFor(async () => (await guest.getByTestId('participant').count()) === 2, 'a saída do espectador desktop');
+});
+
 test('fechar a janela dentro de uma sala só esconde: o aplicativo segue na bandeja', { skip }, async () => {
   const state = await main(async () => {
     const win = globalThis.__shareroom.window();

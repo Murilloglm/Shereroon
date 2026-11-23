@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { codecHint, type CodecHint } from '../../lib/capture.ts';
 import { formatBitrate } from '../../lib/format.ts';
-import { presetBitrateKbps, TOP_TARGET, type Codec, type CodecChoice, type ContentKind, type Target } from '../../lib/quality.ts';
+import { presetBitrateKbps, PROFILE_TARGETS, type Codec, type CodecChoice, type ContentKind, type Target } from '../../lib/quality.ts';
 import { inputSettings, effectiveMic, setInput } from '../../lib/input-settings.ts';
 import { MIC_KEY, type NoiseControl } from '../../lib/noise-control.ts';
 import type { RoomSession } from '../../lib/session.ts';
@@ -71,8 +71,8 @@ export function CallSettings({ session, noise }: { session: RoomSession; noise: 
   const outputVolume = useStore(session.store, (state) => state.outputVolume);
 
   const manual = quality.mode === 'manual';
-  const height = manual ? quality.resolution : TOP_TARGET.height;
-  const fps = manual ? quality.fps : TOP_TARGET.fps;
+  const height = manual ? quality.resolution : PROFILE_TARGETS[quality.profile].height;
+  const fps = manual ? quality.fps : PROFILE_TARGETS[quality.profile].fps;
   const [hints, setHints] = useState<Partial<Record<Codec, CodecHint | null>>>({});
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export function CallSettings({ session, noise }: { session: RoomSession; noise: 
   }, [codecs, height, fps]);
 
   const target: Target = { height, fps };
-  const activeCodec: Codec = quality.codec !== 'auto' && codecs.includes(quality.codec) ? quality.codec : codecs.includes('h264') ? 'h264' : (codecs[0] ?? 'vp8');
+  const activeCodec: Codec = quality.codec !== 'auto' && codecs.includes(quality.codec) ? quality.codec : share.codec ?? (codecs.includes('h264') ? 'h264' : (codecs[0] ?? 'vp8'));
   const recommended = presetBitrateKbps(target, activeCodec);
   const layered = activeCodec === 'vp9' || activeCodec === 'av1';
   const canPickOutput = 'setSinkId' in HTMLMediaElement.prototype;

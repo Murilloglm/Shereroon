@@ -23,6 +23,7 @@ function grade(value: number | null | undefined, warn: number, bad: number): Ton
 
 const LIMITATION: Record<Limitation, string> = {
   none: 'Nenhuma',
+  unknown: '—',
   cpu: 'CPU/GPU no limite',
   bandwidth: 'Conexão de envio',
   other: 'Outra',
@@ -56,6 +57,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 export function StatsCard({ session, className }: { session: RoomSession; className?: string }) {
+  const link = useStore(session.store, (state) => state.link);
   const publisher = useStore(session.store, (state) => state.publisher);
   const viewer = useStore(session.store, (state) => state.viewer);
   const selected = useStore(session.store, (state) => state.selected);
@@ -106,7 +108,7 @@ export function StatsCard({ session, className }: { session: RoomSession; classN
             />
             <Row
               icon={<Monitor className={icon} />}
-              label="FPS atual"
+              label="FPS codificados"
               value={formatFps(publisher.stats.fps)}
               tone={publisher.stats.fps == null ? 'neutro' : 'ok'}
               testId="stat-fps"
@@ -123,6 +125,8 @@ export function StatsCard({ session, className }: { session: RoomSession; classN
               <Detail label="Pico de captura (20 s)" value={formatFps(publisher.captureFpsPeak)} />
               <Detail label="Codec" value={publisher.stats.codec ?? '—'} />
               <Detail label="Codificador" value={engine(publisher.stats.encoder, publisher.stats.hardware)} />
+              <Detail label="FPS enviados" value={formatFps(publisher.stats.sentFps)} />
+              <Detail label="Descartes informados pelo codificador" value={publisher.stats.dropped?.toString() ?? '—'} />
               <Detail label="Tempo por quadro" value={formatMs(publisher.stats.encodeMs)} />
               <Detail label="Limitação" value={LIMITATION[publisher.stats.limitation]} />
               <Detail label="Banda de envio estimada" value={formatBitrate(publisher.stats.availableKbps)} />
@@ -164,16 +168,26 @@ export function StatsCard({ session, className }: { session: RoomSession; classN
             />
             <Row
               icon={<Monitor className={icon} />}
-              label="FPS atual"
-              value={formatFps(viewer.stats.fps)}
-              tone={viewer.stats.fps == null ? 'neutro' : 'ok'}
+              label="FPS no player"
+              value={formatFps(viewer.presentedFps)}
+              tone={viewer.presentedFps == null ? 'neutro' : 'ok'}
               testId="stat-fps"
             />
           </div>
+          {(viewer.stats.lossPct ?? 0) > 3 && <p>Perda de pacotes elevada na recepção.</p>}
+          {viewer.stats.decodeMs !== null && viewer.stats.receivedFps && viewer.stats.decodeMs > 1000 / viewer.stats.receivedFps
+            ? <p>A decodificação leva mais tempo que o intervalo entre quadros.</p> : null}
+          {viewer.presentedFps !== null && viewer.stats.fps !== null && viewer.presentedFps + 5 < viewer.stats.fps * .8
+            && <p>O player apresenta menos quadros do que o decodificador entrega.</p>}
+          {viewer.uplink?.height && viewer.stats.height && viewer.stats.height < viewer.uplink.height * .8
+            ? <p>A resolução recebida está abaixo da enviada. Pode ser uma camada adaptativa do LiveKit.</p> : null}
           <details className="mt-2 text-sm">
             <summary className="font-semibold text-fog-400 hover:text-fog-100">Detalhes técnicos</summary>
             <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+              <Detail label="Conexão com o LiveKit" value={{ otima: 'Ótima', boa: 'Boa', fraca: 'Fraca', perdida: 'Perdida', desconhecida: '—' }[link]} />
               <Detail label="Resolução recebida" value={formatSize(viewer.stats.width, viewer.stats.height)} />
+              <Detail label="FPS recebidos" value={formatFps(viewer.stats.receivedFps)} />
+              <Detail label="FPS decodificados" value={formatFps(viewer.stats.fps)} />
               <Detail label="FPS exibido na sua tela" value={formatFps(viewer.presentedFps)} />
               <Detail label="Codec" value={viewer.stats.codec ?? '—'} />
               <Detail label="Decodificador" value={engine(viewer.stats.decoder, viewer.stats.hardware)} />

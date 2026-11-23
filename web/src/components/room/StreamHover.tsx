@@ -116,7 +116,7 @@ function PreviewCard({
 
   const track = allowed ? (stream?.track ?? null) : null;
   useAttachedTrack(videoRef, track);
-  const measured = useMeasuredVideo(videoRef, track !== null);
+  const measured = useMeasuredVideo(videoRef, track);
   const origin = stream?.isLocal ? null : session.uplinkFor(identity);
 
   // Cabe na tela: à direita da pessoa se der, senão à esquerda; nunca sai por baixo.

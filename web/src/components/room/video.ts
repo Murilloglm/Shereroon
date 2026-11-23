@@ -2,8 +2,6 @@ import { useEffect, useState, type RefObject } from 'react';
 import type { Track } from 'livekit-client';
 
 export type FrameVideo = HTMLVideoElement & {
-  requestVideoFrameCallback?: (callback: (now: number, meta: { width?: number; height?: number }) => void) => number;
-  cancelVideoFrameCallback?: (handle: number) => void;
   webkitEnterFullscreen?: () => void;
 };
 
@@ -26,41 +24,34 @@ export interface MeasuredVideo {
 }
 
 /**
- * Mede o que o elemento de vídeo de fato mostra: altura do quadro e quadros pintados por segundo, contados
- * pelo `requestVideoFrameCallback` (limitado pela taxa do monitor de quem assiste).
+ * Amostra os contadores do elemento uma vez por segundo. Uma tela congelada registra zero
+ * mesmo sem callbacks de pintura; quadros descartados não contam como apresentados.
  */
-export function useMeasuredVideo(ref: RefObject<FrameVideo | null>, active: boolean, onFps?: (fps: number | null) => void): MeasuredVideo {
+export function useMeasuredVideo(ref: RefObject<FrameVideo | null>, track: Track | null, onFps?: (fps: number | null) => void): MeasuredVideo {
   const [measured, setMeasured] = useState<MeasuredVideo>({ height: null, fps: null });
   useEffect(() => {
     const element = ref.current;
-    if (!element || !active || !element.requestVideoFrameCallback) {
-      setMeasured({ height: null, fps: null });
-      onFps?.(null);
-      return;
-    }
-    let alive = true;
-    let handle = 0;
-    let frames = 0;
+    setMeasured({ height: null, fps: null });
+    onFps?.(null);
+    if (!element || !track || !element.getVideoPlaybackQuality) return;
+    const presented = () => {
+      const quality = element.getVideoPlaybackQuality();
+      return quality.totalVideoFrames - quality.droppedVideoFrames;
+    };
+    let count = presented();
     let since = performance.now();
-    const onFrame = (now: number) => {
-      if (!alive) return;
-      frames += 1;
-      if (now - since >= 1000) {
-        const fps = (frames * 1000) / (now - since);
-        setMeasured({ height: element.videoHeight || null, fps });
-        onFps?.(fps);
-        frames = 0;
-        since = now;
-      }
-      handle = element.requestVideoFrameCallback!(onFrame);
-    };
-    handle = element.requestVideoFrameCallback(onFrame);
-    return () => {
-      alive = false;
-      element.cancelVideoFrameCallback?.(handle);
-      onFps?.(null);
-    };
-  }, [ref, active, onFps]);
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const next = presented();
+      const fps = !document.hidden && element.videoWidth && next >= count ? Math.round((next - count) * 1000 / (now - since)) : null;
+      count = next;
+      since = now;
+      const height = element.videoHeight || null;
+      setMeasured(previous => previous.height === height && previous.fps === fps ? previous : { height, fps });
+      onFps?.(fps);
+    }, 1000);
+    return () => { clearInterval(timer); onFps?.(null); };
+  }, [ref, track, onFps]);
   return measured;
 }
 

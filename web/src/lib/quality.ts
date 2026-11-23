@@ -11,14 +11,16 @@ export type Codec = 'h264' | 'vp9' | 'av1' | 'vp8';
 export type CodecChoice = 'auto' | Codec;
 /** O que está na tela: muda como o codificador trata a imagem. */
 export type ContentKind = 'movimento' | 'texto';
-export type Limitation = 'none' | 'cpu' | 'bandwidth' | 'other';
+export type Limitation = 'none' | 'cpu' | 'bandwidth' | 'other' | 'unknown';
 
 export interface Target {
   height: Resolution;
   fps: FrameRate;
 }
 
+export type StreamProfile = 'desempenho' | 'equilibrado' | 'qualidade';
 export interface QualitySettings {
+  profile: StreamProfile;
   mode: 'auto' | 'manual';
   resolution: Resolution;
   fps: FrameRate;
@@ -33,15 +35,14 @@ export interface QualitySettings {
 
 export const DEFAULT_QUALITY: QualitySettings = {
   mode: 'auto',
+  profile: 'equilibrado',
   resolution: 1080,
-  fps: 120,
+  fps: 60,
   codec: 'auto',
   content: 'movimento',
   bitrateKbps: null,
   lightLayer: false,
 };
-
-export const TOP_TARGET: Target = { height: 1080, fps: 120 };
 
 const WIDTHS: Record<Resolution, number> = { 480: 854, 720: 1280, 900: 1600, 1080: 1920 };
 
@@ -82,7 +83,7 @@ export function captureConstraints(target: Target): MediaTrackConstraints {
 }
 
 /**
- * O WebRTC nunca troca a resolução por conta própria. Medido no Chrome 157: com
+ * Nos modos manual, Equilibrado e Qualidade, preservamos a resolução. No Chrome 157, com
  * "maintain-framerate" o redutor por qualidade derruba 1080p para ~734p logo no início e não
  * volta, mesmo com banda sobrando; com "maintain-resolution" a mesma máquina sustenta 1080p a
  * 120 fps. Quem reduz resolução ou FPS quando falta recurso é o modo automático (de forma
@@ -101,6 +102,7 @@ export function sanitizeQuality(value: unknown): QualitySettings {
     allowed.includes(candidate as T) ? (candidate as T) : fallback;
   const bitrate = typeof raw.bitrateKbps === 'number' && Number.isFinite(raw.bitrateKbps) ? raw.bitrateKbps : null;
   return {
+    profile: pick(raw.profile, ['desempenho', 'equilibrado', 'qualidade'] as const, 'equilibrado'),
     mode: pick(raw.mode, ['auto', 'manual'] as const, DEFAULT_QUALITY.mode),
     resolution: pick(raw.resolution, RESOLUTIONS, DEFAULT_QUALITY.resolution),
     fps: pick(raw.fps, FRAME_RATES, DEFAULT_QUALITY.fps),
@@ -131,11 +133,33 @@ export interface SourceLimits {
   maxFps: number;
 }
 
-/** Remove degraus que, para esta fonte, não mudariam nada em relação ao anterior. */
-export function buildLadder(limits: SourceLimits): Target[] {
+export const PROFILE_TARGETS: Record<StreamProfile, Target> = {
+  desempenho: { height: 720, fps: 60 },
+  equilibrado: { height: 1080, fps: 60 },
+  qualidade: { height: 1080, fps: 60 },
+};
+
+/** A camada leve é negociada a 30 FPS. Só a camada principal deve orientar o ajuste da fonte. */
+export function mainEncodingPaused(encodings: readonly RTCRtpEncodingParameters[] | undefined): boolean {
+  if (!encodings?.length) return false;
+  const main = encodings.reduce((highest, next) =>
+    (next.scaleResolutionDownBy ?? 1) < (highest.scaleResolutionDownBy ?? 1) ? next : highest);
+  return main.active === false;
+}
+
+export function degradationFor(settings: QualitySettings): RTCDegradationPreference {
+  return settings.mode === 'auto' && settings.profile === 'desempenho' && settings.content === 'movimento'
+    ? 'maintain-framerate' : DEGRADATION;
+}
+
+export function buildLadder(limits: SourceLimits, profile?: StreamProfile): Target[] {
   const ladder: Target[] = [];
   let lastKey = '';
-  for (const step of AUTO_LADDER) {
+  const steps: readonly Target[] = profile === 'qualidade'
+    ? [PROFILE_TARGETS.qualidade, ...[...RESOLUTIONS].reverse().map(height => ({ height, fps: 30 as const }))]
+    : AUTO_LADDER;
+  for (const step of steps) {
+    if (profile && (step.height > PROFILE_TARGETS[profile].height || step.fps > PROFILE_TARGETS[profile].fps)) continue;
     const fps = FRAME_RATES.filter((rate) => rate <= Math.max(30, limits.maxFps)).at(-1) ?? 30;
     const effective = { height: Math.min(step.height, limits.maxHeight), fps: Math.min(step.fps, fps) };
     const key = `${effective.height}@${effective.fps}`;
@@ -174,9 +198,10 @@ export function initialAutoState(): AutoState {
 }
 
 export function isStruggling(sample: AutoSample): boolean {
-  if (sample.limitation === 'cpu' || sample.limitation === 'bandwidth') return true;
+  if (sample.limitation === 'cpu') return true;
   if ((sample.lossPct ?? 0) > 8) return true;
   if (sample.ramping) return false;
+  if (sample.limitation === 'bandwidth') return true;
   // Tela parada gera poucos quadros de captura; só conta quando há movimento de verdade.
   if (sample.captureFps !== null && sample.encodedFps !== null && sample.captureFps >= 20) {
     return sample.encodedFps < sample.captureFps * 0.7;

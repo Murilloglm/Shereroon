@@ -95,7 +95,7 @@ function ShareMenuItems({ session, close }: { session: RoomSession; close: () =>
       <MenuItem icon={<AppWindow className="size-4" />} hint="Só uma janela de programa (o jogo em janela sem bordas, por exemplo). Janelas de outros programas chegam a 60 FPS." onClick={() => pick('window')}>
         Janela
       </MenuItem>
-      <MenuItem icon={<Globe className="size-4" />} hint="Uma aba, com o áudio só dela. É a única fonte que chega a 120 FPS." onClick={() => pick('browser')}>
+      <MenuItem icon={<Globe className="size-4" />} hint="Uma aba com o áudio só dela. A taxa de quadros depende da fonte e do navegador." onClick={() => pick('browser')}>
         Aba do navegador
       </MenuItem>
       <p className="px-2.5 pt-1.5 pb-1 text-xs leading-snug text-fog-500">

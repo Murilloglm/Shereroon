@@ -270,7 +270,7 @@ test('escolher outro áudio na barra desliga as capturas do mixer', { skip }, as
   await host.getByRole('menuitem', { name: 'Não transmitir áudio' }).click();
   await waitFor(async () => (await row(host, voice.name).getAttribute('data-enabled')) === 'false', 'as fontes aparecerem desligadas');
   await waitFor(async () => (await guest.locator('audio').count()) === 0, 'a faixa de áudio sumir para o convidado');
-  assert.match(helper.logs(), /conectado: http:\/\/localhost:8790/);
+  assert.ok(helper.logs().includes(`conectado: ${ORIGIN}`));
 });
 
 test('ao sair da sala o site solta o auxiliar', { skip }, async () => {

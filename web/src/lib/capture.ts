@@ -4,7 +4,7 @@
  */
 import { desktop } from './desktop.ts';
 import { preferHardwareH264 } from './h264.ts';
-import { captureConstraints, type Codec, type Target } from './quality.ts';
+import { captureConstraints, presetBitrateKbps, type Codec, type Target } from './quality.ts';
 import { pickDesktopSource } from './source-picker.ts';
 
 export type Surface = 'monitor' | 'window' | 'browser';
@@ -165,13 +165,17 @@ export interface CaptureFacts {
   height: number | null;
   frameRate: number | null;
   maxFrameRate: number | null;
+  maxHeight: number | null;
 }
 
 export function captureFacts(video: MediaStreamTrack): CaptureFacts {
   const settings = video.getSettings();
   let maxFrameRate: number | null = null;
+  let maxHeight: number | null = null;
   try {
-    maxFrameRate = video.getCapabilities?.().frameRate?.max ?? null;
+    const capabilities = video.getCapabilities?.();
+    maxFrameRate = capabilities?.frameRate?.max ?? null;
+    maxHeight = capabilities?.height?.max ?? null;
   } catch {
     // alguns navegadores não implementam getCapabilities para captura de tela
   }
@@ -179,7 +183,7 @@ export function captureFacts(video: MediaStreamTrack): CaptureFacts {
     width: settings.width ?? null,
     height: settings.height ?? null,
     frameRate: settings.frameRate ?? null,
-    maxFrameRate,
+    maxFrameRate, maxHeight,
   };
 }
 
@@ -231,4 +235,15 @@ export async function codecHint(codec: Codec, target: Target, bitrateKbps: numbe
   } catch {
     return null;
   }
+}
+
+/** Preserva a opção compatível quando o navegador não identifica um codificador mais eficiente. */
+export async function automaticCodec(codecs: Codec[], target: Target): Promise<Codec> {
+  const fallback = codecs.includes('h264') ? 'h264' : (codecs[0] ?? 'vp8');
+  const probe = (codec: Codec) => codecHint(codec, target, presetBitrateKbps(target, codec));
+  const preferred = await probe(fallback);
+  if (!preferred || (preferred.supported && preferred.smooth && preferred.powerEfficient)) return fallback;
+  const others = codecs.filter(codec => codec !== fallback);
+  const hints = await Promise.all(others.map(probe));
+  return others.find((_, i) => hints[i]?.supported && hints[i]?.smooth && hints[i]?.powerEfficient) ?? fallback;
 }
