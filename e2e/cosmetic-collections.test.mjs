@@ -213,7 +213,7 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
     if (narrow) await ana.getByRole('dialog', { name: 'Membros', exact: true }).getByRole('button', { name: 'Fechar', exact: true }).click();
   }
   await ana.setViewportSize({ width: 1440, height: 1000 });
-  await settings(ana, 'efeitos-nome'); await ana.getByRole('switch', { name: 'Animar efeitos de nome', exact: true }).click();
+  await settings(ana, 'efeitos-nome'); await ana.getByRole('switch', { name: 'Animar decorações e efeitos de nome', exact: true }).click();
   const image = ana.getByTestId('member-effect-preview').first().locator('[data-name-effect] img');
   assert.equal(await image.evaluate((el) => getComputedStyle(el).animationName), 'none');
   let transientFailure = false;
@@ -227,7 +227,7 @@ test('redimensionamento e animações desativadas não alteram limites da linha'
   assert.equal(await row(ana, b.user.username).locator('[data-name-effect] img').evaluate((el) => getComputedStyle(el).animationName), 'none');
   assert(transientFailure, 'a consulta de equipamentos foi repetida após uma falha transitória');
   await ana.unroute('**/api/cosmetics?*', failOnce);
-  await settings(ana, 'efeitos-nome'); await ana.getByRole('switch', { name: 'Animar efeitos de nome', exact: true }).click(); await closeSettings(ana);
+  await settings(ana, 'efeitos-nome'); await ana.getByRole('switch', { name: 'Animar decorações e efeitos de nome', exact: true }).click(); await closeSettings(ana);
   await ana.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal(await row(ana, b.user.username).locator('[data-name-effect] img').evaluate((el) => getComputedStyle(el).animationName), 'none');
   await ana.emulateMedia({ reducedMotion: 'no-preference' });
@@ -375,7 +375,7 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
   assert.equal(await remoteCard.locator('[data-decoration]').count(), 0);
   await equip(b, 'decoracao', 'hinata-decoracao');
   const flower = remoteCard.locator('[data-decoration="hinata-decoracao"]');
-  await flower.evaluate(img => img.decode());
+  await flower.evaluate(async (element) => { const image = new Image(); image.src = element.querySelector('defs > image').href.baseVal; await image.decode(); });
   const flowers = remoteCard.locator('[data-theme-id=hinata]');
   await flowers.locator('[data-motif=lily]').waitFor();
   for (const page of [ana, beto]) await page.getByTestId('dock-mic').click();
@@ -388,7 +388,7 @@ test('efeito permanece na lateral durante chamada e os controles de voz continua
     await ana.emulateMedia({reducedMotion: 'no-preference'});
   } finally { for (const page of [ana, beto]) await page.getByTestId('dock-mic').click(); }
   await waitFor(async () => await ana.locator('[data-testid=call-card] [data-fx-speaking]').count() === 0, 'reação encerra ao silenciar');
-  assert.match(await flower.evaluate(img => getComputedStyle(img).maskImage), /hinata-avatar/);
+  assert.match(await flower.locator('mask image').getAttribute('href'), /hinata-avatar/);
   const remoteName = remoteCard.getByTestId('call-card-name').locator('[data-name-style]');
   await waitFor(() => remoteName.evaluate(el => el.dataset.nameStyle === 'hinata-decoracao' && getComputedStyle(el).backgroundImage.includes('linear-gradient')), 'gradiente floral na call');
   await equip(b,'cor-nome','neon-cor-nome');
@@ -587,11 +587,11 @@ test('Kayden mantém a foto visível, sincroniza as cinco peças e persiste apó
   const overlay = portrait.locator('[data-decoration="madu-kaiden-decoracao"]');
   await portrait.locator('[data-avatar="foto"] img').evaluate((img) => img.decode());
   await overlay.evaluate(async (element) => {
-    await element.decode();
-    const maskUrl = getComputedStyle(element).maskImage.match(/^url\("([^"]+)"\)/)?.[1];
-    if (!maskUrl) throw new Error('A decoração do Kayden está sem máscara.');
+    const artwork = new Image();
+    artwork.src = element.querySelector('defs > image').href.baseVal;
+    await artwork.decode();
     const mask = new Image();
-    mask.src = maskUrl;
+    mask.src = element.querySelector('mask image').href.baseVal;
     await mask.decode();
   });
   const bounds = await portrait.boundingBox();

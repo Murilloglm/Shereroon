@@ -73,7 +73,7 @@ test('voice header shows the photo and a logged-in private caller shares it with
   await photoShows(guest,photo);
   const ownerCard = guest.getByTestId('call-card').filter({hasText:'Photoowner'});
   const cardName = ownerCard.getByTestId('call-card-name');
-  await ownerCard.locator('[data-decoration="hinata-decoracao"]').evaluate(img => img.decode());
+  await ownerCard.locator('[data-decoration="hinata-decoracao"]').evaluate(async (element) => { const image = new Image(); image.src = element.querySelector('defs > image').href.baseVal; await image.decode(); });
   await ownerCard.locator('[data-theme-id=hinata] [data-motif=lily]').first().waitFor();
   await owner.getByTestId('dock-mic').click();
   await ownerCard.getByRole('img', {name: 'Photoowner está falando'}).waitFor();

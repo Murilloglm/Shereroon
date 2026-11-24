@@ -198,9 +198,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    :root:not([data-motion=normal]) *,
+    :root:not([data-motion=normal]) *::before,
+    :root:not([data-motion=normal]) *::after {
       animation-duration: 1ms !important;
       transition-duration: 1ms !important;
     }
@@ -499,6 +499,16 @@
   }
   .cn-wings {
     transition: transform 200ms ease-out;
+  }
+  .cn-legacy-wing {
+    transform-box: view-box;
+    transform-origin: 36px 4px;
+    animation: cn-legacy-flap 2s ease-in-out infinite;
+  }
+  @keyframes cn-legacy-flap {
+    0%, 100% { transform: rotate(0) scaleX(1); }
+    40% { transform: rotate(-9deg) scaleX(.65); }
+    65% { transform: rotate(3deg) scaleX(1.05); }
   }
   .cn-anim-spin {
     animation: cn-spin 8s linear infinite;

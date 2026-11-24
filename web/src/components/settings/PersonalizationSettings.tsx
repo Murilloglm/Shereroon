@@ -408,7 +408,7 @@ export function InventorySettings({ account, filter }: { account: Account; filte
       {transferItem && <GiftDialog item={transferItem} transfer onClose={() => setTransferItem(null)} />}
       {filter === 'efeito-nome' && <Block title="Efeitos de Nome do Servidor">
         <MemberNamePreview account={account} preview={inventory.equipped} />
-        <label className="flex items-center justify-between gap-3 text-sm"><span>Animar efeitos de nome neste aparelho</span><Toggle label="Animar efeitos de nome" on={animations} onChange={(on) => setAppearance({ cosmeticAnimations: on })} /></label>
+        <label className="flex items-center justify-between gap-3 text-sm"><span>Animar decorações e efeitos de nome neste aparelho</span><Toggle label="Animar decorações e efeitos de nome" on={animations} onChange={(on) => setAppearance({ cosmeticAnimations: on })} /></label>
         <p className="text-xs text-fog-400">O movimento reduzido do sistema também é respeitado. Sua escolha fica salva neste aparelho.</p>
       </Block>}
       {!filter &&
@@ -422,9 +422,10 @@ export function InventorySettings({ account, filter }: { account: Account; filte
               <span style={nameStyle(inventory.equipped)}>{account.displayName}</span>
               {inventory.equipped.enfeite && <Adornment equipped={inventory.equipped.enfeite} animate force />}
             </p>
-            <p className="text-sm text-fog-400">É assim que os outros veem seu avatar na chamada e no perfil. Nas listas e no chat, a decoração e o enfeite aparecem parados.</p>
+            <p className="text-sm text-fog-400">Sua decoração acompanha a foto no perfil, nas chamadas e nas listas.</p>
           </div>
         </div>
+        <label className="flex items-center justify-between gap-3 text-sm"><span>Animar decorações e efeitos de nome neste aparelho</span><Toggle label="Animar decorações e efeitos de nome" on={animations} onChange={(on) => setAppearance({ cosmeticAnimations: on })} /></label>
       </Block>}
       {owned.length === 0 && <p className="text-sm text-fog-400">Nenhum item ainda. Ganhe Cosmic Points participando e adquira na Loja.</p>}
       {!filter && PACKS.some((pack) => owned.some((item) => item.pack === pack.id)) && (

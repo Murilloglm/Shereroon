@@ -4,6 +4,8 @@ import { appearance, reducedMotion } from '../../lib/appearance.ts';
 import { cosmetics, type UserCosmetics } from '../../lib/cosmetics.ts';
 import { useStore } from '../../lib/store.ts';
 import { Avatar, cx } from '../ui.tsx';
+import { ArtworkDecoration } from './ArtworkDecoration.tsx';
+import { useDecorationVisibility } from './decoration-motion.ts';
 import { CharacterEffects } from './CharacterEffects.tsx';
 import { PACK_ART, type PackArt } from './packs.tsx';
 
@@ -93,13 +95,12 @@ function drawing(id: string, a: string, b: string, gradient: string) {
       return (
         <g className="cn-wings">
           {[-1, 1].map((side) => (
-            <path
-              key={side}
-              transform={`scale(${side} 1)`}
+            <g key={side} transform={`scale(${side} 1)`}><path
+              className="cn-legacy-wing"
               d="M36 -6 C48 -26 62 -30 66 -18 C58 -18 54 -10 50 -6 C58 -6 62 2 58 8 C52 4 46 4 40 8 Z"
               fill={fill}
               fillOpacity="0.85"
-            />
+            /></g>
           ))}
         </g>
       );
@@ -172,42 +173,24 @@ function drawing(id: string, a: string, b: string, gradient: string) {
 }
 
 /** A decoração em volta de um avatar de `size` pixels. Anima só se `animate` (e se as animações não estiverem reduzidas). */
-export function Decoration({ equipped, size, speaking = false, animate = false, entrance = false }: { equipped: Equipped; size: number; speaking?: boolean; animate?: boolean; entrance?: boolean }) {
+export function Decoration({ equipped, size, speaking = false, animate = true, entrance = false }: { equipped: Equipped; size: number; speaking?: boolean; animate?: boolean; entrance?: boolean }) {
   const gradient = `cn-deco-${useId().replace(/[^a-zA-Z0-9-]/g, '')}`;
+  const motionRef = useDecorationVisibility(animate, equipped.item);
   const item = itemById(equipped.item);
   if (!item || item.kind !== 'decoracao') return null;
   const variant = item.variants.find((option) => option.id === equipped.variant) ?? item.variants[0]!;
   const [a, b] = variant.colors;
   const pack = packOf(item);
   const box = size * SCALE;
-  const live = animate && !reducedMotion();
+  const live = animate;
   const asset = cosmeticAsset(item, variant.id);
   if (asset) {
-    const artwork = item.presentation?.avatar;
-    const [x, y] = artwork?.center ?? [50, 50];
-    const backdrop = item.presentation?.backdropMask;
-    const masks = [artwork?.mask, backdrop].filter((path): path is string => Boolean(path)).map(path => `url("${cosmeticAssetUrl(path)}")`);
-    return (
-      <img
-        src={cosmeticAssetUrl(asset)}
-        alt=""
-        aria-hidden="true"
-        decoding="async"
-        className="cn-avatar-artwork"
-        style={{
-          width: size * (artwork?.width ?? item.avatarScale ?? SCALE),
-          aspectRatio: artwork?.aspect,
-          transform: `translate(-${x}%, -${y}%)`,
-          maskImage: masks.length ? masks.join(', ') : undefined,
-          maskComposite: masks.length > 1 ? 'intersect' : undefined,
-        }}
-        data-decoration={item.id}
-        data-variant={variant.id}
-      />
-    );
+    const theme = item.presentation?.motionTheme ?? item.collectionId ?? asset.split('/').at(-2)!;
+    return <ArtworkDecoration item={item} theme={theme} variant={variant.id} size={size} src={cosmeticAssetUrl(asset)}
+      badgeSrc={cosmeticAssetUrl('assets/cosmetics/' + theme + '/server-badge.png')} live={live} entrance={entrance} motionRef={motionRef} />;
   }
   return (
-    <svg
+    <svg ref={motionRef}
       aria-hidden="true"
       viewBox="-50 -50 100 100"
       className={cx('cn-deco pointer-events-none absolute overflow-visible', live && 'cn-deco-live', speaking && item.reactsToVoice && 'cn-deco-speaking', entrance && live && 'cn-deco-entrance')}
@@ -356,8 +339,7 @@ export function BackgroundArt({ equipped }: { equipped: UserCosmetics }) {
 }
 
 /**
- * Avatar com o que a pessoa equipou (moldura e decoração). `animate` só em lugares grandes (cartões da chamada,
- * perfil, prévias); nas listas a decoração fica parada, para não pesar.
+ * A arte anima também nas listas. As partículas extras acompanham as prévias, o perfil e a chamada.
  */
 export function DecoratedAvatar({
   userId,
@@ -366,7 +348,7 @@ export function DecoratedAvatar({
   online,
   speaking,
   image,
-  animate = false,
+  animate,
   entrance = false,
   preview,
   separateFrame = false,
@@ -399,7 +381,7 @@ export function DecoratedAvatar({
     <span className="relative inline-grid shrink-0 place-items-center align-middle" style={{ width: size, height: size }} data-speaking={speaking || undefined} data-voice-theme={theme} data-decorated={shown.decoracao?.item ?? ''}>
       {shown.moldura && <Frame equipped={shown.moldura} size={size} />}
       <Avatar id={userId} name={name} size={size} online={online} speaking={speaking && !voiceCaption && !decoration?.reactsToVoice && !theme} image={image} preview={previewPhoto} previewUrl={previewPhotoUrl} />
-      {shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate} entrance={entrance} />}
+      {shown.decoracao && <Decoration equipped={shown.decoracao} size={size} speaking={speaking} animate={animate ?? true} entrance={entrance} />}
       {animate && theme && <CharacterEffects key={theme} theme={theme} speaking={speaking} />}
     </span>
   );

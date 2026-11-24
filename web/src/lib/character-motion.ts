@@ -12,7 +12,7 @@ const levels = { desativado: 0, baixo: 1, medio: 2, alto: 3 };
 
 function update() {
   const prefs = appearance.get();
-  const requested = document.hidden || media?.matches || reducedMotion(prefs) ? 0 : levels[prefs.frameIntensity];
+  const requested = document.hidden || !prefs.cosmeticAnimations || media?.matches || reducedMotion(prefs) ? 0 : levels[prefs.frameIntensity];
   const visible = [...entries].filter(([, entry]) => entry.visible);
   // A preview opened over a busy call should still move.
   visible.sort(([a], [b]) => Number(!!b.closest('[role=dialog]')) - Number(!!a.closest('[role=dialog]')));
